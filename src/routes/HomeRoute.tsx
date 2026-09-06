@@ -85,6 +85,7 @@ export const HomeRoute: React.FC = () => {
       />
       {view === "map" ? (
         <HomeMapView
+          key={bridgeId ?? "no-bridge"}
           bridgeId={bridgeId}
           floorId={selection.floorId}
           areaId={selection.areaId}

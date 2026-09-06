@@ -1,5 +1,5 @@
 import {
-  ArrowUpRight,
+  ArrowLeft,
   Check,
   ChevronRight,
   Layers,
@@ -7,7 +7,7 @@ import {
   Ruler,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -17,16 +17,33 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import type { HueRoomZone } from "@/types/hue";
 import { MapCanvas } from "./components/MapCanvas";
 import { locatePoint, signedArea } from "./geometry";
 import type { HomeMapDocument } from "./types";
+import type { HomeMapLighting } from "./lighting";
+import { getMapControlScope } from "./controlScope";
+import { MapRoomControls } from "./components/MapRoomControls";
+
+const wideQuery = "(min-width: 1000px)";
+function subscribeToWidth(notify: () => void) {
+  const query = window.matchMedia(wideQuery);
+  query.addEventListener("change", notify);
+  return () => query.removeEventListener("change", notify);
+}
 
 export interface HomeMapScreenProps {
   map: HomeMapDocument;
   selectedFloorId?: string;
   selectedAreaId?: string;
   roomZones: HueRoomZone[];
+  lighting: HomeMapLighting;
   preview?: boolean;
   onSelect: (floorId: string, areaId: string | null) => void;
   onOpenSpace: (id: string) => void;
@@ -37,10 +54,16 @@ export function HomeMapScreen({
   selectedFloorId,
   selectedAreaId,
   roomZones,
+  lighting,
   preview = false,
   onSelect,
   onOpenSpace,
 }: HomeMapScreenProps) {
+  const wide = useSyncExternalStore(
+    subscribeToWidth,
+    () => window.matchMedia(wideQuery).matches,
+    () => true,
+  );
   const [showLights, setShowLights] = useState(true);
   const [showDimensions, setShowDimensions] = useState(
     map.drawingMode === "measured",
@@ -51,17 +74,57 @@ export function HomeMapScreen({
     floor.areas.find((area) => area.id === selectedAreaId) ?? null;
   const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
   const ringFor = (ids: string[]) => ids.map((id) => vertices.get(id)!);
-  const target = selected?.target
-    ? roomZones.find(
-        (room) =>
-          room.id === selected.target!.resourceId &&
-          room.resourceType === selected.target!.resourceType,
-      )
+  const scope = selected
+    ? getMapControlScope({
+        document: map,
+        floor,
+        area: selected,
+        roomZones,
+        ...lighting,
+      })
     : null;
   const areaSize = selected
     ? Math.abs(signedArea(ringFor(selected.vertexIds)))
     : 0;
   const areaText = `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(map.units === "metric" ? areaSize : areaSize / 0.3048 ** 2)} ${map.units === "metric" ? "m²" : "ft²"}`;
+  const selectionDetails =
+    selected && scope ? (
+      <>
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="min-w-0 wrap-anywhere text-xl font-medium">
+            {selected.name}
+          </h3>
+          {wide && (
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              aria-label="Clear room selection"
+              onClick={() => onSelect(floor.id, null)}
+            >
+              <X />
+            </Button>
+          )}
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {areaText}
+          {map.drawingMode === "sketch" ? " · Approximate" : ""}
+        </p>
+        <MapRoomControls
+          key={`${map.bridgeId}:${selected.id}:${scope.target?.id ?? "unlinked"}`}
+          scope={scope}
+          lighting={lighting}
+          preview={preview}
+          onOpenSpace={onOpenSpace}
+        />
+      </>
+    ) : (
+      <>
+        <h3 className="text-base font-medium">Select a room</h3>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          Choose a room on the map or in the list to control its lights.
+        </p>
+      </>
+    );
 
   return (
     <section aria-label="Home map" className="min-w-0 space-y-5">
@@ -120,11 +183,12 @@ export function HomeMapScreen({
         </div>
       </div>
 
-      <div className="grid min-w-0 items-start gap-6 min-[1000px]:grid-cols-[minmax(0,1fr)_240px]">
+      <div className="grid min-w-0 items-start gap-6 min-[1000px]:grid-cols-[minmax(0,1fr)_280px]">
         <MapCanvas
           key={`${map.id}:${floor.id}`}
           floor={floor}
           selectedAreaId={selected?.id ?? null}
+          controlledAreaIds={scope?.currentFloorAreaIds}
           onSelectArea={(id) => onSelect(floor.id, id)}
           showLights={showLights}
           showDimensions={showDimensions}
@@ -132,6 +196,14 @@ export function HomeMapScreen({
           className="h-[min(64vh,720px)] min-h-[400px]"
         />
         <aside aria-label="Rooms and selection" className="min-w-0 space-y-6">
+          {wide && (
+            <section
+              aria-label="Selected room controls"
+              className="border-b border-border pb-6"
+            >
+              {selectionDetails}
+            </section>
+          )}
           <div>
             <h2 className="mb-3 text-base font-medium">Rooms on this floor</h2>
             <ul className="grid gap-1 min-[750px]:max-[999px]:grid-cols-2">
@@ -178,63 +250,38 @@ export function HomeMapScreen({
               </p>
             )}
           </div>
-          <div className="border-t border-border pt-5" aria-live="polite">
-            {selected ? (
-              <>
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="min-w-0 wrap-anywhere text-xl font-medium">
-                    {selected.name}
-                  </h3>
-                  <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Clear room selection"
-                    onClick={() => onSelect(floor.id, null)}
-                  >
-                    <X />
-                  </Button>
-                </div>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {areaText}
-                  {map.drawingMode === "sketch" ? " · Approximate" : ""}
-                </p>
-                {preview ? (
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    Select rooms to explore this example floor plan.
-                  </p>
-                ) : target ? (
-                  <>
-                    <p className="mt-4 text-sm text-muted-foreground">
-                      Linked to {target.name} · {target.lightIds.length} lights
-                    </p>
-                    <Button
-                      className="mt-3"
-                      variant="outline"
-                      onClick={() => onOpenSpace(target.id)}
-                    >
-                      Open room controls
-                      <ArrowUpRight />
-                    </Button>
-                  </>
-                ) : (
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    {selected.target
-                      ? "The linked Hue room or zone is unavailable."
-                      : "This area has no linked lights."}
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <h3 className="text-base font-medium">Select a room</h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Choose a room on the map or in the list to see its details.
-                </p>
-              </>
-            )}
-          </div>
         </aside>
       </div>
+      {!wide && (
+        <Sheet
+          open={selected !== null}
+          onOpenChange={(open) => {
+            if (!open) onSelect(floor.id, null);
+          }}
+        >
+          <SheetContent
+            side="right"
+            showCloseButton={false}
+            className="overflow-y-auto p-6 motion-reduce:transition-none"
+          >
+            <Button
+              variant="ghost"
+              className="mb-5 self-start"
+              onClick={() => onSelect(floor.id, null)}
+            >
+              <ArrowLeft />
+              Back to map
+            </Button>
+            <SheetTitle className="sr-only">
+              {selected?.name ?? "Room"} controls
+            </SheetTitle>
+            <SheetDescription className="sr-only">
+              Control the linked Hue room or zone.
+            </SheetDescription>
+            {selectionDetails}
+          </SheetContent>
+        </Sheet>
+      )}
     </section>
   );
 }

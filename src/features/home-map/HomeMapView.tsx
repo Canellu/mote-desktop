@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { HueRoomZone } from "@/types/hue";
 import { HomeMapScreen } from "./HomeMapScreen";
 import { useHomeMapStore, homeMapStore } from "./useHomeMapStore";
+import { useMapLighting } from "./useMapLighting";
 
 const Preview = import.meta.env.DEV
   ? lazy(() => import("./HomeMapPreview"))
@@ -30,6 +31,7 @@ export function HomeMapView({
   onPreview: () => void;
   onDashboard: () => void;
 }) {
+  const lighting = useMapLighting(bridgeId);
   const entry = useHomeMapStore((state) =>
     bridgeId ? state.entries[bridgeId] : undefined,
   );
@@ -49,6 +51,7 @@ export function HomeMapView({
         selectedFloorId={floorId}
         selectedAreaId={areaId}
         roomZones={roomZones}
+        lighting={lighting}
         onSelect={onSelect}
         onOpenSpace={onOpenSpace}
       />

@@ -13,6 +13,7 @@ import {
 interface MapCanvasProps {
   floor: MapFloor;
   selectedAreaId: string | null;
+  controlledAreaIds?: string[];
   onSelectArea: (id: string | null) => void;
   showLights?: boolean;
   showDimensions?: boolean;
@@ -27,6 +28,7 @@ export function MapCanvas(props: MapCanvasProps) {
 function FloorCanvas({
   floor,
   selectedAreaId,
+  controlledAreaIds = [],
   onSelectArea,
   showLights = true,
   showDimensions = false,
@@ -135,11 +137,19 @@ function FloorCanvas({
               tabIndex={0}
               aria-label={area.name}
               aria-pressed={selectedAreaId === area.id}
+              aria-description={
+                controlledAreaIds.includes(area.id) &&
+                selectedAreaId !== area.id
+                  ? "Shares lighting controls with the selected room"
+                  : undefined
+              }
               className={cn(
                 "cursor-pointer stroke-transparent stroke-3 outline-none transition-colors focus-visible:stroke-ring motion-reduce:transition-none",
                 selectedAreaId === area.id
                   ? "fill-primary/12 stroke-foreground/60"
-                  : "fill-tile-off hover:fill-foreground/10",
+                  : controlledAreaIds.includes(area.id)
+                    ? "fill-primary/8 hover:fill-primary/12"
+                    : "fill-tile-off hover:fill-foreground/10",
               )}
               strokeLinejoin="round"
               onClick={() => onSelectArea(area.id)}
