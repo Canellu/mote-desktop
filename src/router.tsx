@@ -9,6 +9,7 @@ import { EntertainmentAreaSyncRoute } from "./routes/EntertainmentAreaSyncRoute"
 import { EntertainmentAreaWizardRoute } from "./routes/EntertainmentAreaWizardRoute";
 import { EntertainmentPlacementRoute } from "./routes/EntertainmentPlacementRoute";
 import { HomeRoute } from "./routes/HomeRoute";
+import { validateHomeViewSearch } from "./features/home-map/homeView";
 import { RoomZoneWizardRoute } from "./routes/RoomZoneWizardRoute";
 import { RootLayout } from "./routes/RootLayout";
 import { SettingsRoute } from "./routes/SettingsRoute";
@@ -24,6 +25,7 @@ const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: HomeRoute,
+  validateSearch: validateHomeViewSearch,
 });
 
 const spaceRoute = createRoute({

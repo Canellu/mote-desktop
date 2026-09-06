@@ -3,6 +3,10 @@ import { Button } from "@/components/ui/button";
 import { useHue } from "@/context/HueContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-icons";
+import {
+  resolveHomeView,
+  type HomeViewSearch,
+} from "@/features/home-map/homeView";
 import { GroupPane } from "@/features/space-screen/components/GroupPane";
 import { LightPane } from "@/features/space-screen/components/LightPane";
 import { ScenePane } from "@/features/space-screen/components/ScenePane";
@@ -250,9 +254,13 @@ const ShellHeader: React.FC = () => {
       openCreateSection: state.openCreateSection,
     })),
   );
-  const { bridges, switchBridge, beginAddBridge } = useHue();
+  const { bridgeId, bridges, switchBridge, beginAddBridge } = useHue();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const homeSearch = useRouterState({
+    select: (s) => s.location.search as HomeViewSearch,
+  });
+  const homeView = resolveHomeView(homeSearch, bridgeId);
 
   useEffect(() => {
     const update = (event: Event) =>
@@ -445,7 +453,7 @@ const ShellHeader: React.FC = () => {
       onOpenSync={() =>
         void navigate({ to: "/sync", search: { source: undefined } })
       }
-      showEditLayout={onHome}
+      showEditLayout={onHome && (isEditLayoutMode || homeView === "dashboard")}
       groupingMode={groupingMode}
       onGroupingModeChange={setGroupingMode}
       isEditLayoutMode={isEditLayoutMode}

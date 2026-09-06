@@ -1,5 +1,17 @@
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
+import { useHue } from "@/context/HueContext";
+import { HomeMapView } from "@/features/home-map/HomeMapView";
+import { HomeViewSwitch } from "@/features/home-map/components/HomeViewSwitch";
+import {
+  homeSearchMatchesBridge,
+  resolveHomeView,
+  readMapSelection,
+  writeHomeView,
+  writeMapSelection,
+  type HomeView,
+  type HomeViewSearch,
+} from "@/features/home-map/homeView";
 import { HomeScreen } from "@/features/home-screen/HomeScreen";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 
@@ -40,29 +52,91 @@ export const HomeRoute: React.FC = () => {
     })),
   );
   const navigate = useNavigate();
+  const { bridgeId } = useHue();
+  const search = useSearch({ from: "/" });
+  const scopedSearch = homeSearchMatchesBridge(search, bridgeId) ? search : {};
+  const selection =
+    scopedSearch.mapPreview || scopedSearch.floorId !== undefined
+      ? scopedSearch
+      : readMapSelection(bridgeId);
+  const view = isEditLayoutMode
+    ? "dashboard"
+    : resolveHomeView(search, bridgeId);
+  const openSpace = (id: string) =>
+    void navigate({ to: "/space/$spaceId", params: { spaceId: id } });
+  function navigateHome(next: HomeViewSearch) {
+    void navigate({
+      to: "/",
+      viewTransition: false,
+      search: { ...next, viewBridge: bridgeId ?? "preview" },
+    });
+  }
+  function changeView(next: HomeView) {
+    writeHomeView(bridgeId, next);
+    navigateHome({ ...scopedSearch, view: next, mapPreview: undefined });
+  }
 
   return (
-    <HomeScreen
-      roomZones={roomZones}
-      lights={lights}
-      isLoading={isLoading}
-      error={error}
-      layout={isEditLayoutMode ? draftLayout : displayLayout}
-      editing={isEditLayoutMode}
-      hueEventRevision={hueEventRevision}
-      onLayoutChange={setDraftLayout}
-      onOpenSpace={(id) =>
-        void navigate({ to: "/space/$spaceId", params: { spaceId: id } })
-      }
-      onAllLightsToggle={setAllLightsState}
-      onRoomZoneToggle={(roomZone, on) => setRoomZoneState(roomZone, on, null)}
-      onRoomZoneBrightness={(roomZone, pct, phase) =>
-        setRoomZoneState(roomZone, pct > 0, pct, phase)
-      }
-      isCreatingSection={isCreatingSection}
-      onCreateSection={createLayoutSection}
-      onCloseCreateSection={closeCreateSection}
-      onRenameSection={renameLayoutSection}
-    />
+    <div className="space-y-6">
+      <HomeViewSwitch
+        value={view}
+        onChange={changeView}
+        disabled={isEditLayoutMode}
+      />
+      {view === "map" ? (
+        <HomeMapView
+          bridgeId={bridgeId}
+          floorId={selection.floorId}
+          areaId={selection.areaId}
+          preview={scopedSearch.mapPreview === true}
+          roomZones={roomZones}
+          onSelect={(floorId, areaId) => {
+            if (!scopedSearch.mapPreview)
+              writeMapSelection(bridgeId, floorId, areaId);
+            navigateHome({
+              ...scopedSearch,
+              view: "map",
+              floorId,
+              areaId: areaId ?? undefined,
+            });
+          }}
+          onOpenSpace={(id) => {
+            writeHomeView(bridgeId, "map");
+            if (selection.floorId)
+              writeMapSelection(
+                bridgeId,
+                selection.floorId,
+                selection.areaId ?? null,
+              );
+            openSpace(id);
+          }}
+          onPreview={() => navigateHome({ view: "map", mapPreview: true })}
+          onDashboard={() => changeView("dashboard")}
+        />
+      ) : (
+        <HomeScreen
+          roomZones={roomZones}
+          lights={lights}
+          isLoading={isLoading}
+          error={error}
+          layout={isEditLayoutMode ? draftLayout : displayLayout}
+          editing={isEditLayoutMode}
+          hueEventRevision={hueEventRevision}
+          onLayoutChange={setDraftLayout}
+          onOpenSpace={openSpace}
+          onAllLightsToggle={setAllLightsState}
+          onRoomZoneToggle={(roomZone, on) =>
+            setRoomZoneState(roomZone, on, null)
+          }
+          onRoomZoneBrightness={(roomZone, pct, phase) =>
+            setRoomZoneState(roomZone, pct > 0, pct, phase)
+          }
+          isCreatingSection={isCreatingSection}
+          onCreateSection={createLayoutSection}
+          onCloseCreateSection={closeCreateSection}
+          onRenameSection={renameLayoutSection}
+        />
+      )}
+    </div>
   );
 };
