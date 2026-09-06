@@ -11,7 +11,7 @@ working-tree changes are excluded from these commits.
 | Chunk | Deliverable | Status |
 | --- | --- | --- |
 | 1 | Versioned map model, orthogonal geometry validation, units, measured wall constraints and calibration | Complete |
-| 2 | Pure room split/combine operations with shared boundaries and preserved light positions | In progress |
+| 2 | Pure room split/combine operations with shared boundaries and preserved light positions | Complete |
 | 3 | Immutable draft history, publish/discard, validated storage codec and ordered persistence interface | In progress |
 
 These modules do not yet add a visible Map view, perform Hue writes, or persist
