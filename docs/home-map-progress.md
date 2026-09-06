@@ -12,7 +12,7 @@ working-tree changes are excluded from these commits.
 | --- | --- | --- |
 | 1 | Versioned map model, orthogonal geometry validation, units, measured wall constraints and calibration | Complete |
 | 2 | Pure room split/combine operations with shared boundaries and preserved light positions | Complete |
-| 3 | Immutable draft history, publish/discard, validated storage codec and ordered persistence interface | In progress |
+| 3 | Immutable draft history, publish/discard, validated storage codec and ordered persistence interface | Complete |
 
 These modules do not yet add a visible Map view, perform Hue writes, or persist
 to the desktop filesystem. The storage interface deliberately requires a
@@ -42,6 +42,9 @@ durable adapter; it does not silently fall back to browser storage.
 
 ## Verification
 
+- Foundation checkpoint: **34 Bun tests passed**, covering 217 assertions.
+  Targeted ESLint and Prettier checks, frontend typecheck, and production build
+  passed. The production build reports its existing large-bundle advisory.
 - Bun tests exercise geometry, measurement constraints, draft history, codecs,
   identity isolation, and async storage failures/order as those modules land.
 - Run targeted ESLint/Prettier and frontend typecheck/build for core commits.
