@@ -32,6 +32,7 @@ pub fn run() {
                 .build(),
         )
         .manage(commands::events::EventStreamState::default())
+        .manage(commands::home_map::HomeMapStorageState::default())
         .manage(services::entertainment::engine::HostSyncEngine::default())
         .manage(
             services::sync_box_client::SyncBoxClient::new()
@@ -43,6 +44,8 @@ pub fn run() {
             commands::app_settings::set_auto_start,
             commands::app_settings::handle_main_window_close,
             commands::app_settings::minimize_main_window,
+            commands::home_map::read_home_map,
+            commands::home_map::write_home_map,
             commands::discovery::discover_bridges,
             commands::discovery::pair_bridge,
             commands::discovery::get_hue_session,

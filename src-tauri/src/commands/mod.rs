@@ -3,6 +3,7 @@ pub mod bridges;
 pub mod discovery;
 pub mod events;
 pub mod grouped_lights;
+pub mod home_map;
 pub mod host_sync;
 pub mod lights;
 pub mod rooms;
