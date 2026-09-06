@@ -14,11 +14,18 @@ working-tree changes are excluded from these commits.
 | 2 | Pure room split/combine operations with shared boundaries and preserved light positions | Complete |
 | 3 | Immutable draft history, publish/discard, validated storage codec and ordered persistence interface | Complete |
 | 4a | Native per-bridge files, atomic replacement, compare-before-save protection, and desktop adapter | Complete |
-| 4b | Active-bridge state, durable autosave/publish/discard, and explicit failure recovery | In progress |
+| 4b | Active-bridge state, durable autosave/publish/discard, and explicit failure recovery | Complete |
 
 These modules do not yet add a visible Map view or perform Hue writes. The
 native adapter stores a separate JSON file per bridge under the application's
 data directory in `home-maps/`. It does not fall back to browser storage.
+
+The active Hue session now loads its map through one shared repository/store.
+Switching bridges preserves per-bridge drafts and pending saves. Completed edits
+autosave; publish/discard expose success only after their durable write.
+Failures preserve local work, retry checks the saved baseline, and an explicit
+discard-local-and-reload action resolves conflicts without replacing local work
+when the reload fails. These state actions will be surfaced by the editor UI.
 
 Writes flush a temporary file before replacing the previous file, and compare
 the last-read contents under a native mutex. Stale windows cannot silently
@@ -29,8 +36,6 @@ is not claimed.
 
 ## Next independently committable chunks
 
-4. Finish active-bridge state and failure recovery on the native adapter. Keep
-   core IPC work separate from UI interaction polish.
 5. Home Dashboard / Map entry, floor selection, SVG room rendering, and a
    synchronized accessible room list using sample geometry in development.
 6. Selected-room power, brightness, and scenes through existing Hue actions;
@@ -50,6 +55,11 @@ is not claimed.
 
 ## Verification
 
+- Current checkpoint: **57 Home Map Bun tests (393 assertions) and 8 Rust
+  storage tests passed**. Frontend typecheck/build, targeted ESLint, and
+  formatting checks passed. Native and bridge-state code received a focused
+  review; the save-response ambiguity and explicit conflict recovery findings
+  were resolved and covered by tests.
 - Native storage checkpoint: **8 Rust tests and 6 frontend adapter tests
   passed**. Native tests run against temporary files on Windows and cover
   replacement, file failures, recovery, path isolation, and concurrent saves.

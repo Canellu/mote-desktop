@@ -8,6 +8,7 @@ import React, {
   type ReactNode,
 } from "react";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
+import { homeMapStore } from "@/features/home-map/useHomeMapStore";
 
 export interface HueSession {
   configured: boolean;
@@ -170,6 +171,14 @@ export const HueProvider: React.FC<HueProviderProps> = ({ children }) => {
   useEffect(() => {
     void refreshSession();
   }, [refreshSession]);
+
+  useEffect(() => {
+    // Maps stay available offline; a bridge switch hides the previous selection
+    // while its in-flight saves continue under the original bridge ID.
+    void homeMapStore
+      .getState()
+      .activateBridge(isLoading ? null : session.bridgeId);
+  }, [isLoading, session.bridgeId]);
 
   return (
     <HueContext.Provider
