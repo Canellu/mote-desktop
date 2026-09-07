@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { convertLength } from "../measurements";
 import type { MapFloor, MapPoint } from "../types";
+import { listWalls } from "../walls";
 import {
   getAreaLabelPoint,
   getAreaLabelWidth,
@@ -19,6 +20,12 @@ interface MapCanvasProps {
   showDimensions?: boolean;
   units: "metric" | "imperial";
   className?: string;
+  /** "walls" hands selection to wall segments so boundaries can be moved. */
+  mode?: "select" | "walls";
+  selectedWallId?: string | null;
+  onSelectWall?: (id: string | null) => void;
+  /** -1 moves the selected wall left or up; 1 moves it right or down. */
+  onMoveSelectedWall?: (direction: -1 | 1) => void;
 }
 
 export function MapCanvas(props: MapCanvasProps) {
@@ -34,7 +41,12 @@ function FloorCanvas({
   showDimensions = false,
   units,
   className,
+  mode = "select",
+  selectedWallId = null,
+  onSelectWall,
+  onMoveSelectedWall,
 }: MapCanvasProps) {
+  const editingWalls = mode === "walls";
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: 720, height: 480 });
   const [zoom, setZoom] = useState(1);
@@ -71,7 +83,13 @@ function FloorCanvas({
         labelWidth: labelPoint ? getAreaLabelWidth(ring, labelPoint) : 0,
       };
     });
-    return { vertices, walls, areas, bounds: getMapBounds(floor.vertices) };
+    return {
+      vertices,
+      walls,
+      areas,
+      bounds: getMapBounds(floor.vertices),
+      segments: listWalls(floor),
+    };
   }, [floor]);
 
   const width = Math.max(1, viewport.width) * zoom;
@@ -102,15 +120,34 @@ function FloorCanvas({
       onKeyDown={(event) => {
         if (event.key === "Escape") {
           event.stopPropagation();
-          onSelectArea(null);
+          if (editingWalls) onSelectWall?.(null);
+          else onSelectArea(null);
+          return;
         }
+        if (!editingWalls || !selectedWallId || !onMoveSelectedWall) return;
+        const wall = geometry.segments.find(
+          (segment) => segment.id === selectedWallId,
+        );
+        if (!wall) return;
+        const back = wall.orientation === "vertical" ? "ArrowLeft" : "ArrowUp";
+        const forward =
+          wall.orientation === "vertical" ? "ArrowRight" : "ArrowDown";
+        if (event.key !== back && event.key !== forward) return;
+        // Arrow keys replace dragging entirely, not only as a fallback.
+        event.preventDefault();
+        event.stopPropagation();
+        onMoveSelectedWall(event.key === back ? -1 : 1);
       }}
     >
       <div
         ref={viewportRef}
         className="absolute inset-0 overflow-auto overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
         role="region"
-        aria-label={`${floor.name} map. Select a room, or zoom and scroll to explore.`}
+        aria-label={
+          editingWalls
+            ? `${floor.name} walls. Select a wall, then move it with the arrow keys.`
+            : `${floor.name} map. Select a room, or zoom and scroll to explore.`
+        }
         tabIndex={0}
       >
         <svg
@@ -134,7 +171,6 @@ function FloorCanvas({
                 })
                 .join(" ")}
               role="button"
-              tabIndex={0}
               aria-label={area.name}
               aria-pressed={selectedAreaId === area.id}
               aria-description={
@@ -143,8 +179,11 @@ function FloorCanvas({
                   ? "Shares lighting controls with the selected room"
                   : undefined
               }
+              tabIndex={editingWalls ? -1 : 0}
+              aria-hidden={editingWalls || undefined}
               className={cn(
-                "cursor-pointer stroke-transparent stroke-3 outline-none transition-colors focus-visible:stroke-ring motion-reduce:transition-none",
+                "stroke-transparent stroke-3 outline-none transition-colors focus-visible:stroke-ring motion-reduce:transition-none",
+                editingWalls ? "pointer-events-none" : "cursor-pointer",
                 selectedAreaId === area.id
                   ? "fill-primary/12 stroke-foreground/60"
                   : controlledAreaIds.includes(area.id)
@@ -161,6 +200,56 @@ function FloorCanvas({
               }}
             />
           ))}
+          {editingWalls && (
+            <g role="group" aria-label={`${floor.name} walls`}>
+              {geometry.segments.map((segment) => {
+                const a = project(
+                  geometry.vertices.get(segment.startVertexId)!,
+                );
+                const b = project(geometry.vertices.get(segment.endVertexId)!);
+                const rooms = segment.areaIds
+                  .map(
+                    (id) =>
+                      floor.areas.find((area) => area.id === id)?.name ?? id,
+                  )
+                  .join(" and ");
+                const length = convertLength(
+                  segment.lengthMeters,
+                  "m",
+                  units === "metric" ? "m" : "ft",
+                );
+                return (
+                  <line
+                    key={segment.id}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${segment.dividing ? "Shared wall" : "Outside wall"} of ${rooms}, ${length.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${units === "metric" ? "meters" : "feet"}`}
+                    aria-pressed={selectedWallId === segment.id}
+                    // The thin wall stroke draws over this band, so it stays visible.
+                    className={cn(
+                      "cursor-pointer outline-none focus-visible:stroke-ring",
+                      selectedWallId === segment.id
+                        ? "stroke-primary/45"
+                        : "stroke-transparent hover:stroke-foreground/15",
+                    )}
+                    strokeWidth={12}
+                    strokeLinecap="round"
+                    onClick={() => onSelectWall?.(segment.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onSelectWall?.(segment.id);
+                      }
+                    }}
+                  />
+                );
+              })}
+            </g>
+          )}
           <g aria-hidden="true" className="pointer-events-none">
             {[...geometry.walls].map(([key, [start, end]]) => {
               const a = project(start);

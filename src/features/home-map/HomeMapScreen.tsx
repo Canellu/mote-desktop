@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Layers,
   Lightbulb,
+  PencilRuler,
   Ruler,
   X,
 } from "lucide-react";
@@ -25,8 +26,12 @@ import {
 } from "@/components/ui/sheet";
 import type { HueRoomZone } from "@/types/hue";
 import { MapCanvas } from "./components/MapCanvas";
+import { WallEditor } from "./components/WallEditor";
 import { locatePoint, signedArea } from "./geometry";
-import type { HomeMapDocument } from "./types";
+import { convertLength } from "./measurements";
+import type { HomeMapDocument, MapFloor } from "./types";
+import { type WallStep } from "./wallDisplay";
+import { listWalls, moveWall } from "./walls";
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
 import { MapRoomControls } from "./components/MapRoomControls";
@@ -47,6 +52,11 @@ export interface HomeMapScreenProps {
   preview?: boolean;
   onSelect: (floorId: string, areaId: string | null) => void;
   onOpenSpace: (id: string) => void;
+  /** Provided only where geometry edits can be kept as a draft. */
+  onEditFloor?: (floor: MapFloor) => void;
+  onUndo?: () => void;
+  canUndo?: boolean;
+  busy?: boolean;
 }
 
 export function HomeMapScreen({
@@ -58,6 +68,10 @@ export function HomeMapScreen({
   preview = false,
   onSelect,
   onOpenSpace,
+  onEditFloor,
+  onUndo,
+  canUndo = false,
+  busy = false,
 }: HomeMapScreenProps) {
   const wide = useSyncExternalStore(
     subscribeToWidth,
@@ -68,8 +82,27 @@ export function HomeMapScreen({
   const [showDimensions, setShowDimensions] = useState(
     map.drawingMode === "measured",
   );
+  const [editing, setEditing] = useState(false);
+  const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
+  const [wallStep, setWallStep] = useState<WallStep>(0.5);
+  const [wallError, setWallError] = useState<string | null>(null);
   const floor =
     map.floors.find((entry) => entry.id === selectedFloorId) ?? map.floors[0];
+  const walls = editing ? listWalls(floor) : [];
+
+  function moveSelectedWall(direction: -1 | 1) {
+    if (!onEditFloor || !selectedWallId) return;
+    // The step is shown in the map's units; geometry stays in meters.
+    const meters =
+      map.units === "metric" ? wallStep : convertLength(wallStep, "ft", "m");
+    const result = moveWall(floor, selectedWallId, direction * meters);
+    if (!result.ok) {
+      setWallError(result.error);
+      return;
+    }
+    setWallError(null);
+    onEditFloor(result.value);
+  }
   const selected =
     floor.areas.find((area) => area.id === selectedAreaId) ?? null;
   const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
@@ -182,6 +215,22 @@ export function HomeMapScreen({
             <Ruler />
             Dimensions
           </Button>
+          {onEditFloor && (
+            <Button
+              size="sm"
+              variant={editing ? "secondary" : "ghost"}
+              aria-pressed={editing}
+              onClick={() => {
+                setSelectedWallId(null);
+                setWallError(null);
+                setEditing(!editing);
+                if (!editing) onSelect(floor.id, null);
+              }}
+            >
+              <PencilRuler />
+              {editing ? "Done editing" : "Edit walls"}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -196,67 +245,102 @@ export function HomeMapScreen({
           showDimensions={showDimensions}
           units={map.units}
           className="h-[min(64vh,720px)] min-h-[400px]"
+          mode={editing ? "walls" : "select"}
+          selectedWallId={selectedWallId}
+          onSelectWall={(id) => {
+            setWallError(null);
+            setSelectedWallId(id);
+          }}
+          onMoveSelectedWall={moveSelectedWall}
         />
         <aside aria-label="Rooms and selection" className="min-w-0 space-y-6">
-          {wide && (
-            <section
-              aria-label="Selected room controls"
-              className="border-b border-border pb-6"
-            >
-              {selectionDetails}
-            </section>
+          {editing ? (
+            <WallEditor
+              floor={floor}
+              walls={walls}
+              selectedWallId={selectedWallId}
+              units={map.units}
+              step={wallStep}
+              error={wallError}
+              busy={busy}
+              canUndo={canUndo}
+              onSelectWall={(id) => {
+                setWallError(null);
+                setSelectedWallId(id);
+              }}
+              onStepChange={setWallStep}
+              onMove={moveSelectedWall}
+              onUndo={() => {
+                setWallError(null);
+                onUndo?.();
+              }}
+            />
+          ) : (
+            <>
+              {wide && (
+                <section
+                  aria-label="Selected room controls"
+                  className="border-b border-border pb-6"
+                >
+                  {selectionDetails}
+                </section>
+              )}
+              <div>
+                <h2 className="mb-3 text-base font-medium">
+                  Rooms on this floor
+                </h2>
+                <ul className="grid gap-1 min-[750px]:max-[999px]:grid-cols-2">
+                  {floor.areas.map((area) => {
+                    const count = floor.lights.filter(
+                      (light) =>
+                        locatePoint(light, ringFor(area.vertexIds)) ===
+                        "inside",
+                    ).length;
+                    const active = selected?.id === area.id;
+                    return (
+                      <li key={area.id}>
+                        <button
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => onSelect(floor.id, area.id)}
+                          className={cn(
+                            "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                            active
+                              ? "bg-selection-surface text-foreground"
+                              : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                          )}
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">
+                              {area.name}
+                            </span>
+                            <span className="text-xs">
+                              {count} placed {count === 1 ? "light" : "lights"}
+                            </span>
+                          </span>
+                          {active ? (
+                            <Check className="size-4 shrink-0" />
+                          ) : (
+                            <ChevronRight className="size-4 shrink-0" />
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {floor.areas.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    No rooms on this floor yet.
+                  </p>
+                )}
+              </div>
+            </>
           )}
-          <div>
-            <h2 className="mb-3 text-base font-medium">Rooms on this floor</h2>
-            <ul className="grid gap-1 min-[750px]:max-[999px]:grid-cols-2">
-              {floor.areas.map((area) => {
-                const count = floor.lights.filter(
-                  (light) =>
-                    locatePoint(light, ringFor(area.vertexIds)) === "inside",
-                ).length;
-                const active = selected?.id === area.id;
-                return (
-                  <li key={area.id}>
-                    <button
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => onSelect(floor.id, area.id)}
-                      className={cn(
-                        "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                        active
-                          ? "bg-selection-surface text-foreground"
-                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                      )}
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {area.name}
-                        </span>
-                        <span className="text-xs">
-                          {count} placed {count === 1 ? "light" : "lights"}
-                        </span>
-                      </span>
-                      {active ? (
-                        <Check className="size-4 shrink-0" />
-                      ) : (
-                        <ChevronRight className="size-4 shrink-0" />
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            {floor.areas.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No rooms on this floor yet.
-              </p>
-            )}
-          </div>
         </aside>
       </div>
       {!wide && (
         <Sheet
-          open={selected !== null}
+          open={selected !== null && !editing}
           onOpenChange={(open) => {
             if (!open) onSelect(floor.id, null);
           }}

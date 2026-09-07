@@ -5,7 +5,7 @@ import type { HueRoomZone } from "@/types/hue";
 import { CreateMapWizard } from "./components/CreateMapWizard";
 import { DraftReviewBar } from "./components/DraftReviewBar";
 import { HomeMapScreen } from "./HomeMapScreen";
-import type { HomeMapDocument } from "./types";
+import type { HomeMapDocument, MapFloor } from "./types";
 import { useHomeMapStore, homeMapStore } from "./useHomeMapStore";
 import { useMapLighting } from "./useMapLighting";
 
@@ -79,6 +79,14 @@ export function HomeMapView({
         }}
       />
     );
+  function editFloor(next: MapFloor) {
+    if (!bridgeId || !map) return;
+    void homeMapStore.getState().applyEdit(bridgeId, {
+      ...map,
+      floors: map.floors.map((entry) => (entry.id === next.id ? next : entry)),
+    });
+  }
+
   if (map && ready && bridgeId)
     return (
       <>
@@ -100,6 +108,10 @@ export function HomeMapView({
           lighting={lighting}
           onSelect={onSelect}
           onOpenSpace={onOpenSpace}
+          onEditFloor={editFloor}
+          onUndo={() => void homeMapStore.getState().undo(bridgeId)}
+          canUndo={(entry?.draftState?.past.length ?? 0) > 0}
+          busy={entry?.saving ?? false}
         />
       </>
     );

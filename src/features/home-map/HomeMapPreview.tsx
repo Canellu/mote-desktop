@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import type { HueLight, HueRoomZone } from "@/types/hue";
 import { CreateMapWizard } from "./components/CreateMapWizard";
 import { HomeMapScreen } from "./HomeMapScreen";
-import type { HomeMapDocument } from "./types";
+import type { HomeMapDocument, MapFloor } from "./types";
 import type { HomeMapLighting } from "./lighting";
 import { createSampleLighting, summarizeSampleTargets } from "./sampleLighting";
 
@@ -40,6 +40,7 @@ export default function HomeMapPreview({
   // Exercises the creation flow without a bridge; nothing here is persisted.
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<HomeMapDocument | null>(null);
+  const [history, setHistory] = useState<HomeMapDocument[]>([]);
   const syncedLightIds = mode === "syncing" ? [example.lights[0].id] : [];
   const roomZones = summarizeSampleTargets(example.roomZones, example.lights);
 
@@ -169,6 +170,30 @@ export default function HomeMapPreview({
       />
     );
 
+  const shown = created ?? example.map;
+
+  function showMap(map: HomeMapDocument) {
+    if (created) setCreated(map);
+    else setExample((current) => ({ ...current, map }));
+  }
+
+  function editFloor(next: MapFloor) {
+    setHistory((current) => [...current, shown]);
+    showMap({
+      ...shown,
+      floors: shown.floors.map((entry) =>
+        entry.id === next.id ? next : entry,
+      ),
+    });
+  }
+
+  function undoEdit() {
+    const previous = history[history.length - 1];
+    if (!previous) return;
+    setHistory((current) => current.slice(0, -1));
+    showMap(previous);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -206,14 +231,21 @@ export default function HomeMapPreview({
             <span className="text-muted-foreground">
               Showing an unsaved map you created.
             </span>
-            <Button size="sm" variant="ghost" onClick={() => setCreated(null)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setHistory([]);
+                setCreated(null);
+              }}
+            >
               Back to example map
             </Button>
           </>
         )}
       </div>
       <HomeMapScreen
-        map={created ?? example.map}
+        map={shown}
         selectedFloorId={floorId}
         selectedAreaId={areaId}
         onSelect={onSelect}
@@ -221,6 +253,9 @@ export default function HomeMapPreview({
         lighting={lighting}
         preview
         onOpenSpace={() => {}}
+        onEditFloor={editFloor}
+        onUndo={undoEdit}
+        canUndo={history.length > 0}
       />
     </div>
   );

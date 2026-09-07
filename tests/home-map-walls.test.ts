@@ -41,21 +41,31 @@ function floor(): MapFloor {
 const at = (result: MapFloor, id: string) =>
   result.vertices.find((vertex) => vertex.id === id)!;
 
-test("walls are listed once, with the areas that share them", () => {
+const dividingWall = (floorValue = floor()) =>
+  listWalls(floorValue).find((wall) => wall.dividing)!;
+
+test("collinear segments form one wall run, with the rooms it borders", () => {
   const walls = listWalls(floor());
-  expect(walls).toHaveLength(7);
-  const shared = walls.filter((wall) => wall.areaIds.length > 1);
-  expect(shared).toHaveLength(1);
-  expect(shared[0].orientation).toBe("vertical");
-  expect(shared[0].lengthMeters).toBeCloseTo(3, 6);
-  expect([...shared[0].areaIds].sort()).toEqual(["left", "right"]);
-  expect(
-    walls.find((wall) => wall.id === shared[0].id)!.startVertexId,
-  ).toBeDefined();
+  // Two outer runs spanning both rooms, two room-width outer runs, one divider.
+  expect(walls).toHaveLength(5);
+  const dividing = walls.filter((wall) => wall.dividing);
+  expect(dividing).toHaveLength(1);
+  expect(dividing[0].orientation).toBe("vertical");
+  expect(dividing[0].lengthMeters).toBeCloseTo(3, 6);
+  expect([...dividing[0].areaIds].sort()).toEqual(["left", "right"]);
+  expect(dividing[0].vertexIds.sort()).toEqual(["b", "c"]);
+
+  // The top boundary is one 10 m wall even though two rooms meet along it.
+  const top = walls.find(
+    (wall) => wall.orientation === "horizontal" && wall.areaIds.length > 1,
+  )!;
+  expect(top.dividing).toBe(false);
+  expect(top.lengthMeters).toBeCloseTo(10, 6);
+  expect(top.vertexIds).toHaveLength(3);
 });
 
 test("moving a shared wall resizes both rooms in one edit", () => {
-  const shared = listWalls(floor()).find((wall) => wall.areaIds.length > 1)!;
+  const shared = dividingWall();
   const result = moveWall(floor(), shared.id, 1.5);
   expect(result.ok).toBe(true);
   if (!result.ok) return;
@@ -71,6 +81,7 @@ test("moving a shared wall resizes both rooms in one edit", () => {
 test("an outer wall moves without disturbing the shared boundary", () => {
   const outer = listWalls(floor()).find(
     (wall) =>
+      !wall.dividing &&
       wall.areaIds.length === 1 &&
       wall.areaIds[0] === "right" &&
       wall.orientation === "vertical",
@@ -84,7 +95,7 @@ test("an outer wall moves without disturbing the shared boundary", () => {
 });
 
 test("a wall cannot be pushed onto or past another wall", () => {
-  const shared = listWalls(floor()).find((wall) => wall.areaIds.length > 1)!;
+  const shared = dividingWall();
   expect(moveWall(floor(), shared.id, -4)).toEqual({
     ok: false,
     error: "This wall cannot pass another wall.",
@@ -115,7 +126,7 @@ test("moving a wall updates crossing dimensions and unverifies them", () => {
       verified: true,
     },
   ];
-  const shared = listWalls(base).find((wall) => wall.areaIds.length > 1)!;
+  const shared = dividingWall(base);
   const result = moveWall(base, shared.id, 1);
   expect(result.ok).toBe(true);
   if (!result.ok) return;
@@ -141,7 +152,7 @@ test("a locked length must be released before its wall moves", () => {
       verified: true,
     },
   ];
-  const shared = listWalls(base).find((wall) => wall.areaIds.length > 1)!;
+  const shared = dividingWall(base);
   const result = moveWall(base, shared.id, 1);
   expect(result.ok).toBe(false);
   if (result.ok) return;
@@ -150,7 +161,7 @@ test("a locked length must be released before its wall moves", () => {
 
 test("moves reject unknown walls, bad distances, and no-ops", () => {
   const base = floor();
-  const shared = listWalls(base).find((wall) => wall.areaIds.length > 1)!;
+  const shared = dividingWall(base);
   expect(moveWall(base, "missing:wall", 1)).toEqual({
     ok: false,
     error: "Select a wall on this floor.",
@@ -160,4 +171,63 @@ test("moves reject unknown walls, bad distances, and no-ops", () => {
     error: "Enter how far to move this wall.",
   });
   expect(moveWall(base, shared.id, 0)).toEqual({ ok: true, value: base });
+});
+
+/** One long boundary faced by two stacked rooms, as in a kitchen/dining pair. */
+function tJunctionFloor(): MapFloor {
+  return {
+    id: "ground",
+    name: "Ground floor",
+    vertices: [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 6, y: 0 },
+      { id: "m", x: 6, y: 3 },
+      { id: "c", x: 6, y: 5 },
+      { id: "d", x: 0, y: 5 },
+      { id: "e", x: 10, y: 0 },
+      { id: "f", x: 10, y: 3 },
+      { id: "g", x: 10, y: 5 },
+    ],
+    areas: [
+      {
+        id: "living",
+        name: "Living room",
+        vertexIds: ["a", "b", "m", "c", "d"],
+        target: null,
+      },
+      {
+        id: "kitchen",
+        name: "Kitchen",
+        vertexIds: ["b", "e", "f", "m"],
+        target: null,
+      },
+      {
+        id: "dining",
+        name: "Dining",
+        vertexIds: ["m", "f", "g", "c"],
+        target: null,
+      },
+    ],
+    dimensions: [],
+    lights: [],
+  };
+}
+
+test("a boundary faced by two rooms moves as one wall", () => {
+  const walls = listWalls(tJunctionFloor());
+  const boundary = walls.find(
+    (wall) => wall.dividing && wall.orientation === "vertical",
+  )!;
+  expect(boundary.lengthMeters).toBeCloseTo(5, 6);
+  expect(boundary.vertexIds).toHaveLength(3);
+  expect([...boundary.areaIds].sort()).toEqual(["dining", "kitchen", "living"]);
+
+  const result = moveWall(tJunctionFloor(), boundary.id, 0.5);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  // Moving part of the run would have left a diagonal wall.
+  expect(validateMapFloor(result.value)).toEqual([]);
+  for (const id of ["b", "m", "c"])
+    expect(at(result.value, id).x).toBeCloseTo(6.5, 6);
+  expect(at(result.value, "e").x).toBeCloseTo(10, 6);
 });

@@ -9,24 +9,40 @@ import type { MapFloor, MapResult } from "./types";
 import { validateMapFloor } from "./validation";
 
 export interface MapWall {
-  /** Stable across renders: the wall's two endpoint IDs, sorted. */
+  /** Stable across renders: the run's two extreme corner IDs, sorted. */
   id: string;
   startVertexId: string;
   endVertexId: string;
   orientation: "horizontal" | "vertical";
   lengthMeters: number;
-  /** Every area whose ring uses this segment; more than one means shared. */
+  /** Every corner along the run, including the corners between segments. */
+  vertexIds: string[];
+  /** Every area bordering the run, on either side. */
   areaIds: string[];
+  /** True when part of the run separates two rooms rather than facing outside. */
+  dividing: boolean;
 }
 
 const failure = (error: string): MapResult<MapFloor> => ({ ok: false, error });
 
 const wallId = (a: string, b: string) => [a, b].sort().join(":");
 
-/** One entry per wall segment, so a shared boundary is edited once. */
+/**
+ * One entry per straight boundary run. Segments that continue in the same
+ * line are one wall: moving only part of a straight boundary would leave a
+ * diagonal, which orthogonal plans cannot represent.
+ */
 export function listWalls(floor: MapFloor): MapWall[] {
   const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
-  const walls = new Map<string, MapWall>();
+  const segments = new Map<
+    string,
+    {
+      startId: string;
+      endId: string;
+      orientation: "horizontal" | "vertical";
+      areaIds: string[];
+    }
+  >();
   for (const area of floor.areas) {
     for (let index = 0; index < area.vertexIds.length; index++) {
       const startId = area.vertexIds[index];
@@ -35,22 +51,66 @@ export function listWalls(floor: MapFloor): MapWall[] {
       const end = vertices.get(endId);
       if (!start || !end) continue;
       const id = wallId(startId, endId);
-      const existing = walls.get(id);
+      const existing = segments.get(id);
       if (existing) {
         if (!existing.areaIds.includes(area.id)) existing.areaIds.push(area.id);
         continue;
       }
-      walls.set(id, {
-        id,
-        startVertexId: startId,
-        endVertexId: endId,
+      segments.set(id, {
+        startId,
+        endId,
         orientation: almostEqual(start.x, end.x) ? "vertical" : "horizontal",
-        lengthMeters: distance(start, end),
         areaIds: [area.id],
       });
     }
   }
-  return [...walls.values()];
+
+  const walls: MapWall[] = [];
+  const used = new Set<string>();
+  for (const [id, segment] of segments) {
+    if (used.has(id)) continue;
+    const orientation = segment.orientation;
+    const axis = orientation === "vertical" ? "y" : "x";
+    const fixed = orientation === "vertical" ? "x" : "y";
+    const line = vertices.get(segment.startId)![fixed];
+    const runIds = new Set([segment.startId, segment.endId]);
+    const areaIds = [...segment.areaIds];
+    let dividing = segment.areaIds.length > 1;
+    used.add(id);
+    // Grow along the line while another segment continues from an end corner.
+    let extended = true;
+    while (extended) {
+      extended = false;
+      for (const [otherId, other] of segments) {
+        if (used.has(otherId) || other.orientation !== orientation) continue;
+        if (!almostEqual(vertices.get(other.startId)![fixed], line)) continue;
+        if (!runIds.has(other.startId) && !runIds.has(other.endId)) continue;
+        runIds.add(other.startId);
+        runIds.add(other.endId);
+        for (const areaId of other.areaIds)
+          if (!areaIds.includes(areaId)) areaIds.push(areaId);
+        dividing = dividing || other.areaIds.length > 1;
+        used.add(otherId);
+        extended = true;
+      }
+    }
+    const ordered = [...runIds]
+      .map((vertexId) => vertices.get(vertexId)!)
+      .sort((a, b) => a[axis] - b[axis]);
+    const start = ordered[0];
+    const end = ordered[ordered.length - 1];
+    walls.push({
+      id: wallId(start.id, end.id),
+      startVertexId: start.id,
+      endVertexId: end.id,
+      orientation,
+      lengthMeters: distance(start, end),
+      vertexIds: ordered.map((vertex) => vertex.id),
+      areaIds,
+      dividing,
+    });
+  }
+  return walls;
 }
 
 /**
@@ -74,12 +134,13 @@ export function moveWall(
   const start = vertices.get(wall.startVertexId)!;
   const end = vertices.get(wall.endVertexId)!;
   const axis = wall.orientation === "vertical" ? "x" : "y";
-  // Corners noded along the same segment belong to it and move with it.
-  const moving = new Set(
-    floor.vertices
+  // Every corner on the run moves, including corners shared with other rooms.
+  const moving = new Set([
+    ...wall.vertexIds,
+    ...floor.vertices
       .filter((vertex) => pointOnSegment(vertex, start, end))
       .map((vertex) => vertex.id),
-  );
+  ]);
 
   const result: MapFloor = {
     ...floor,

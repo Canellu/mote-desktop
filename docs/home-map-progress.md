@@ -71,21 +71,43 @@ map succeeds, and exposes Discard draft and, after a failed write, Retry
 saving. Drawing corner by corner, dividing rooms, naming and linking Hue
 targets, and light placement remain in later chunks.
 
+Edit walls turns the map into a wall editor. A wall is a whole straight
+boundary run, not a single segment: moving part of a straight boundary would
+leave a diagonal that orthogonal plans cannot represent, so collinear connected
+segments move together and every room along them resizes in one edit. The list
+beside the map names each wall, the rooms it borders, and its length, and marks
+whether it separates rooms or faces outside. Moves use buttons with a chosen
+step or the arrow keys while the map has focus, so nothing depends on dragging.
+A move that would push a wall onto another one, or that would change a locked
+length, is refused with the reason and leaves the floor untouched. Accepted
+moves become autosaved draft edits with Undo, reviewed through the same draft
+bar as creation.
+
+Drafting helpers for drawing an outline corner by corner are complete and
+tested: grid snapping, axis constraint from the previous corner, a named reason
+for every rejected corner or close, and a floor builder shared with the creation
+wizard. The drawing canvas that uses them is still to come; the wizard offers
+rectangle and L-shape outlines today.
+
 ## Next independently committable chunks
 
-8. Corner/outline drawing and shared-wall manipulation with validation feedback.
-9. Divide/combine preview, names, and existing room/zone links. Keep Hue creation
-   operations out of the initial geometry editor.
-10. Measured dimension controls, scale calibration, constraint release, and
-    keyboard alternatives.
-11. Light placement, Identify, unplaced tray, marker controls, and multiple floors.
-12. Explicit queued Hue room/zone and membership changes, scene decisions, and
-    partial-failure reconciliation before publishing map links.
-13. Floor control scope, missing resource recovery, and final interaction,
-    accessibility, theme, and narrow-window checks.
+8b. Drawing canvas in the creation wizard on top of the drafting helpers. 8. Corner/outline drawing and shared-wall manipulation with validation feedback. 9. Divide/combine preview, names, and existing room/zone links. Keep Hue creation
+operations out of the initial geometry editor. 10. Measured dimension controls, scale calibration, constraint release, and
+keyboard alternatives. 11. Light placement, Identify, unplaced tray, marker controls, and multiple floors. 12. Explicit queued Hue room/zone and membership changes, scene decisions, and
+partial-failure reconciliation before publishing map links. 13. Floor control scope, missing resource recovery, and final interaction,
+accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Wall editing checkpoint: **101 Home Map Bun tests (606 assertions) passed**,
+  including outline drafting and wall runs. Frontend typecheck, production
+  build, targeted ESLint/Prettier passed. Browser checks used a temporary
+  preview harness: selecting a wall from the map and the list, moving it with
+  buttons and arrow keys, both bordering rooms resizing, a refused move onto
+  another wall keeping the geometry, Undo, and light/dark appearance. Browser
+  review found that moving a single segment of a longer boundary produced a
+  diagonal wall; walls became whole runs and a T-junction test now covers it.
+  Durable draft writes still require the desktop app.
 - Creation checkpoint: **86 Home Map Bun tests (535 assertions) passed**,
   including 9 new creation tests covering outlines, every cut-out corner,
   rejected sizes, dimension placement, identity uniqueness, and validation of
