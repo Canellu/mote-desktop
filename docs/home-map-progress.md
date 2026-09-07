@@ -83,6 +83,18 @@ length, is refused with the reason and leaves the floor untouched. Accepted
 moves become autosaved draft edits with Undo, reviewed through the same draft
 bar as creation.
 
+Edit walls now opens a direct-manipulation canvas rather than a list-driven
+one. Dragging a corner moves the two straight runs that meet there, because an
+orthogonal plan has no free corners; dragging a wall moves its whole run. A
+drag previews continuously and commits one draft edit when the pointer is
+released, so a draft records whole moves rather than every pixel. Dragging the
+background pans, the wheel zooms around the pointer, and a click on the
+background clears the selection. Snapping is adjustable from the map: on or
+off, increments from 5 cm to 1 m, alignment to existing corners, and an
+optional grid. Alignment to a corner draws a guide through it and wins over the
+grid per axis. Settings persist locally and are validated when read. The wall
+list, its step buttons, and arrow keys remain, so nothing depends on dragging.
+
 Drafting helpers for drawing an outline corner by corner are complete and
 tested: grid snapping, axis constraint from the previous corner, a named reason
 for every rejected corner or close, and a floor builder shared with the creation
@@ -99,6 +111,16 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Direct-manipulation checkpoint: **113 Home Map Bun tests (643 assertions)
+  passed**, including viewport, snapping, and corner-drag units. Frontend
+  typecheck, targeted ESLint/Prettier passed. Browser checks drove the canvas
+  with real pointer events: corner drags moving both walls, wall drags,
+  background pan, wheel zoom holding the point under the pointer, zoom and Fit
+  controls, grid and snapping toggles with persisted settings, alignment
+  guides, and keyboard moves. Browser review found two defects: a dropped first
+  pointer move on fast drags, since a pointermove can arrive before React
+  commits state, now held in refs; and a crash in the snapping menu from a menu
+  label outside a group. Durable draft writes still require the desktop app.
 - Wall editing checkpoint: **101 Home Map Bun tests (606 assertions) passed**,
   including outline drafting and wall runs. Frontend typecheck, production
   build, targeted ESLint/Prettier passed. Browser checks used a temporary

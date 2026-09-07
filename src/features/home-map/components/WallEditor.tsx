@@ -49,8 +49,8 @@ export function WallEditor({
         <h3 className="text-base font-medium">Edit walls</h3>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
           {shared.length > 0
-            ? "Moving a shared wall resizes both rooms it separates."
-            : "This floor has one room, so every wall is an outside wall."}
+            ? "Drag a wall or a corner on the map. Moving a shared wall resizes both rooms it separates."
+            : "Drag a wall or a corner on the map. This floor has one room, so every wall is an outside wall."}
         </p>
       </div>
 
@@ -128,7 +128,8 @@ export function WallEditor({
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Arrow keys move the selected wall while the map has focus.
+            Drag the wall on the map, or use these buttons. Arrow keys also move
+            it while the map has focus.
           </p>
         </div>
       ) : (

@@ -26,9 +26,16 @@ import {
 } from "@/components/ui/sheet";
 import type { HueRoomZone } from "@/types/hue";
 import { MapCanvas } from "./components/MapCanvas";
+import { MapEditorCanvas } from "./components/MapEditorCanvas";
+import { SnapSettingsMenu } from "./components/SnapSettingsMenu";
 import { WallEditor } from "./components/WallEditor";
 import { locatePoint, signedArea } from "./geometry";
 import { convertLength } from "./measurements";
+import {
+  readSnapSettings,
+  writeSnapSettings,
+  type SnapSettings,
+} from "./snapping";
 import type { HomeMapDocument, MapFloor } from "./types";
 import { type WallStep } from "./wallDisplay";
 import { listWalls, moveWall } from "./walls";
@@ -86,6 +93,7 @@ export function HomeMapScreen({
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [wallStep, setWallStep] = useState<WallStep>(0.5);
   const [wallError, setWallError] = useState<string | null>(null);
+  const [snap, setSnap] = useState<SnapSettings>(() => readSnapSettings());
   const floor =
     map.floors.find((entry) => entry.id === selectedFloorId) ?? map.floors[0];
   const walls = editing ? listWalls(floor) : [];
@@ -215,6 +223,16 @@ export function HomeMapScreen({
             <Ruler />
             Dimensions
           </Button>
+          {onEditFloor && editing && (
+            <SnapSettingsMenu
+              settings={snap}
+              units={map.units}
+              onChange={(next) => {
+                setSnap(next);
+                writeSnapSettings(next);
+              }}
+            />
+          )}
           {onEditFloor && (
             <Button
               size="sm"
@@ -224,7 +242,6 @@ export function HomeMapScreen({
                 setSelectedWallId(null);
                 setWallError(null);
                 setEditing(!editing);
-                if (!editing) onSelect(floor.id, null);
               }}
             >
               <PencilRuler />
@@ -235,24 +252,32 @@ export function HomeMapScreen({
       </div>
 
       <div className="grid min-w-0 items-start gap-6 min-[1000px]:grid-cols-[minmax(0,1fr)_280px]">
-        <MapCanvas
-          key={`${map.id}:${floor.id}`}
-          floor={floor}
-          selectedAreaId={selected?.id ?? null}
-          controlledAreaIds={scope?.currentFloorAreaIds}
-          onSelectArea={(id) => onSelect(floor.id, id)}
-          showLights={showLights}
-          showDimensions={showDimensions}
-          units={map.units}
-          className="h-[min(64vh,720px)] min-h-[400px]"
-          mode={editing ? "walls" : "select"}
-          selectedWallId={selectedWallId}
-          onSelectWall={(id) => {
-            setWallError(null);
-            setSelectedWallId(id);
-          }}
-          onMoveSelectedWall={moveSelectedWall}
-        />
+        {editing && onEditFloor ? (
+          <MapEditorCanvas
+            floor={floor}
+            units={map.units}
+            snap={snap}
+            selectedAreaId={selected?.id ?? null}
+            selectedWallId={selectedWallId}
+            onSelectArea={(id) => onSelect(floor.id, id)}
+            onSelectWall={setSelectedWallId}
+            onCommit={onEditFloor}
+            onError={setWallError}
+            className="h-[min(64vh,720px)] min-h-[400px]"
+          />
+        ) : (
+          <MapCanvas
+            key={`${map.id}:${floor.id}`}
+            floor={floor}
+            selectedAreaId={selected?.id ?? null}
+            controlledAreaIds={scope?.currentFloorAreaIds}
+            onSelectArea={(id) => onSelect(floor.id, id)}
+            showLights={showLights}
+            showDimensions={showDimensions}
+            units={map.units}
+            className="h-[min(64vh,720px)] min-h-[400px]"
+          />
+        )}
         <aside aria-label="Rooms and selection" className="min-w-0 space-y-6">
           {editing ? (
             <WallEditor
