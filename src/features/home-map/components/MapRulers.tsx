@@ -1,14 +1,7 @@
 import { convertLength } from "../measurements";
-import { toScreen, type MapViewport } from "../viewport";
+import { niceStep, toScreen, type MapViewport } from "../viewport";
 
 export const RULER_SIZE = 22;
-
-const STEPS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100] as const;
-
-/** The smallest step whose ticks stay at least 64px apart at this zoom. */
-function tickStep(scale: number): number {
-  return STEPS.find((step) => step * scale >= 64) ?? STEPS[STEPS.length - 1];
-}
 
 function ticks(from: number, to: number, step: number): number[] {
   const values: number[] = [];
@@ -32,7 +25,7 @@ export function MapRulers({
   units: "metric" | "imperial";
 }) {
   const unit = units === "metric" ? "m" : "ft";
-  const step = tickStep(view.scale);
+  const step = niceStep(view.scale, 64);
   const label = (value: number) => {
     const shown = convertLength(value, "m", unit);
     return Math.abs(shown) < 0.005

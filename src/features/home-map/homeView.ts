@@ -6,6 +6,8 @@ export interface HomeViewSearch {
   floorId?: string;
   areaId?: string;
   mapPreview?: boolean;
+  /** The map editor takes over the window, so the layout reads this. */
+  mapEdit?: boolean;
 }
 
 export function validateHomeViewSearch(
@@ -23,6 +25,7 @@ export function validateHomeViewSearch(
     areaId: text(search.areaId),
     mapPreview:
       import.meta.env.DEV && search.mapPreview === true ? true : undefined,
+    mapEdit: search.mapEdit === true ? true : undefined,
   };
 }
 

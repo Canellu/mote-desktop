@@ -53,12 +53,18 @@ content scrolls within the canvas. Floor selection and layer toggles sit above;
 the compact zoom group stays at the lower right. Room details sit below the
 list, separated by a fine divider.
 
-Editing puts the plan at the centre. The canvas grows to `min(74vh, 860px)`,
-rulers run along its top and left edges in the map's units, the tools sit in a
-floating pill centred at the bottom of the canvas, and the zoom group keeps the
-lower right. The header keeps only the floor picker, layer toggles, and Done
-editing. The right panel is a single full-height column that changes with what
-is selected: floor, room or point, light tray, and wall list.
+Editing takes over the window, like the entertainment placement editor. The
+plan fills the whole content area and runs behind a floating panel, so it can
+be panned across the full editor instead of being clipped. The panel is a
+320px card inset by 24px on the right (`2xl:w-88`), scrolling its own content
+with a pinned Done editing footer. A small floating bar at the top left holds
+the floor picker and the dimensions toggle, the tools sit in a floating pill
+centred at the bottom, and the zoom group keeps the lower right. Rulers run
+along the top and left edges in the map's units.
+
+Grid and ruler steps come from one ladder of round values (5 cm to 100 m), so
+lines land on whole metres at every zoom instead of drifting with the snap
+increment.
 
 ## Elevation & Depth
 

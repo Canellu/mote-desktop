@@ -28,6 +28,8 @@ export function HomeMapView({
   areaId,
   preview,
   roomZones,
+  editing,
+  onEditingChange,
   onSelect,
   onOpenSpace,
   onPreview,
@@ -38,6 +40,8 @@ export function HomeMapView({
   areaId?: string;
   preview: boolean;
   roomZones: HueRoomZone[];
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
   onSelect: (floorId: string, areaId: string | null) => void;
   onOpenSpace: (id: string) => void;
   onPreview: () => void;
@@ -129,7 +133,7 @@ export function HomeMapView({
   if (map && ready && bridgeId)
     return (
       <>
-        {draft && entry && (
+        {draft && entry && !editing && (
           <DraftReviewBar
             entry={entry}
             hasPublished={published !== null}
@@ -149,6 +153,8 @@ export function HomeMapView({
         <HomeMapScreen
           key={map.id}
           map={map}
+          editing={editing}
+          onEditingChange={onEditingChange}
           selectedFloorId={floorId}
           selectedAreaId={areaId}
           roomZones={roomZones}

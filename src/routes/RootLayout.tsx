@@ -472,16 +472,21 @@ const ShellHeader: React.FC = () => {
 export const RootLayout: React.FC = () => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const mapEditorOpen = useRouterState({
+    select: (state) =>
+      (state.location.search as { mapEdit?: boolean }).mapEdit === true,
+  });
   const routeOwnsScroll =
     pathname === "/settings" ||
+    (pathname === "/" && mapEditorOpen) ||
     (pathname.startsWith("/settings/") &&
       (pathname.endsWith("-wizard") ||
         pathname.startsWith("/settings/entertainment-placement/")));
-  // The placement editor draws a full-bleed canvas with a floating side
-  // panel, so the shared viewport padding would frame it back in.
-  const routeIsFullBleed = pathname.startsWith(
-    "/settings/entertainment-placement/",
-  );
+  // The placement editor and the map editor draw a full-bleed canvas with a
+  // floating side panel, so the shared viewport padding would frame them in.
+  const routeIsFullBleed =
+    pathname.startsWith("/settings/entertainment-placement/") ||
+    (pathname === "/" && mapEditorOpen);
   const navigate = useNavigate();
   const inspectorPaneOpen = useRouterState({
     select: (state) =>

@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type { HueLight, HueRoomZone } from "@/types/hue";
 import { CreateMapWizard } from "./components/CreateMapWizard";
 import { HomeMapScreen } from "./HomeMapScreen";
@@ -48,6 +49,7 @@ export default function HomeMapPreview({
   const [history, setHistory] = useState<HomeMapDocument[]>([]);
   // The example queue is reviewed locally; nothing is ever sent to a bridge.
   const [queue, setQueue] = useState<QueuedHueOperation[]>([]);
+  const [editing, setEditing] = useState(false);
   const syncedLightIds = mode === "syncing" ? [example.lights[0].id] : [];
   const roomZones = summarizeSampleTargets(example.roomZones, example.lights);
 
@@ -202,8 +204,14 @@ export default function HomeMapPreview({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-3 text-sm">
+    <div className={editing ? "h-full min-h-0" : "space-y-4"}>
+      {/* The editor takes over the window, so the example controls step aside. */}
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-3 text-sm",
+          editing && "hidden",
+        )}
+      >
         <span id="example-connection-label" className="text-muted-foreground">
           Example connection
         </span>
@@ -259,6 +267,8 @@ export default function HomeMapPreview({
         roomZones={roomZones}
         lighting={lighting}
         preview
+        editing={editing}
+        onEditingChange={setEditing}
         onOpenSpace={() => {}}
         onEditFloor={editFloor}
         hueQueue={queue}

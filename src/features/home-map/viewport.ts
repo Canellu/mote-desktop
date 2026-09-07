@@ -11,6 +11,19 @@ export interface MapViewport {
 export const MIN_MAP_SCALE = 4;
 export const MAX_MAP_SCALE = 400;
 
+const STEPS = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100] as const;
+
+/**
+ * The smallest round step whose lines stay at least `minPixels` apart. Round
+ * values keep the grid, the rulers, and geometry drawn at whole metres aligned
+ * at every zoom level.
+ */
+export function niceStep(scale: number, minPixels: number): number {
+  return (
+    STEPS.find((step) => step * scale >= minPixels) ?? STEPS[STEPS.length - 1]
+  );
+}
+
 export const clampScale = (scale: number): number =>
   Math.min(MAX_MAP_SCALE, Math.max(MIN_MAP_SCALE, scale));
 

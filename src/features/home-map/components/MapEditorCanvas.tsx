@@ -20,6 +20,7 @@ import {
 import {
   emptyViewport,
   fitViewport,
+  niceStep,
   panViewport,
   toScreen,
   toWorld,
@@ -485,14 +486,12 @@ function EditorSurface({
     setMergeTargetId(null);
   }
 
-  const gridStep = useMemo(() => {
-    if (!snap.showGrid) return 0;
-    const base = snap.enabled ? snap.incrementMeters : 0.5;
-    // Keep grid lines at least 12 screen pixels apart at any zoom.
-    let step = base;
-    while (step * current.scale < 12) step *= 2;
-    return step;
-  }, [snap.showGrid, snap.enabled, snap.incrementMeters, current.scale]);
+  const gridStep = useMemo(
+    () =>
+      // Round steps only, so grid lines meet the rulers and whole-metre walls.
+      snap.showGrid ? niceStep(current.scale, 16) : 0,
+    [snap.showGrid, current.scale],
+  );
 
   const gridLines = useMemo(() => {
     if (gridStep <= 0 || size.width < 2)

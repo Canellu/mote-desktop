@@ -117,6 +117,13 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Full-bleed checkpoint: **160 Home Map Bun tests (876 assertions) passed**.
+  Frontend typecheck, production build, targeted ESLint/Prettier passed.
+  Browser checks measured the editor filling a 1400x900 window with a 320px
+  floating panel over it, and stepped through nine zoom levels comparing wall
+  positions with grid lines: walls sat exactly on a line at every level whose
+  step divides their coordinate, and otherwise exactly half a step away, which
+  is a round grid rather than a drifting one.
 - Editor shell checkpoint: **160 Home Map Bun tests (876 assertions) passed**,
   with no behaviour change intended in this presentation pass. Frontend
   typecheck, production build, targeted ESLint/Prettier passed. Browser checks

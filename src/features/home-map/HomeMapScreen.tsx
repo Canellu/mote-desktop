@@ -109,6 +109,9 @@ export interface HomeMapScreenProps {
   onEditFloor?: (floor: MapFloor) => void;
   /** Placement spans floors, so it edits the whole map. */
   onEditMap?: (map: HomeMapDocument) => void;
+  /** The editor owns the window, so its state lives in the route. */
+  editing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
   onUndo?: () => void;
   canUndo?: boolean;
   busy?: boolean;
@@ -131,6 +134,8 @@ export function HomeMapScreen({
   onOpenSpace,
   onEditFloor,
   onEditMap,
+  editing = false,
+  onEditingChange,
   onUndo,
   canUndo = false,
   busy = false,
@@ -148,7 +153,6 @@ export function HomeMapScreen({
   const [showDimensions, setShowDimensions] = useState(
     map.drawingMode === "measured",
   );
-  const [editing, setEditing] = useState(false);
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [wallStep, setWallStep] = useState<WallStep>(0.5);
   const [wallError, setWallError] = useState<string | null>(null);
@@ -366,6 +370,432 @@ export function HomeMapScreen({
       </>
     );
 
+  const panelContent = (
+    <>
+      {editing ? (
+        <div className="space-y-6">
+          {hueQueue.length > 0 && (
+            <HueChangeReview
+              queue={hueQueue}
+              lights={lighting.lights}
+              roomZones={roomZones}
+              running={hueRunning}
+              onRemove={(id) => onRemoveHueOperation?.(id)}
+            />
+          )}
+          {onEditMap && (
+            <FloorEditor
+              map={map}
+              floor={floor}
+              busy={busy}
+              onRename={(name) =>
+                applyMapEdit(renameFloor(map, floor.id, name))
+              }
+              onAddFloor={createFloor}
+              onRemoveFloor={deleteFloor}
+            />
+          )}
+          {tool === "points" ? (
+            <PointEditor
+              floor={floor}
+              vertexId={selectedVertexId}
+              units={map.units}
+              busy={busy}
+              onRemove={(id) => {
+                if (applyEdit(removeCorner(floor, id)))
+                  setSelectedVertexId(null);
+              }}
+              onMerge={(fromId, intoId) => {
+                if (applyEdit(mergeCorners(floor, fromId, intoId)))
+                  setSelectedVertexId(intoId);
+              }}
+              onClear={() => setSelectedVertexId(null)}
+            />
+          ) : tool === "lights" ? (
+            <LightTrayPanel
+              entries={buildTray(map, lighting.lights, roomZones)}
+              floor={floor}
+              placingLightId={placingLightId}
+              blinkingKeys={blinkingKeys}
+              busy={busy}
+              onChoose={setPlacingLightId}
+              onIdentify={(light) =>
+                void blink(light.id, blinkableLightIds(light, lighting.lights))
+              }
+              onRemove={(lightId) => applyMapEdit(unplaceLight(map, lightId))}
+              onPlaceInArea={(entry) => {
+                if (!entry.suggestedFloorId || !entry.suggestedPoint) return;
+                applyMapEdit(
+                  placeLight(
+                    map,
+                    entry.suggestedFloorId,
+                    entry.light.id,
+                    entry.suggestedPoint,
+                  ),
+                );
+                setPlacingLightId(null);
+              }}
+            />
+          ) : (
+            <RoomEditorPanel
+              floor={floor}
+              area={selected}
+              roomZones={roomZones}
+              combineIds={combineIds}
+              dividing={tool === "divide"}
+              combining={tool === "combine"}
+              busy={busy}
+              onRename={(name) =>
+                selected && applyEdit(renameMapArea(floor, selected.id, name))
+              }
+              onLink={(target: MapControlTarget | null) =>
+                selected &&
+                applyEdit(setMapAreaTarget(floor, selected.id, target))
+              }
+              onRemove={() => {
+                if (!selected) return;
+                applyEdit(removeMapArea(floor, selected.id));
+                onSelect(floor.id, null);
+              }}
+              onStartDivide={() => {
+                setWallError(null);
+                setTool("divide");
+              }}
+              onStartCombine={() => {
+                setWallError(null);
+                setCombineIds(selected ? [selected.id] : []);
+                setTool("combine");
+              }}
+              zoneCandidateCount={zoneCandidates.length}
+              moveCandidateCount={
+                new Set(
+                  moveCandidates.flatMap((light) =>
+                    light.deviceId ? [light.deviceId] : [],
+                  ),
+                ).size
+              }
+              onCreateZone={() => {
+                if (!selected || zoneCandidates.length === 0) return;
+                setWallError(
+                  onQueueHueOperation?.({
+                    id: crypto.randomUUID(),
+                    kind: "create-zone",
+                    areaId: selected.id,
+                    name: selected.name,
+                    lightIds: zoneCandidates.map((light) => light.id),
+                  }) ?? null,
+                );
+              }}
+              onMoveDevices={() => {
+                if (
+                  !selected?.target ||
+                  selected.target.resourceType !== "room" ||
+                  moveCandidates.length === 0
+                )
+                  return;
+                const target = roomZones.find(
+                  (candidate) =>
+                    candidate.id === selected.target?.resourceId &&
+                    candidate.resourceType === "room",
+                );
+                if (!target) return;
+                setWallError(
+                  onQueueHueOperation?.({
+                    id: crypto.randomUUID(),
+                    kind: "move-devices",
+                    areaId: selected.id,
+                    roomId: target.id,
+                    roomName: target.name,
+                    deviceIds: [
+                      ...new Set(
+                        moveCandidates.flatMap((light) =>
+                          light.deviceId ? [light.deviceId] : [],
+                        ),
+                      ),
+                    ],
+                    lightIds: moveCandidates.map((light) => light.id),
+                  }) ?? null,
+                );
+              }}
+              onCombine={combineRooms}
+              onCancelTool={() => {
+                setWallError(null);
+                setCombineIds([]);
+                setTool("select");
+              }}
+            />
+          )}
+          <WallEditor
+            measured={map.drawingMode === "measured"}
+            onSetLength={(wall, meters) =>
+              applyEdit(
+                setWallLengthForWall(floor, wall, meters, "start", () =>
+                  crypto.randomUUID(),
+                ),
+              )
+            }
+            onReleaseLength={(dimension) =>
+              applyEdit(releaseWallLength(floor, dimension.id))
+            }
+            onSetScale={(wall, meters) => {
+              const scaled = calibrateFloorFromWall(floor, wall, meters, () =>
+                crypto.randomUUID(),
+              );
+              if (!scaled.ok || !onEditMap) {
+                applyEdit(scaled);
+                return;
+              }
+              // A measured scale turns the sketch into a measured plan.
+              setWallError(null);
+              onEditMap({
+                ...map,
+                drawingMode: "measured",
+                floors: map.floors.map((entry) =>
+                  entry.id === floor.id ? scaled.value : entry,
+                ),
+              });
+              setShowDimensions(true);
+            }}
+            floor={floor}
+            walls={walls}
+            selectedWallId={selectedWallId}
+            units={map.units}
+            step={wallStep}
+            error={wallError}
+            busy={busy}
+            canUndo={canUndo}
+            onSelectWall={(id) => {
+              setWallError(null);
+              setSelectedWallId(id);
+            }}
+            onStepChange={setWallStep}
+            onMove={moveSelectedWall}
+            onUndo={() => {
+              setWallError(null);
+              onUndo?.();
+            }}
+          />
+        </div>
+      ) : (
+        <>
+          {wide && (
+            <section
+              aria-label="Selected room controls"
+              className="border-b border-border pb-6"
+            >
+              {selectionDetails}
+            </section>
+          )}
+          <div>
+            <h2 className="mb-3 text-base font-medium">Rooms on this floor</h2>
+            <ul className="grid gap-1 min-[750px]:max-[999px]:grid-cols-2">
+              {floor.areas.map((area) => {
+                const count = floor.lights.filter(
+                  (light) =>
+                    locatePoint(light, ringFor(area.vertexIds)) === "inside",
+                ).length;
+                const active = selected?.id === area.id;
+                return (
+                  <li key={area.id}>
+                    <button
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => onSelect(floor.id, area.id)}
+                      className={cn(
+                        "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        active
+                          ? "bg-selection-surface text-foreground"
+                          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                      )}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {area.name}
+                        </span>
+                        <span className="text-xs">
+                          {count} placed {count === 1 ? "light" : "lights"}
+                        </span>
+                      </span>
+                      {active ? (
+                        <Check className="size-4 shrink-0" />
+                      ) : (
+                        <ChevronRight className="size-4 shrink-0" />
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            {floor.areas.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                No rooms on this floor yet.
+              </p>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
+
+  const editorCanvas = (className: string) => (
+    <MapEditorCanvas
+      floor={floor}
+      tool={tool}
+      onDrawRoom={drawRoom}
+      onDivideRoom={divideRoom}
+      placingLightId={placingLightId}
+      lightLabels={Object.fromEntries(
+        lighting.lights.map((light) => [light.id, light.name]),
+      )}
+      onPlaceLight={(lightId, point) => {
+        applyMapEdit(placeLight(map, floor.id, lightId, point));
+        setPlacingLightId(null);
+      }}
+      combineIds={combineIds}
+      onToggleCombine={(areaId) =>
+        setCombineIds((current) =>
+          current.includes(areaId)
+            ? current.filter((id) => id !== areaId)
+            : [...current, areaId],
+        )
+      }
+      units={map.units}
+      snap={snap}
+      selectedAreaId={selected?.id ?? null}
+      selectedWallId={selectedWallId}
+      onSelectArea={(id) => onSelect(floor.id, id)}
+      onSelectWall={setSelectedWallId}
+      onCommit={(next) => onEditFloor?.(next)}
+      selectedVertexId={selectedVertexId}
+      onSelectVertex={setSelectedVertexId}
+      onMergeCorners={(fromId, intoId) => {
+        if (applyEdit(mergeCorners(floor, fromId, intoId)))
+          setSelectedVertexId(intoId);
+      }}
+      onInsertCorner={(point) => {
+        const result = insertCorner(floor, point, () => crypto.randomUUID());
+        if (!result.ok) {
+          setWallError(result.error);
+          return null;
+        }
+        setWallError(null);
+        onEditFloor?.(result.value.floor);
+        return result.value;
+      }}
+      onError={setWallError}
+      className={className}
+    />
+  );
+  const editorToolbar = (
+    <EditorToolbar
+      tool={tool}
+      snap={snap}
+      units={map.units}
+      canUndo={canUndo}
+      busy={busy}
+      onToolChange={(next) => {
+        setWallError(null);
+        setCombineIds(next === "combine" && selected ? [selected.id] : []);
+        setPlacingLightId(null);
+        setSelectedWallId(null);
+        if (next !== "points") setSelectedVertexId(null);
+        setTool(next);
+      }}
+      onSnapChange={(next) => {
+        setSnap(next);
+        writeSnapSettings(next);
+      }}
+      onUndo={() => {
+        setWallError(null);
+        onUndo?.();
+      }}
+    />
+  );
+
+  if (editing && onEditFloor)
+    return (
+      <section
+        aria-label="Home map editor"
+        className="relative h-full min-h-0 w-full overflow-hidden"
+      >
+        {/* The plan runs behind the floating panel so it can be panned freely. */}
+        <div className="absolute inset-y-0 left-0 right-0 min-[1000px]:right-92">
+          {editorCanvas("h-full w-full rounded-none border-0 bg-transparent")}
+        </div>
+
+        <div className="absolute top-6 left-6 z-10 flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur">
+          <Select
+            value={floor.id}
+            onValueChange={(value) => {
+              if (value) onSelect(value, null);
+            }}
+          >
+            <SelectTrigger size="sm" aria-label="Floor" className="max-w-56">
+              <Layers />
+              <SelectValue>{floor.name}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {map.floors.map((entry) => (
+                <SelectItem key={entry.id} value={entry.id}>
+                  {entry.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            variant={showDimensions ? "secondary" : "ghost"}
+            aria-pressed={showDimensions}
+            onClick={() => setShowDimensions(!showDimensions)}
+          >
+            <Ruler />
+            Dimensions
+          </Button>
+        </div>
+
+        {editorToolbar}
+
+        <aside
+          aria-label="Map editor panel"
+          className="absolute inset-y-6 right-6 z-10 flex w-80 flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-xl 2xl:w-88"
+        >
+          <ScrollArea
+            fade
+            hideScrollbar
+            className="min-h-0 flex-1"
+            viewportClassName="p-5"
+            contentClassName="min-w-0!"
+          >
+            {panelContent}
+          </ScrollArea>
+          <div className="shrink-0 space-y-3 border-t border-border p-4">
+            {wallError && (
+              <p
+                role="alert"
+                className="text-sm wrap-anywhere text-destructive"
+              >
+                {wallError}
+              </p>
+            )}
+            <Button
+              className="w-full"
+              onClick={() => {
+                setSelectedWallId(null);
+                setWallError(null);
+                setTool("select");
+                setCombineIds([]);
+                setPlacingLightId(null);
+                setSelectedVertexId(null);
+                onEditingChange?.(false);
+              }}
+            >
+              Done editing
+            </Button>
+          </div>
+        </aside>
+      </section>
+    );
+
   return (
     <section aria-label="Home map" className="min-w-0 space-y-5">
       {preview && (
@@ -451,7 +881,7 @@ export function HomeMapScreen({
                 setCombineIds([]);
                 setPlacingLightId(null);
                 setSelectedVertexId(null);
-                setEditing(!editing);
+                onEditingChange?.(!editing);
               }}
             >
               <PencilRuler />
@@ -489,84 +919,7 @@ export function HomeMapScreen({
         )}
 
       <div className="grid min-w-0 items-start gap-6 min-[1000px]:grid-cols-[minmax(0,1fr)_280px]">
-        {editing && onEditFloor ? (
-          <div className="relative flex min-w-0 flex-col">
-            <MapEditorCanvas
-              floor={floor}
-              tool={tool}
-              onDrawRoom={drawRoom}
-              onDivideRoom={divideRoom}
-              placingLightId={placingLightId}
-              lightLabels={Object.fromEntries(
-                lighting.lights.map((light) => [light.id, light.name]),
-              )}
-              onPlaceLight={(lightId, point) => {
-                applyMapEdit(placeLight(map, floor.id, lightId, point));
-                setPlacingLightId(null);
-              }}
-              combineIds={combineIds}
-              onToggleCombine={(areaId) =>
-                setCombineIds((current) =>
-                  current.includes(areaId)
-                    ? current.filter((id) => id !== areaId)
-                    : [...current, areaId],
-                )
-              }
-              units={map.units}
-              snap={snap}
-              selectedAreaId={selected?.id ?? null}
-              selectedWallId={selectedWallId}
-              onSelectArea={(id) => onSelect(floor.id, id)}
-              onSelectWall={setSelectedWallId}
-              onCommit={onEditFloor}
-              selectedVertexId={selectedVertexId}
-              onSelectVertex={setSelectedVertexId}
-              onMergeCorners={(fromId, intoId) => {
-                if (applyEdit(mergeCorners(floor, fromId, intoId)))
-                  setSelectedVertexId(intoId);
-              }}
-              onInsertCorner={(point) => {
-                const result = insertCorner(floor, point, () =>
-                  crypto.randomUUID(),
-                );
-                if (!result.ok) {
-                  setWallError(result.error);
-                  return null;
-                }
-                setWallError(null);
-                onEditFloor(result.value.floor);
-                return result.value;
-              }}
-              onError={setWallError}
-              className="h-[min(74vh,860px)] min-h-[420px]"
-            />
-            <EditorToolbar
-              tool={tool}
-              snap={snap}
-              units={map.units}
-              canUndo={canUndo}
-              busy={busy}
-              onToolChange={(next) => {
-                setWallError(null);
-                setCombineIds(
-                  next === "combine" && selected ? [selected.id] : [],
-                );
-                setPlacingLightId(null);
-                setSelectedWallId(null);
-                if (next !== "points") setSelectedVertexId(null);
-                setTool(next);
-              }}
-              onSnapChange={(next) => {
-                setSnap(next);
-                writeSnapSettings(next);
-              }}
-              onUndo={() => {
-                setWallError(null);
-                onUndo?.();
-              }}
-            />
-          </div>
-        ) : (
+        {
           <MapCanvas
             key={`${map.id}:${floor.id}`}
             floor={floor}
@@ -578,7 +931,7 @@ export function HomeMapScreen({
             units={map.units}
             className="h-[min(64vh,720px)] min-h-[400px]"
           />
-        )}
+        }
         <ScrollArea
           fade
           hideScrollbar
@@ -592,282 +945,7 @@ export function HomeMapScreen({
           contentClassName="min-w-0!"
         >
           <aside aria-label="Rooms and selection" className="min-w-0 space-y-6">
-            {editing ? (
-              <div className="space-y-6">
-                {hueQueue.length > 0 && (
-                  <HueChangeReview
-                    queue={hueQueue}
-                    lights={lighting.lights}
-                    roomZones={roomZones}
-                    running={hueRunning}
-                    onRemove={(id) => onRemoveHueOperation?.(id)}
-                  />
-                )}
-                {onEditMap && (
-                  <FloorEditor
-                    map={map}
-                    floor={floor}
-                    busy={busy}
-                    onRename={(name) =>
-                      applyMapEdit(renameFloor(map, floor.id, name))
-                    }
-                    onAddFloor={createFloor}
-                    onRemoveFloor={deleteFloor}
-                  />
-                )}
-                {tool === "points" ? (
-                  <PointEditor
-                    floor={floor}
-                    vertexId={selectedVertexId}
-                    units={map.units}
-                    busy={busy}
-                    onRemove={(id) => {
-                      if (applyEdit(removeCorner(floor, id)))
-                        setSelectedVertexId(null);
-                    }}
-                    onMerge={(fromId, intoId) => {
-                      if (applyEdit(mergeCorners(floor, fromId, intoId)))
-                        setSelectedVertexId(intoId);
-                    }}
-                    onClear={() => setSelectedVertexId(null)}
-                  />
-                ) : tool === "lights" ? (
-                  <LightTrayPanel
-                    entries={buildTray(map, lighting.lights, roomZones)}
-                    floor={floor}
-                    placingLightId={placingLightId}
-                    blinkingKeys={blinkingKeys}
-                    busy={busy}
-                    onChoose={setPlacingLightId}
-                    onIdentify={(light) =>
-                      void blink(
-                        light.id,
-                        blinkableLightIds(light, lighting.lights),
-                      )
-                    }
-                    onRemove={(lightId) =>
-                      applyMapEdit(unplaceLight(map, lightId))
-                    }
-                    onPlaceInArea={(entry) => {
-                      if (!entry.suggestedFloorId || !entry.suggestedPoint)
-                        return;
-                      applyMapEdit(
-                        placeLight(
-                          map,
-                          entry.suggestedFloorId,
-                          entry.light.id,
-                          entry.suggestedPoint,
-                        ),
-                      );
-                      setPlacingLightId(null);
-                    }}
-                  />
-                ) : (
-                  <RoomEditorPanel
-                    floor={floor}
-                    area={selected}
-                    roomZones={roomZones}
-                    combineIds={combineIds}
-                    dividing={tool === "divide"}
-                    combining={tool === "combine"}
-                    busy={busy}
-                    onRename={(name) =>
-                      selected &&
-                      applyEdit(renameMapArea(floor, selected.id, name))
-                    }
-                    onLink={(target: MapControlTarget | null) =>
-                      selected &&
-                      applyEdit(setMapAreaTarget(floor, selected.id, target))
-                    }
-                    onRemove={() => {
-                      if (!selected) return;
-                      applyEdit(removeMapArea(floor, selected.id));
-                      onSelect(floor.id, null);
-                    }}
-                    onStartDivide={() => {
-                      setWallError(null);
-                      setTool("divide");
-                    }}
-                    onStartCombine={() => {
-                      setWallError(null);
-                      setCombineIds(selected ? [selected.id] : []);
-                      setTool("combine");
-                    }}
-                    zoneCandidateCount={zoneCandidates.length}
-                    moveCandidateCount={
-                      new Set(
-                        moveCandidates.flatMap((light) =>
-                          light.deviceId ? [light.deviceId] : [],
-                        ),
-                      ).size
-                    }
-                    onCreateZone={() => {
-                      if (!selected || zoneCandidates.length === 0) return;
-                      setWallError(
-                        onQueueHueOperation?.({
-                          id: crypto.randomUUID(),
-                          kind: "create-zone",
-                          areaId: selected.id,
-                          name: selected.name,
-                          lightIds: zoneCandidates.map((light) => light.id),
-                        }) ?? null,
-                      );
-                    }}
-                    onMoveDevices={() => {
-                      if (
-                        !selected?.target ||
-                        selected.target.resourceType !== "room" ||
-                        moveCandidates.length === 0
-                      )
-                        return;
-                      const target = roomZones.find(
-                        (candidate) =>
-                          candidate.id === selected.target?.resourceId &&
-                          candidate.resourceType === "room",
-                      );
-                      if (!target) return;
-                      setWallError(
-                        onQueueHueOperation?.({
-                          id: crypto.randomUUID(),
-                          kind: "move-devices",
-                          areaId: selected.id,
-                          roomId: target.id,
-                          roomName: target.name,
-                          deviceIds: [
-                            ...new Set(
-                              moveCandidates.flatMap((light) =>
-                                light.deviceId ? [light.deviceId] : [],
-                              ),
-                            ),
-                          ],
-                          lightIds: moveCandidates.map((light) => light.id),
-                        }) ?? null,
-                      );
-                    }}
-                    onCombine={combineRooms}
-                    onCancelTool={() => {
-                      setWallError(null);
-                      setCombineIds([]);
-                      setTool("select");
-                    }}
-                  />
-                )}
-                <WallEditor
-                  measured={map.drawingMode === "measured"}
-                  onSetLength={(wall, meters) =>
-                    applyEdit(
-                      setWallLengthForWall(floor, wall, meters, "start", () =>
-                        crypto.randomUUID(),
-                      ),
-                    )
-                  }
-                  onReleaseLength={(dimension) =>
-                    applyEdit(releaseWallLength(floor, dimension.id))
-                  }
-                  onSetScale={(wall, meters) => {
-                    const scaled = calibrateFloorFromWall(
-                      floor,
-                      wall,
-                      meters,
-                      () => crypto.randomUUID(),
-                    );
-                    if (!scaled.ok || !onEditMap) {
-                      applyEdit(scaled);
-                      return;
-                    }
-                    // A measured scale turns the sketch into a measured plan.
-                    setWallError(null);
-                    onEditMap({
-                      ...map,
-                      drawingMode: "measured",
-                      floors: map.floors.map((entry) =>
-                        entry.id === floor.id ? scaled.value : entry,
-                      ),
-                    });
-                    setShowDimensions(true);
-                  }}
-                  floor={floor}
-                  walls={walls}
-                  selectedWallId={selectedWallId}
-                  units={map.units}
-                  step={wallStep}
-                  error={wallError}
-                  busy={busy}
-                  canUndo={canUndo}
-                  onSelectWall={(id) => {
-                    setWallError(null);
-                    setSelectedWallId(id);
-                  }}
-                  onStepChange={setWallStep}
-                  onMove={moveSelectedWall}
-                  onUndo={() => {
-                    setWallError(null);
-                    onUndo?.();
-                  }}
-                />
-              </div>
-            ) : (
-              <>
-                {wide && (
-                  <section
-                    aria-label="Selected room controls"
-                    className="border-b border-border pb-6"
-                  >
-                    {selectionDetails}
-                  </section>
-                )}
-                <div>
-                  <h2 className="mb-3 text-base font-medium">
-                    Rooms on this floor
-                  </h2>
-                  <ul className="grid gap-1 min-[750px]:max-[999px]:grid-cols-2">
-                    {floor.areas.map((area) => {
-                      const count = floor.lights.filter(
-                        (light) =>
-                          locatePoint(light, ringFor(area.vertexIds)) ===
-                          "inside",
-                      ).length;
-                      const active = selected?.id === area.id;
-                      return (
-                        <li key={area.id}>
-                          <button
-                            type="button"
-                            aria-pressed={active}
-                            onClick={() => onSelect(floor.id, area.id)}
-                            className={cn(
-                              "flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                              active
-                                ? "bg-selection-surface text-foreground"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                            )}
-                          >
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm font-medium">
-                                {area.name}
-                              </span>
-                              <span className="text-xs">
-                                {count} placed{" "}
-                                {count === 1 ? "light" : "lights"}
-                              </span>
-                            </span>
-                            {active ? (
-                              <Check className="size-4 shrink-0" />
-                            ) : (
-                              <ChevronRight className="size-4 shrink-0" />
-                            )}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                  {floor.areas.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      No rooms on this floor yet.
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
+            {panelContent}
           </aside>
         </ScrollArea>
       </div>

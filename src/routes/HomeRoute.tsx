@@ -76,13 +76,17 @@ export const HomeRoute: React.FC = () => {
     navigateHome({ ...scopedSearch, view: next, mapPreview: undefined });
   }
 
+  const mapEditing = view === "map" && scopedSearch.mapEdit === true;
+
   return (
-    <div className="space-y-6">
-      <HomeViewSwitch
-        value={view}
-        onChange={changeView}
-        disabled={isEditLayoutMode}
-      />
+    <div className={mapEditing ? "h-full" : "space-y-6"}>
+      {!mapEditing && (
+        <HomeViewSwitch
+          value={view}
+          onChange={changeView}
+          disabled={isEditLayoutMode}
+        />
+      )}
       {view === "map" ? (
         <HomeMapView
           key={bridgeId ?? "no-bridge"}
@@ -111,6 +115,14 @@ export const HomeRoute: React.FC = () => {
               );
             openSpace(id);
           }}
+          editing={mapEditing}
+          onEditingChange={(next) =>
+            navigateHome({
+              ...scopedSearch,
+              view: "map",
+              mapEdit: next ? true : undefined,
+            })
+          }
           onPreview={() => navigateHome({ view: "map", mapPreview: true })}
           onDashboard={() => changeView("dashboard")}
         />
