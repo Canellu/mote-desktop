@@ -527,6 +527,8 @@ pub struct SceneLightAction {
 pub struct HueEventUpdate {
     /// SSE container kind: `update`, `add`, `delete`, or `error`.
     pub event_type: Option<String>,
+    /// Metadata or resource membership changed; windows must reload their resource snapshot.
+    pub resources_changed: bool,
     #[serde(rename = "type")]
     pub rtype: String,
     pub id: Option<String>,
@@ -2933,7 +2935,7 @@ impl HueClient {
         name: &str,
         archetype: Option<&str>,
         light_ids: Vec<String>,
-    ) -> Result<(), String> {
+    ) -> Result<String, String> {
         let trimmed = name.trim();
         if trimmed.is_empty() {
             return Err("Zone name cannot be empty.".to_string());
@@ -2951,9 +2953,8 @@ impl HueClient {
             "metadata": { "name": trimmed, "archetype": archetype },
             "children": children,
         });
-        self.post_v2(ip, application_key, "zone", body)
-            .await
-            .map(|_| ())
+        // The created zone's id is returned so callers can link to it.
+        self.post_v2(ip, application_key, "zone", body).await
     }
 
     pub async fn update_room_members(
@@ -4253,6 +4254,10 @@ fn parse_event_block(block: &str) -> Option<Vec<HueEventUpdate>> {
             };
             updates.push(HueEventUpdate {
                 event_type: event_type.clone(),
+                resources_changed: matches!(event_type.as_deref(), Some("add" | "delete"))
+                    || resource.get("metadata").is_some()
+                    || resource.get("children").is_some()
+                    || resource.get("services").is_some(),
                 rtype,
                 id,
                 on: resource.pointer("/on/on").and_then(Value::as_bool),
@@ -4410,6 +4415,30 @@ mod event_tests {
         let updates = parse_event_block(block).expect("valid Hue event");
         assert_eq!(updates[0].status, None);
         assert_eq!(updates[0].active_streamer_id, None);
+        assert!(!updates[0].resources_changed);
+    }
+
+    #[test]
+    fn resource_edits_request_snapshot_refresh() {
+        for resource in [
+            r#"{"id":"room-id","type":"room","metadata":{"name":"Office"}}"#,
+            r#"{"id":"room-id","type":"room","metadata":{"archetype":"office"}}"#,
+            r#"{"id":"zone-id","type":"zone","children":[]}"#,
+            r#"{"id":"device-id","type":"device","services":[]}"#,
+            r#"{"id":"light-id","type":"light","metadata":{"name":"Desk"}}"#,
+        ] {
+            let block = format!(r#"data: [{{"type":"update","data":[{resource}]}}]"#);
+            let updates = parse_event_block(&block).expect("valid Hue event");
+            assert!(updates[0].resources_changed, "{resource}");
+            let serialized = serde_json::to_value(&updates[0]).unwrap();
+            assert_eq!(serialized["resourcesChanged"], true);
+        }
+        for event_type in ["add", "delete"] {
+            let block = format!(
+                r#"data: [{{"type":"{event_type}","data":[{{"id":"room-id","type":"room"}}]}}]"#
+            );
+            assert!(parse_event_block(&block).unwrap()[0].resources_changed);
+        }
     }
 }
 

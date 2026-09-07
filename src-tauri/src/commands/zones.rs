@@ -18,7 +18,7 @@ pub async fn create_hue_zone(
     name: String,
     archetype: Option<String>,
     light_ids: Vec<String>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let client = HueClient::new()?;
     let stored_bridge = client.get_stored_bridge(&app)?;
     let application_key = client.get_stored_application_key(&app)?;
