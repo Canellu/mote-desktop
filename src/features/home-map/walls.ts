@@ -5,7 +5,7 @@ import {
   pointOnSegment,
   samePoint,
 } from "./geometry";
-import type { MapFloor, MapResult } from "./types";
+import type { MapFloor, MapPoint, MapResult } from "./types";
 import { validateMapFloor } from "./validation";
 
 export interface MapWall {
@@ -185,5 +185,41 @@ export function moveWall(
   const issue = validateMapFloor(result)[0];
   if (issue) return failure(issue.message);
   // Placements stay where the physical lamp is; the editor flags strays.
+  return { ok: true, value: result };
+}
+
+/**
+ * Drags a corner by moving the two straight runs that meet there. Orthogonal
+ * plans have no free corners: a corner is the intersection of its walls.
+ */
+export function moveCorner(
+  floor: MapFloor,
+  vertexId: string,
+  target: MapPoint,
+): MapResult<MapFloor> {
+  const initial = validateMapFloor(floor)[0];
+  if (initial) return failure(initial.message);
+  const corner = floor.vertices.find((vertex) => vertex.id === vertexId);
+  if (!corner) return failure("Select a corner on this floor.");
+  if (!Number.isFinite(target.x) || !Number.isFinite(target.y))
+    return failure("Corner coordinates must be finite numbers.");
+
+  let result = floor;
+  for (const orientation of ["vertical", "horizontal"] as const) {
+    const current = result.vertices.find((vertex) => vertex.id === vertexId)!;
+    const delta =
+      orientation === "vertical" ? target.x - current.x : target.y - current.y;
+    if (Math.abs(delta) <= MAP_EPSILON) continue;
+    // Runs are re-listed between moves: the first move can change membership.
+    const wall = listWalls(result).find(
+      (candidate) =>
+        candidate.orientation === orientation &&
+        candidate.vertexIds.includes(vertexId),
+    );
+    if (!wall) return failure("This corner has no wall to move in that way.");
+    const moved = moveWall(result, wall.id, delta);
+    if (!moved.ok) return moved;
+    result = moved.value;
+  }
   return { ok: true, value: result };
 }
