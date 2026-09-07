@@ -53,6 +53,13 @@ content scrolls within the canvas. Floor selection and layer toggles sit above;
 the compact zoom group stays at the lower right. Room details sit below the
 list, separated by a fine divider.
 
+Editing puts the plan at the centre. The canvas grows to `min(74vh, 860px)`,
+rulers run along its top and left edges in the map's units, the tools sit in a
+floating pill centred at the bottom of the canvas, and the zoom group keeps the
+lower right. The header keeps only the floor picker, layer toggles, and Done
+editing. The right panel is a single full-height column that changes with what
+is selected: floor, room or point, light tray, and wall list.
+
 ## Elevation & Depth
 
 Tonal surfaces and borders establish the canvas and selection. The zoom group

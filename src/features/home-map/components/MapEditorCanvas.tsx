@@ -27,6 +27,7 @@ import {
   type MapViewport,
 } from "../viewport";
 import { listWalls, moveCorner, moveWall, type MapWall } from "../walls";
+import { MapRulers, RULER_SIZE } from "./MapRulers";
 
 /** Screen pixels within which the pointer aligns to an existing corner. */
 const SNAP_TOLERANCE_PX = 12;
@@ -189,7 +190,7 @@ function EditorSurface({
     setView(
       floor.vertices.length === 0
         ? emptyViewport(size)
-        : fitViewport(getMapBounds(floor.vertices), size),
+        : fitViewport(getMapBounds(floor.vertices), size, 48 + RULER_SIZE),
     );
   }, [view, size, floor.vertices]);
 
@@ -997,7 +998,7 @@ function EditorSurface({
       {tool === "lights" && (
         <p
           role="status"
-          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+          className="pointer-events-none absolute top-8 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
         >
           {placingLightId
             ? "Click where this light is in the room."
@@ -1007,7 +1008,7 @@ function EditorSurface({
       {tool === "points" && (
         <p
           role="status"
-          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+          className="pointer-events-none absolute top-8 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
         >
           Drag a square corner to move it. Dashed circles add a corner. Drop a
           corner on another to merge them.
@@ -1016,7 +1017,7 @@ function EditorSurface({
       {tool === "divide" && (
         <p
           role="status"
-          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+          className="pointer-events-none absolute top-8 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
         >
           {!selectedRing
             ? "Select a room in the list, then draw the dividing wall."
@@ -1028,7 +1029,7 @@ function EditorSurface({
       {tool === "draw" && (
         <p
           role="status"
-          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+          className="pointer-events-none absolute top-8 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
         >
           {outline.length === 0
             ? "Click to place the first corner of a room."
@@ -1037,6 +1038,8 @@ function EditorSurface({
               : "Click the first corner to finish. Backspace removes the last one."}
         </p>
       )}
+      <MapRulers view={current} size={size} units={units} />
+
       <div
         className="absolute right-3 bottom-3 flex items-center gap-0.5 rounded-full border border-border bg-background p-1 shadow-sm"
         role="group"
@@ -1086,7 +1089,7 @@ function EditorSurface({
             setView(
               shown.vertices.length === 0
                 ? emptyViewport(size)
-                : fitViewport(bounds, size),
+                : fitViewport(bounds, size, 48 + RULER_SIZE),
             )
           }
         >

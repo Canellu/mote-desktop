@@ -117,6 +117,13 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Editor shell checkpoint: **160 Home Map Bun tests (876 assertions) passed**,
+  with no behaviour change intended in this presentation pass. Frontend
+  typecheck, production build, targeted ESLint/Prettier passed. Browser checks
+  confirmed the floating toolbar exposes all six tools plus snapping and Undo
+  by accessible name, rulers render ticks that follow the viewport, the
+  toolbar and zoom group do not overlap at 900 px, and the light theme renders
+  the new shell correctly.
 - Point editing checkpoint: **160 Home Map Bun tests (876 assertions) passed**,
   including removing a corner into a valid triangle, refusing to take a
   triangle below three corners, refusing removal under a kept length, merging
