@@ -1,6 +1,6 @@
 # Home Map implementation progress
 
-Updated: **2026-09-06**. Branch: `codex/home-map-foundation`.
+Updated: **2026-09-07**. Branch: `codex/home-map-foundation`.
 
 The [UX plan](./home-map-plan.md) defines the intended complete experience.
 Each chunk gets its own focused verification and commit. Existing unrelated
@@ -8,14 +8,16 @@ working-tree changes are excluded from these commits.
 
 ## Completed chunks
 
-| Chunk | Deliverable | Status |
-| --- | --- | --- |
-| 1 | Versioned map model, orthogonal geometry validation, units, measured wall constraints and calibration | Complete |
-| 2 | Pure room split/combine operations with shared boundaries and preserved light positions | Complete |
-| 3 | Immutable draft history, publish/discard, validated storage codec and ordered persistence interface | Complete |
-| 4a | Native per-bridge files, atomic replacement, compare-before-save protection, and desktop adapter | Complete |
-| 4b | Active-bridge state, durable autosave/publish/discard, and explicit failure recovery | Complete |
-| 5 | Dashboard / Map switch, saved floors, SVG map, accessible room list, selection details and development preview | Complete |
+| Chunk | Deliverable                                                                                                    | Status   |
+| ----- | -------------------------------------------------------------------------------------------------------------- | -------- |
+| 1     | Versioned map model, orthogonal geometry validation, units, measured wall constraints and calibration          | Complete |
+| 2     | Pure room split/combine operations with shared boundaries and preserved light positions                        | Complete |
+| 3     | Immutable draft history, publish/discard, validated storage codec and ordered persistence interface            | Complete |
+| 4a    | Native per-bridge files, atomic replacement, compare-before-save protection, and desktop adapter               | Complete |
+| 4b    | Active-bridge state, durable autosave/publish/discard, and explicit failure recovery                           | Complete |
+| 5     | Dashboard / Map switch, saved floors, SVG map, accessible room list, selection details and development preview | Complete |
+| 6     | Selected-room power, brightness, and scenes with explicit control scope                                        | Complete |
+| 7     | Initial map creation: rectangle/L-shape outline, mode and units, draft creation and save/discard               | Complete |
 
 Home now includes a Map view. It renders published maps and offers a clearly
 labeled synthetic example in development builds. The example is excluded from
@@ -48,12 +50,29 @@ remain untouched for recovery. A forced process exit can leave a harmless
 temporary file; power-loss recovery beyond the filesystem's rename guarantees
 is not claimed.
 
+Room controls act on the linked Hue room/zone's membership, never on marker
+positions. The inspector states the real scope: how many lights the target
+holds, other linked areas and floors it also controls, members placed outside
+the selected area or off this floor, unplaced members, and offline or
+sync-excluded lights. Controls and scenes disable with a stated reason.
+
+Home now offers map creation for a bridge with no saved plan. The wizard draws
+one floor as a rectangle or an L-shape with a chosen cut-out corner, in quick
+sketch or measured mode, in meters or feet, with a live outline preview and the
+reason beside the fields whenever the entered sizes cannot form a floor.
+Measured maps lock and mark verified the entered width and depth; sketches keep
+the same lengths as unverified estimates. Changing units restates the entered
+lengths instead of resizing the floor, and dimensions are placed on walls that
+exist end to end, so an L-shape measures its full-length sides.
+
+Creating a map produces an autosaved draft, not a published map. A review bar
+states that the draft is unsaved, keeps any published map in place until Save
+map succeeds, and exposes Discard draft and, after a failed write, Retry
+saving. Drawing corner by corner, dividing rooms, naming and linking Hue
+targets, and light placement remain in later chunks.
+
 ## Next independently committable chunks
 
-6. Selected-room power, brightness, and scenes through existing Hue actions;
-   show offline/sync exclusions and explicit control scope.
-7. Initial map creation: rectangle/L-shape, mode and units selection, recoverable
-   draft, and save/discard flow.
 8. Corner/outline drawing and shared-wall manipulation with validation feedback.
 9. Divide/combine preview, names, and existing room/zone links. Keep Hue creation
    operations out of the initial geometry editor.
@@ -67,6 +86,17 @@ is not claimed.
 
 ## Verification
 
+- Creation checkpoint: **86 Home Map Bun tests (535 assertions) passed**,
+  including 9 new creation tests covering outlines, every cut-out corner,
+  rejected sizes, dimension placement, identity uniqueness, and validation of
+  the produced document. Frontend typecheck, targeted ESLint/Prettier passed.
+  Browser checks used a temporary harness for the wizard: rectangle and
+  L-shape previews, corner changes moving dimensions to full-length walls,
+  unit switching restating 8 m as 26.25 ft without resizing, invalid sizes
+  disabling Create with a stated reason, and light/dark and narrow layouts.
+  The harness was removed after verification. Durable draft creation through
+  the store and its review bar were not exercised in the browser: native
+  storage requires the desktop app.
 - Map view checkpoint: **67 Home Map Bun tests (424 assertions) passed**.
   Frontend build/typecheck, targeted ESLint/Prettier, and the UI detector passed.
   Browser checks covered keyboard selection, selection clearing, floor changes,

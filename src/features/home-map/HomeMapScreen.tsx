@@ -154,7 +154,9 @@ export function HomeMapScreen({
             </SelectContent>
           </Select>
           <span className="text-sm text-muted-foreground">
-            {floor.areas.length} rooms · {floor.lights.length} placed lights
+            {floor.areas.length} {floor.areas.length === 1 ? "room" : "rooms"} ·{" "}
+            {floor.lights.length} placed{" "}
+            {floor.lights.length === 1 ? "light" : "lights"}
           </span>
         </div>
         <div

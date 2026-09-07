@@ -6,8 +6,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import type { HueLight, HueRoomZone } from "@/types/hue";
+import { CreateMapWizard } from "./components/CreateMapWizard";
 import { HomeMapScreen } from "./HomeMapScreen";
+import type { HomeMapDocument } from "./types";
 import type { HomeMapLighting } from "./lighting";
 import { createSampleLighting, summarizeSampleTargets } from "./sampleLighting";
 
@@ -34,6 +37,9 @@ export default function HomeMapPreview({
     error: null as string | null,
   }));
   const [mode, setMode] = useState<ExampleMode>("live");
+  // Exercises the creation flow without a bridge; nothing here is persisted.
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState<HomeMapDocument | null>(null);
   const syncedLightIds = mode === "syncing" ? [example.lights[0].id] : [];
   const roomZones = summarizeSampleTargets(example.roomZones, example.lights);
 
@@ -148,6 +154,21 @@ export default function HomeMapPreview({
     },
   };
 
+  if (creating)
+    return (
+      <CreateMapWizard
+        bridgeId={example.map.bridgeId}
+        busy={false}
+        error={null}
+        onCreate={(document) => {
+          setCreated(document);
+          setCreating(false);
+          onSelect(document.floors[0].id, document.floors[0].areas[0].id);
+        }}
+        onCancel={() => setCreating(false)}
+      />
+    );
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -177,9 +198,22 @@ export default function HomeMapPreview({
             ))}
           </SelectContent>
         </Select>
+        <Button size="sm" variant="secondary" onClick={() => setCreating(true)}>
+          Create a map
+        </Button>
+        {created && (
+          <>
+            <span className="text-muted-foreground">
+              Showing an unsaved map you created.
+            </span>
+            <Button size="sm" variant="ghost" onClick={() => setCreated(null)}>
+              Back to example map
+            </Button>
+          </>
+        )}
       </div>
       <HomeMapScreen
-        map={example.map}
+        map={created ?? example.map}
         selectedFloorId={floorId}
         selectedAreaId={areaId}
         onSelect={onSelect}

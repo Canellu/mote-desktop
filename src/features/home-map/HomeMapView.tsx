@@ -1,8 +1,11 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Map as MapIcon, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { HueRoomZone } from "@/types/hue";
+import { CreateMapWizard } from "./components/CreateMapWizard";
+import { DraftReviewBar } from "./components/DraftReviewBar";
 import { HomeMapScreen } from "./HomeMapScreen";
+import type { HomeMapDocument } from "./types";
 import { useHomeMapStore, homeMapStore } from "./useHomeMapStore";
 import { useMapLighting } from "./useMapLighting";
 
@@ -35,30 +38,73 @@ export function HomeMapView({
   const entry = useHomeMapStore((state) =>
     bridgeId ? state.entries[bridgeId] : undefined,
   );
-  const map = entry?.draftState?.published;
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const draft = entry?.draftState?.draft ?? null;
+  const published = entry?.draftState?.published ?? null;
+  // A draft is the working copy; it hides the published map until resolved.
+  const map = draft ?? published;
   const loading = bridgeId !== null && (!entry || entry.status === "loading");
+  const ready = entry?.status === "ready";
+
+  async function create(document: HomeMapDocument) {
+    if (!bridgeId) return;
+    setSaving(true);
+    setCreateError(null);
+    const result = await homeMapStore.getState().applyEdit(bridgeId, document);
+    setSaving(false);
+    if (result.ok) {
+      setCreating(false);
+      onSelect(document.floors[0].id, document.floors[0].areas[0].id);
+    } else setCreateError(result.error);
+  }
+
   if (preview && Preview)
     return (
       <Suspense fallback={<p role="status">Loading example map…</p>}>
         <Preview floorId={floorId} areaId={areaId} onSelect={onSelect} />
       </Suspense>
     );
-  if (map && entry?.status === "ready")
+  if (creating && bridgeId && ready)
     return (
-      <HomeMapScreen
-        key={map.id}
-        map={map}
-        selectedFloorId={floorId}
-        selectedAreaId={areaId}
-        roomZones={roomZones}
-        lighting={lighting}
-        onSelect={onSelect}
-        onOpenSpace={onOpenSpace}
+      <CreateMapWizard
+        bridgeId={bridgeId}
+        busy={saving}
+        error={createError}
+        onCreate={(document) => void create(document)}
+        onCancel={() => {
+          setCreateError(null);
+          setCreating(false);
+        }}
       />
+    );
+  if (map && ready && bridgeId)
+    return (
+      <>
+        {draft && entry && (
+          <DraftReviewBar
+            entry={entry}
+            hasPublished={published !== null}
+            onSave={() => void homeMapStore.getState().publish(bridgeId)}
+            onDiscard={() => void homeMapStore.getState().discard(bridgeId)}
+            onRetrySave={() => void homeMapStore.getState().retrySave(bridgeId)}
+          />
+        )}
+        <HomeMapScreen
+          key={map.id}
+          map={map}
+          selectedFloorId={floorId}
+          selectedAreaId={areaId}
+          roomZones={roomZones}
+          lighting={lighting}
+          onSelect={onSelect}
+          onOpenSpace={onOpenSpace}
+        />
+      </>
     );
 
   const failed = entry?.status === "invalid" || entry?.status === "unavailable";
-  const hasDraft = entry?.draftState?.draft != null;
   return (
     <section
       className="flex min-h-[440px] flex-col items-center justify-center px-6 py-14 text-center"
@@ -77,9 +123,7 @@ export function HomeMapView({
           ? "Loading your map"
           : failed
             ? "Could not open this map"
-            : hasDraft
-              ? "Your map is saved as a draft"
-              : "No home map yet"}
+            : "No home map yet"}
       </h2>
       <p
         role={failed ? "alert" : "status"}
@@ -89,9 +133,7 @@ export function HomeMapView({
           ? "Getting the saved floor plan for this bridge."
           : failed
             ? entry.error
-            : hasDraft
-              ? "Your draft is safe. A published floor plan will appear here."
-              : "There is no saved floor plan for this bridge. Your rooms and lights are available in Dashboard."}
+            : "Draw the outline of one floor to start using Map. Your rooms and lights stay available in Dashboard."}
       </p>
       {!loading && (
         <div className="mt-6 flex flex-wrap justify-center gap-3">
@@ -101,6 +143,9 @@ export function HomeMapView({
             >
               Retry
             </Button>
+          )}
+          {!failed && bridgeId && ready && (
+            <Button onClick={() => setCreating(true)}>Create map</Button>
           )}
           <Button variant="outline" onClick={onDashboard}>
             Back to dashboard
