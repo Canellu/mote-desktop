@@ -95,11 +95,17 @@ optional grid. Alignment to a corner draws a guide through it and wins over the
 grid per axis. Settings persist locally and are validated when read. The wall
 list, its step buttons, and arrow keys remain, so nothing depends on dragging.
 
-Drafting helpers for drawing an outline corner by corner are complete and
-tested: grid snapping, axis constraint from the previous corner, a named reason
-for every rejected corner or close, and a floor builder shared with the creation
-wizard. The drawing canvas that uses them is still to come; the wizard offers
-rectangle and L-shape outlines today.
+The editor has Select and Draw room tools. Draw places a corner per click, with
+the wall constrained to the axis the pointer moved furthest along and then
+snapped, a live rubber band, alignment guides, and a hint that follows the
+step. Clicking the first corner closes the room; Enter also finishes a valid
+outline, Backspace removes the last corner, and Escape abandons the drawing.
+
+A drawn room reuses any corner it lands on, and both sides of a wall it touches
+gain every corner along that wall, so a room drawn against a neighbour shares
+that boundary and can then be resized as one. Overlaps, unclosed outlines, and
+non-orthogonal walls are refused with the reason. New rooms are named by
+position; renaming and Hue links follow with divide and combine.
 
 ## Next independently committable chunks
 
@@ -111,6 +117,13 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Draw tool checkpoint: **117 Home Map Bun tests (658 assertions) passed**,
+  including drawn rooms that reuse corners, node a partly shared wall on both
+  sides, refuse overlaps and duplicate IDs, and stay separate when drawn away
+  from other rooms. Frontend typecheck, targeted ESLint/Prettier passed.
+  Browser checks drew a detached room and a room flush against an existing
+  wall, and confirmed the second became a shared boundary in the wall list;
+  an overlapping attempt was refused with the reason and no geometry change.
 - Direct-manipulation checkpoint: **113 Home Map Bun tests (643 assertions)
   passed**, including viewport, snapping, and corner-drag units. Frontend
   typecheck, targeted ESLint/Prettier passed. Browser checks drove the canvas

@@ -8,7 +8,9 @@ import {
   outlineCornerError,
   snapPoint,
 } from "../src/features/home-map/outline";
-import type { MapPoint } from "../src/features/home-map/types";
+import { addOutlineArea } from "../src/features/home-map/operations";
+import type { MapFloor, MapPoint } from "../src/features/home-map/types";
+import { listWalls } from "../src/features/home-map/walls";
 import { validateMapFloor } from "../src/features/home-map/validation";
 
 function ids() {
@@ -183,4 +185,131 @@ test("a floor is never built from an invalid ring or blank name", () => {
       ids(),
     ),
   ).toEqual({ ok: false, error: "Name this room." });
+});
+
+const room = (
+  id: string,
+  name: string,
+  vertexIds: string[],
+): MapFloor["areas"][number] => ({ id, name, vertexIds, target: null });
+
+/** One 4 x 3 room, ready for a second room drawn against its right wall. */
+function singleRoomFloor(): MapFloor {
+  return {
+    id: "ground",
+    name: "Ground floor",
+    vertices: [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 4, y: 0 },
+      { id: "c", x: 4, y: 3 },
+      { id: "d", x: 0, y: 3 },
+    ],
+    areas: [room("living", "Living room", ["a", "b", "c", "d"])],
+    dimensions: [],
+    lights: [],
+  };
+}
+
+test("a drawn room reuses the corners it lands on", () => {
+  const result = addOutlineArea(
+    singleRoomFloor(),
+    [
+      { x: 4, y: 0 },
+      { x: 8, y: 0 },
+      { x: 8, y: 3 },
+      { x: 4, y: 3 },
+    ],
+    { id: "kitchen", name: "Kitchen" },
+    ids(),
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(validateMapFloor(result.value)).toEqual([]);
+  // Only the two far corners are new; the shared wall reuses b and c.
+  expect(result.value.vertices).toHaveLength(6);
+  expect(result.value.areas.map((area) => area.id)).toEqual([
+    "living",
+    "kitchen",
+  ]);
+  const shared = listWalls(result.value).filter((wall) => wall.dividing);
+  expect(shared).toHaveLength(1);
+  expect(shared[0].lengthMeters).toBeCloseTo(3, 6);
+});
+
+test("a room drawn against part of a wall nodes both sides", () => {
+  const result = addOutlineArea(
+    singleRoomFloor(),
+    [
+      { x: 4, y: 1 },
+      { x: 7, y: 1 },
+      { x: 7, y: 2 },
+      { x: 4, y: 2 },
+    ],
+    { id: "nook", name: "Nook" },
+    ids(),
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(validateMapFloor(result.value)).toEqual([]);
+  // The original room gains the two corners where the nook meets its wall.
+  const living = result.value.areas.find((area) => area.id === "living")!;
+  expect(living.vertexIds).toHaveLength(6);
+});
+
+test("a drawn room cannot overlap an existing room or repeat its ID", () => {
+  const overlap = addOutlineArea(
+    singleRoomFloor(),
+    [
+      { x: 2, y: 1 },
+      { x: 6, y: 1 },
+      { x: 6, y: 2 },
+      { x: 2, y: 2 },
+    ],
+    { id: "nook", name: "Nook" },
+    ids(),
+  );
+  expect(overlap).toEqual({ ok: false, error: "Rooms cannot overlap." });
+  expect(
+    addOutlineArea(
+      singleRoomFloor(),
+      [
+        { x: 4, y: 0 },
+        { x: 8, y: 0 },
+        { x: 8, y: 3 },
+        { x: 4, y: 3 },
+      ],
+      { id: "living", name: "Second living room" },
+      ids(),
+    ),
+  ).toEqual({ ok: false, error: "The new room needs a unique ID." });
+  expect(
+    addOutlineArea(
+      singleRoomFloor(),
+      [
+        { x: 4, y: 0 },
+        { x: 8, y: 0 },
+        { x: 8, y: 3 },
+      ],
+      { id: "kitchen", name: "Kitchen" },
+      ids(),
+    ).ok,
+  ).toBe(false);
+});
+
+test("a room drawn away from the others stays separate and valid", () => {
+  const result = addOutlineArea(
+    singleRoomFloor(),
+    [
+      { x: 6, y: 5 },
+      { x: 9, y: 5 },
+      { x: 9, y: 8 },
+      { x: 6, y: 8 },
+    ],
+    { id: "shed", name: "Shed" },
+    ids(),
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(validateMapFloor(result.value)).toEqual([]);
+  expect(listWalls(result.value).filter((wall) => wall.dividing)).toEqual([]);
 });

@@ -3,6 +3,11 @@ import { Maximize, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { convertLength } from "../measurements";
+import {
+  appendOutlineCorner,
+  constrainCorner,
+  outlineCloseError,
+} from "../outline";
 import { snapWorldPoint, type SnapGuide, type SnapSettings } from "../snapping";
 import type { MapFloor, MapPoint } from "../types";
 import {
@@ -41,8 +46,13 @@ type Drag =
       moved: boolean;
     };
 
+export type EditorTool = "select" | "draw";
+
 export interface MapEditorCanvasProps {
   floor: MapFloor;
+  tool: EditorTool;
+  /** Receives a closed, orthogonal outline in world meters. */
+  onDrawRoom: (ring: MapPoint[]) => void;
   units: "metric" | "imperial";
   snap: SnapSettings;
   selectedAreaId: string | null;
@@ -61,6 +71,8 @@ export function MapEditorCanvas(props: MapEditorCanvasProps) {
 
 function EditorSurface({
   floor,
+  tool,
+  onDrawRoom,
   units,
   snap,
   selectedAreaId,
@@ -82,6 +94,8 @@ function EditorSurface({
   const [preview, setPreviewState] = useState<MapFloor | null>(null);
   const [guides, setGuides] = useState<SnapGuide[]>([]);
   const [hoverWallId, setHoverWallId] = useState<string | null>(null);
+  const [outline, setOutline] = useState<MapPoint[]>([]);
+  const [outlineHover, setOutlineHover] = useState<MapPoint | null>(null);
 
   /** Capture is best-effort: a browser may reject it mid-gesture. */
   function capture(event: React.PointerEvent, release = false) {
@@ -129,6 +143,13 @@ function EditorSurface({
     setView(fitViewport(getMapBounds(floor.vertices), size));
   }, [view, size, floor.vertices]);
 
+  useEffect(() => {
+    if (tool !== "draw") {
+      setOutline([]);
+      setOutlineHover(null);
+    }
+  }, [tool]);
+
   const current: MapViewport = view ?? { scale: 40, offsetX: 40, offsetY: 40 };
   const project = (point: MapPoint) => toScreen(point, current);
 
@@ -174,6 +195,66 @@ function EditorSurface({
     });
   }
 
+  /** The next corner: axis-constrained from the last one, then snapped. */
+  function draftCorner(event: { clientX: number; clientY: number }) {
+    const world = pointerWorld(event);
+    const previous = outline[outline.length - 1] ?? null;
+    const constrained = constrainCorner(previous, world, 0);
+    const result = snapWorldPoint(constrained, {
+      settings: snap,
+      corners: [...floor.vertices, ...outline],
+      toleranceMeters: SNAP_TOLERANCE_PX / current.scale,
+    });
+    // Re-constrain: a corner snap may pull the point off the drawn axis.
+    const point = previous
+      ? {
+          x:
+            Math.abs(constrained.x - previous.x) > 0
+              ? result.point.x
+              : previous.x,
+          y:
+            Math.abs(constrained.y - previous.y) > 0
+              ? result.point.y
+              : previous.y,
+        }
+      : result.point;
+    return { point, guides: result.guides };
+  }
+
+  function placeCorner(event: React.PointerEvent) {
+    const { point } = draftCorner(event);
+    const first = outline[0];
+    const closeTolerance = SNAP_TOLERANCE_PX / current.scale;
+    if (
+      first &&
+      outline.length >= 3 &&
+      Math.abs(point.x - first.x) <= closeTolerance &&
+      Math.abs(point.y - first.y) <= closeTolerance
+    ) {
+      finishOutline();
+      return;
+    }
+    const next = appendOutlineCorner(outline, point);
+    if (!next.ok) {
+      onError(next.error);
+      return;
+    }
+    onError(null);
+    setOutline(next.value);
+  }
+
+  function finishOutline() {
+    const error = outlineCloseError(outline);
+    if (error) {
+      onError(error);
+      return;
+    }
+    onError(null);
+    onDrawRoom(outline);
+    setOutline([]);
+    setOutlineHover(null);
+  }
+
   function applyPreview(next: MapFloor | null, error: string | null) {
     if (next) setPreview(next);
     onError(error);
@@ -181,7 +262,14 @@ function EditorSurface({
 
   function handlePointerMove(event: React.PointerEvent) {
     const drag = dragRef.current;
-    if (!drag) return;
+    if (!drag) {
+      if (tool === "draw") {
+        const draft = draftCorner(event);
+        setOutlineHover(draft.point);
+        setGuides(draft.guides);
+      }
+      return;
+    }
     if (drag.kind === "pan") {
       const dx = event.clientX - drag.lastX;
       const dy = event.clientY - drag.lastY;
@@ -235,8 +323,11 @@ function EditorSurface({
     const committed = previewRef.current;
     if (drag.kind !== "pan" && committed && drag.moved) onCommit(committed);
     if (drag.kind === "pan" && !drag.moved) {
-      onSelectArea(null);
-      onSelectWall(null);
+      if (tool === "draw") placeCorner(event);
+      else {
+        onSelectArea(null);
+        onSelectWall(null);
+      }
     }
     setDrag(null);
     setPreview(null);
@@ -292,8 +383,12 @@ function EditorSurface({
     <div
       ref={surfaceRef}
       className={cn(
-        "relative min-h-80 min-w-0 flex-1 touch-none overflow-hidden rounded-3xl border border-border/60 bg-muted/20",
-        drag?.kind === "pan" ? "cursor-grabbing" : "cursor-grab",
+        "relative min-h-80 min-w-0 flex-1 touch-none overflow-hidden rounded-3xl border border-border/60 bg-muted/20 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+        tool === "draw"
+          ? "cursor-crosshair"
+          : drag?.kind === "pan"
+            ? "cursor-grabbing"
+            : "cursor-grab",
         className,
       )}
       onPointerDown={(event) => {
@@ -309,8 +404,30 @@ function EditorSurface({
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onDoubleClick={() => {
+        if (tool === "draw") finishOutline();
+      }}
       tabIndex={0}
       onKeyDown={(event) => {
+        if (tool === "draw") {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            finishOutline();
+            return;
+          }
+          if (event.key === "Backspace") {
+            event.preventDefault();
+            onError(null);
+            setOutline((points) => points.slice(0, -1));
+            return;
+          }
+          if (event.key === "Escape") {
+            setOutline([]);
+            setOutlineHover(null);
+            onError(null);
+            return;
+          }
+        }
         if (event.key === "Escape") {
           onSelectWall(null);
           onSelectArea(null);
@@ -342,7 +459,11 @@ function EditorSurface({
         height={size.height}
         className="block select-none"
         role="application"
-        aria-label={`${floor.name} editor. Drag corners and walls; drag the background to pan.`}
+        aria-label={
+          tool === "draw"
+            ? `${floor.name} editor. Click to place corners, click the first corner to finish.`
+            : `${floor.name} editor. Drag corners and walls; drag the background to pan.`
+        }
       >
         {gridStep > 0 && (
           <g aria-hidden="true" className="pointer-events-none">
@@ -393,11 +514,16 @@ function EditorSurface({
                     : "fill-tile-off stroke-transparent hover:fill-foreground/10",
                 )}
                 strokeWidth={1}
-                onPointerDown={(event) => {
-                  event.stopPropagation();
-                  onSelectArea(area.id);
-                  onSelectWall(null);
-                }}
+                onPointerDown={
+                  tool === "draw"
+                    ? undefined
+                    : (event) => {
+                        event.stopPropagation();
+                        onSelectArea(area.id);
+                        onSelectWall(null);
+                      }
+                }
+                pointerEvents={tool === "draw" ? "none" : undefined}
               />
               {labelPoint &&
                 getAreaLabelWidth(
@@ -448,6 +574,7 @@ function EditorSurface({
                       ? "stroke-foreground/15"
                       : "stroke-transparent",
                 )}
+                pointerEvents={tool === "draw" ? "none" : undefined}
                 onPointerEnter={() => setHoverWallId(wall.id)}
                 onPointerLeave={() =>
                   setHoverWallId((value) => (value === wall.id ? null : value))
@@ -507,42 +634,93 @@ function EditorSurface({
           />
         ))}
 
-        {shown.vertices.map((vertex) => {
-          const position = project(vertex);
-          const active = drag?.kind === "corner" && drag.vertexId === vertex.id;
-          return (
-            <circle
-              key={vertex.id}
-              cx={position.x}
-              cy={position.y}
-              r={active ? 7 : 5}
+        {outline.length > 0 && (
+          <g className="pointer-events-none">
+            <polyline
+              points={[...outline, ...(outlineHover ? [outlineHover] : [])]
+                .map((point) => {
+                  const position = project(point);
+                  return `${position.x},${position.y}`;
+                })
+                .join(" ")}
+              className="fill-none stroke-primary"
               strokeWidth={2}
-              className={cn(
-                "cursor-move",
-                active
-                  ? "fill-primary stroke-background"
-                  : "fill-background stroke-foreground/70 hover:fill-primary/40",
-              )}
-              onPointerDown={(event) => {
-                event.stopPropagation();
-                capture(event);
-                onError(null);
-                onSelectWall(null);
-                const world = pointerWorld(event);
-                setDrag({
-                  kind: "corner",
-                  vertexId: vertex.id,
-                  base: shown,
-                  // Keeps the corner where it was grabbed instead of jumping.
-                  grabOffset: { x: vertex.x - world.x, y: vertex.y - world.y },
-                  moved: false,
-                });
-              }}
+              strokeLinejoin="round"
+              strokeLinecap="round"
             />
-          );
-        })}
+            {outline.map((point, index) => {
+              const position = project(point);
+              return (
+                <circle
+                  key={index}
+                  cx={position.x}
+                  cy={position.y}
+                  r={index === 0 && outline.length >= 3 ? 7 : 4}
+                  strokeWidth={2}
+                  className={
+                    index === 0 && outline.length >= 3
+                      ? "fill-background stroke-primary"
+                      : "fill-primary stroke-background"
+                  }
+                />
+              );
+            })}
+          </g>
+        )}
+
+        {tool === "select" &&
+          shown.vertices.map((vertex) => {
+            const position = project(vertex);
+            const active =
+              drag?.kind === "corner" && drag.vertexId === vertex.id;
+            return (
+              <circle
+                key={vertex.id}
+                cx={position.x}
+                cy={position.y}
+                r={active ? 7 : 5}
+                strokeWidth={2}
+                className={cn(
+                  "cursor-move",
+                  active
+                    ? "fill-primary stroke-background"
+                    : "fill-background stroke-foreground/70 hover:fill-primary/40",
+                )}
+                onPointerDown={(event) => {
+                  event.stopPropagation();
+                  capture(event);
+                  onError(null);
+                  onSelectWall(null);
+                  const world = pointerWorld(event);
+                  setDrag({
+                    kind: "corner",
+                    vertexId: vertex.id,
+                    base: shown,
+                    // Keeps the corner where it was grabbed instead of jumping.
+                    grabOffset: {
+                      x: vertex.x - world.x,
+                      y: vertex.y - world.y,
+                    },
+                    moved: false,
+                  });
+                }}
+              />
+            );
+          })}
       </svg>
 
+      {tool === "draw" && (
+        <p
+          role="status"
+          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+        >
+          {outline.length === 0
+            ? "Click to place the first corner of a room."
+            : outline.length < 3
+              ? "Keep clicking corners. Walls stay horizontal or vertical."
+              : "Click the first corner to finish. Backspace removes the last one."}
+        </p>
+      )}
       <div
         className="absolute right-3 bottom-3 flex items-center gap-0.5 rounded-full border border-border bg-background p-1 shadow-sm"
         role="group"

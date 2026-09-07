@@ -9,6 +9,7 @@ import {
   samePoint,
   segmentsIntersect,
   signedArea,
+  validateRing,
 } from "./geometry";
 import type {
   MapArea,
@@ -371,5 +372,55 @@ export function combineMapAreas(
   result.vertices = result.vertices.filter((vertex) =>
     referencedVertices.has(vertex.id),
   );
+  return checked(result);
+}
+
+/**
+ * Adds a drawn outline as a new room. Corners that land on an existing corner
+ * reuse it, and both sides of a touching wall gain every corner along it, so a
+ * room drawn against a neighbour shares that boundary instead of overlapping.
+ */
+export function addOutlineArea(
+  floor: MapFloor,
+  ring: MapPoint[],
+  area: { id: string; name: string; target?: MapControlTarget | null },
+  createVertexId: () => string,
+): MapResult<MapFloor> {
+  const input = checked(floor);
+  if (!input.ok) return input;
+  const ringError = validateRing(ring);
+  if (ringError) return failure(ringError);
+  if (!area.id.trim() || floor.areas.some((entry) => entry.id === area.id))
+    return failure("The new room needs a unique ID.");
+  if (!area.name.trim()) return failure("Name the new room.");
+
+  const result = copyFloor(floor);
+  const corners: MapVertex[] = [];
+  for (const point of ring) {
+    let vertex = result.vertices.find((entry) => samePoint(entry, point));
+    if (!vertex) {
+      const id = createVertexId();
+      if (!id.trim() || result.vertices.some((entry) => entry.id === id))
+        return failure("Could not assign a unique ID to a drawn corner.");
+      vertex = { id, x: point.x, y: point.y };
+      result.vertices.push(vertex);
+    }
+    corners.push(vertex);
+  }
+  const vertices = new Map(result.vertices.map((entry) => [entry.id, entry]));
+  const drawn: MapArea = {
+    id: area.id,
+    name: area.name.trim(),
+    vertexIds: corners.map((corner) => corner.id),
+    target: area.target ? { ...area.target } : null,
+  };
+  // Neighbouring corners must appear on the drawn room's walls, and the drawn
+  // room's corners on theirs, before the floor is valid.
+  result.areas = [
+    ...result.areas.map((candidate) =>
+      insertWallVertices(candidate, corners, vertices),
+    ),
+    insertWallVertices(drawn, result.vertices, vertices),
+  ];
   return checked(result);
 }

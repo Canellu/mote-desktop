@@ -4,6 +4,8 @@ import {
   ChevronRight,
   Layers,
   Lightbulb,
+  MousePointer2,
+  PenLine,
   PencilRuler,
   Ruler,
   X,
@@ -26,7 +28,7 @@ import {
 } from "@/components/ui/sheet";
 import type { HueRoomZone } from "@/types/hue";
 import { MapCanvas } from "./components/MapCanvas";
-import { MapEditorCanvas } from "./components/MapEditorCanvas";
+import { MapEditorCanvas, type EditorTool } from "./components/MapEditorCanvas";
 import { SnapSettingsMenu } from "./components/SnapSettingsMenu";
 import { WallEditor } from "./components/WallEditor";
 import { locatePoint, signedArea } from "./geometry";
@@ -36,8 +38,9 @@ import {
   writeSnapSettings,
   type SnapSettings,
 } from "./snapping";
-import type { HomeMapDocument, MapFloor } from "./types";
+import type { HomeMapDocument, MapFloor, MapPoint } from "./types";
 import { type WallStep } from "./wallDisplay";
+import { addOutlineArea } from "./operations";
 import { listWalls, moveWall } from "./walls";
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
@@ -94,9 +97,28 @@ export function HomeMapScreen({
   const [wallStep, setWallStep] = useState<WallStep>(0.5);
   const [wallError, setWallError] = useState<string | null>(null);
   const [snap, setSnap] = useState<SnapSettings>(() => readSnapSettings());
+  const [tool, setTool] = useState<EditorTool>("select");
   const floor =
     map.floors.find((entry) => entry.id === selectedFloorId) ?? map.floors[0];
   const walls = editing ? listWalls(floor) : [];
+
+  function drawRoom(ring: MapPoint[]) {
+    if (!onEditFloor) return;
+    // Named by position for now; renaming and Hue links follow with divide.
+    const name = `Room ${floor.areas.length + 1}`;
+    const result = addOutlineArea(
+      floor,
+      ring,
+      { id: crypto.randomUUID(), name },
+      () => crypto.randomUUID(),
+    );
+    if (!result.ok) {
+      setWallError(result.error);
+      return;
+    }
+    setWallError(null);
+    onEditFloor(result.value);
+  }
 
   function moveSelectedWall(direction: -1 | 1) {
     if (!onEditFloor || !selectedWallId) return;
@@ -224,6 +246,36 @@ export function HomeMapScreen({
             Dimensions
           </Button>
           {onEditFloor && editing && (
+            <div
+              role="group"
+              aria-label="Editor tool"
+              className="flex items-center gap-1"
+            >
+              <Button
+                size="sm"
+                variant={tool === "select" ? "secondary" : "ghost"}
+                aria-pressed={tool === "select"}
+                onClick={() => setTool("select")}
+              >
+                <MousePointer2 />
+                Select
+              </Button>
+              <Button
+                size="sm"
+                variant={tool === "draw" ? "secondary" : "ghost"}
+                aria-pressed={tool === "draw"}
+                onClick={() => {
+                  setWallError(null);
+                  setSelectedWallId(null);
+                  setTool("draw");
+                }}
+              >
+                <PenLine />
+                Draw room
+              </Button>
+            </div>
+          )}
+          {onEditFloor && editing && (
             <SnapSettingsMenu
               settings={snap}
               units={map.units}
@@ -241,6 +293,7 @@ export function HomeMapScreen({
               onClick={() => {
                 setSelectedWallId(null);
                 setWallError(null);
+                setTool("select");
                 setEditing(!editing);
               }}
             >
@@ -255,6 +308,8 @@ export function HomeMapScreen({
         {editing && onEditFloor ? (
           <MapEditorCanvas
             floor={floor}
+            tool={tool}
+            onDrawRoom={drawRoom}
             units={map.units}
             snap={snap}
             selectedAreaId={selected?.id ?? null}
