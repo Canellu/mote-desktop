@@ -32,6 +32,7 @@ import { MapCanvas } from "./components/MapCanvas";
 import { MapEditorCanvas, type EditorTool } from "./components/MapEditorCanvas";
 import { SnapSettingsMenu } from "./components/SnapSettingsMenu";
 import { FloorEditor } from "./components/FloorEditor";
+import { HueChangeReview } from "./components/HueChangeReview";
 import { LightTrayPanel } from "./components/LightTrayPanel";
 import { RoomEditorPanel } from "./components/RoomEditorPanel";
 import { WallEditor } from "./components/WallEditor";
@@ -75,6 +76,11 @@ import { listWalls, moveWall } from "./walls";
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
 import { getFloorControlScope } from "./floorScope";
+import {
+  lightsInArea,
+  type MapHueOperation,
+  type QueuedHueOperation,
+} from "./hueOperations";
 import { MapRoomControls } from "./components/MapRoomControls";
 
 const wideQuery = "(min-width: 1000px)";
@@ -100,6 +106,12 @@ export interface HomeMapScreenProps {
   onUndo?: () => void;
   canUndo?: boolean;
   busy?: boolean;
+  /** Reviewed Hue changes waiting for the next save. */
+  hueQueue?: QueuedHueOperation[];
+  hueRunning?: boolean;
+  /** Returns a reason when the change cannot be queued, or null. */
+  onQueueHueOperation?: (operation: MapHueOperation) => string | null;
+  onRemoveHueOperation?: (operationId: string) => void;
 }
 
 export function HomeMapScreen({
@@ -116,6 +128,10 @@ export function HomeMapScreen({
   onUndo,
   canUndo = false,
   busy = false,
+  hueQueue = [],
+  hueRunning = false,
+  onQueueHueOperation,
+  onRemoveHueOperation,
 }: HomeMapScreenProps) {
   const wide = useSyncExternalStore(
     subscribeToWidth,
@@ -270,6 +286,26 @@ export function HomeMapScreen({
   const selected =
     floor.areas.find((area) => area.id === selectedAreaId) ?? null;
   const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
+  const zoneCandidates = selected
+    ? lightsInArea(floor, selected, lighting.lights)
+    : [];
+  // Devices in this area that Hue still counts as part of another room.
+  const moveCandidates = selected?.target
+    ? zoneCandidates.filter((light) => {
+        const owner = roomZones.find(
+          (candidate) =>
+            candidate.resourceType === "room" &&
+            candidate.lightIds.includes(light.id),
+        );
+        return Boolean(
+          light.deviceId &&
+          owner &&
+          (selected.target?.resourceType !== "room" ||
+            owner.id !== selected.target.resourceId),
+        );
+      })
+    : [];
+
   const ringFor = (ids: string[]) => ids.map((id) => vertices.get(id)!);
   const scope = selected
     ? getMapControlScope({
@@ -553,6 +589,15 @@ export function HomeMapScreen({
         <aside aria-label="Rooms and selection" className="min-w-0 space-y-6">
           {editing ? (
             <div className="space-y-6">
+              {hueQueue.length > 0 && (
+                <HueChangeReview
+                  queue={hueQueue}
+                  lights={lighting.lights}
+                  roomZones={roomZones}
+                  running={hueRunning}
+                  onRemove={(id) => onRemoveHueOperation?.(id)}
+                />
+              )}
               {onEditMap && (
                 <FloorEditor
                   map={map}
@@ -626,6 +671,57 @@ export function HomeMapScreen({
                     setWallError(null);
                     setCombineIds(selected ? [selected.id] : []);
                     setTool("combine");
+                  }}
+                  zoneCandidateCount={zoneCandidates.length}
+                  moveCandidateCount={
+                    new Set(
+                      moveCandidates.flatMap((light) =>
+                        light.deviceId ? [light.deviceId] : [],
+                      ),
+                    ).size
+                  }
+                  onCreateZone={() => {
+                    if (!selected || zoneCandidates.length === 0) return;
+                    setWallError(
+                      onQueueHueOperation?.({
+                        id: crypto.randomUUID(),
+                        kind: "create-zone",
+                        areaId: selected.id,
+                        name: selected.name,
+                        lightIds: zoneCandidates.map((light) => light.id),
+                      }) ?? null,
+                    );
+                  }}
+                  onMoveDevices={() => {
+                    if (
+                      !selected?.target ||
+                      selected.target.resourceType !== "room" ||
+                      moveCandidates.length === 0
+                    )
+                      return;
+                    const target = roomZones.find(
+                      (candidate) =>
+                        candidate.id === selected.target?.resourceId &&
+                        candidate.resourceType === "room",
+                    );
+                    if (!target) return;
+                    setWallError(
+                      onQueueHueOperation?.({
+                        id: crypto.randomUUID(),
+                        kind: "move-devices",
+                        areaId: selected.id,
+                        roomId: target.id,
+                        roomName: target.name,
+                        deviceIds: [
+                          ...new Set(
+                            moveCandidates.flatMap((light) =>
+                              light.deviceId ? [light.deviceId] : [],
+                            ),
+                          ),
+                        ],
+                        lightIds: moveCandidates.map((light) => light.id),
+                      }) ?? null,
+                    );
                   }}
                   onCombine={combineRooms}
                   onCancelTool={() => {

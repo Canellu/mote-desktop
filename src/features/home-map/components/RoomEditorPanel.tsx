@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Combine, Scissors, Trash2 } from "lucide-react";
+import { Combine, FolderPlus, MoveRight, Scissors, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +32,10 @@ export function RoomEditorPanel({
   onStartCombine,
   onCombine,
   onCancelTool,
+  zoneCandidateCount,
+  moveCandidateCount,
+  onCreateZone,
+  onMoveDevices,
 }: {
   floor: MapFloor;
   area: MapArea | null;
@@ -47,6 +51,12 @@ export function RoomEditorPanel({
   onStartCombine: () => void;
   onCombine: () => void;
   onCancelTool: () => void;
+  /** Lights whose markers sit in this room, offered as a new zone. */
+  zoneCandidateCount: number;
+  /** Devices in this room that belong to another Hue room. */
+  moveCandidateCount: number;
+  onCreateZone: () => void;
+  onMoveDevices: () => void;
 }) {
   const [name, setName] = useState(area?.name ?? "");
   useEffect(() => {
@@ -203,6 +213,44 @@ export function RoomEditorPanel({
         Removing a room takes it off the map only. Hue rooms, zones, and lights
         stay exactly as they are.
       </p>
+
+      <div className="space-y-2 border-t border-border pt-4">
+        <h4 className="text-sm font-medium">Change Hue itself</h4>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          These are queued for review and only sent when you save the map.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy || zoneCandidateCount === 0}
+            onClick={onCreateZone}
+          >
+            <FolderPlus />
+            Create zone from {zoneCandidateCount}{" "}
+            {zoneCandidateCount === 1 ? "light" : "lights"}
+          </Button>
+          {moveCandidateCount > 0 && linked?.resourceType === "room" && (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={onMoveDevices}
+            >
+              <MoveRight />
+              Move {moveCandidateCount}{" "}
+              {moveCandidateCount === 1 ? "device" : "devices"} into{" "}
+              {linked.name}
+            </Button>
+          )}
+        </div>
+        {zoneCandidateCount === 0 && (
+          <p className="text-xs text-muted-foreground">
+            Place lights in this room first; a zone is created from the lights
+            you reviewed, never from the room's shape.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

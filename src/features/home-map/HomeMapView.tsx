@@ -4,6 +4,15 @@ import { Button } from "@/components/ui/button";
 import type { HueRoomZone } from "@/types/hue";
 import { CreateMapWizard } from "./components/CreateMapWizard";
 import { DraftReviewBar } from "./components/DraftReviewBar";
+import {
+  isUnresolved,
+  reconcileOperations,
+  removeOperation,
+  runQueuedOperations,
+  queueOperation,
+  type QueuedHueOperation,
+} from "./hueOperations";
+import { createHueOperationRunner } from "./hueRunner";
 import { HomeMapScreen } from "./HomeMapScreen";
 import type { HomeMapDocument, MapFloor } from "./types";
 import { useHomeMapStore, homeMapStore } from "./useHomeMapStore";
@@ -41,6 +50,8 @@ export function HomeMapView({
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hueQueue, setHueQueue] = useState<QueuedHueOperation[]>([]);
+  const [hueRunning, setHueRunning] = useState(false);
   const draft = entry?.draftState?.draft ?? null;
   const published = entry?.draftState?.published ?? null;
   // A draft is the working copy; it hides the published map until resolved.
@@ -58,6 +69,34 @@ export function HomeMapView({
       setCreating(false);
       onSelect(document.floors[0].id, document.floors[0].areas[0].id);
     } else setCreateError(result.error);
+  }
+
+  /**
+   * Save is the commit point: reviewed Hue changes run first, their results
+   * are folded into the draft, and the map publishes only once none remain.
+   */
+  async function saveMap() {
+    if (!bridgeId || !map) return;
+    if (hueQueue.some(isUnresolved)) {
+      setHueRunning(true);
+      const results = await runQueuedOperations(
+        hueQueue,
+        createHueOperationRunner(roomZones),
+      );
+      setHueQueue(results);
+      setHueRunning(false);
+      lighting.onRefresh?.();
+      const reconciled = reconcileOperations(map, results);
+      if (JSON.stringify(reconciled) !== JSON.stringify(map)) {
+        const applied = await homeMapStore
+          .getState()
+          .applyEdit(bridgeId, reconciled);
+        if (!applied.ok) return;
+      }
+      // Successful resources already exist in Hue and are kept either way.
+      if (results.some(isUnresolved)) return;
+    }
+    await homeMapStore.getState().publish(bridgeId);
   }
 
   if (preview && Preview)
@@ -94,8 +133,16 @@ export function HomeMapView({
           <DraftReviewBar
             entry={entry}
             hasPublished={published !== null}
-            onSave={() => void homeMapStore.getState().publish(bridgeId)}
-            onDiscard={() => void homeMapStore.getState().discard(bridgeId)}
+            onSave={() => void saveMap()}
+            hueChangeCount={hueQueue.filter(isUnresolved).length}
+            hueRunning={hueRunning}
+            onDiscard={() => {
+              // Unsent changes refer to draft rooms; committed ones stay.
+              setHueQueue((current) =>
+                current.filter((entry) => entry.status.state === "done"),
+              );
+              void homeMapStore.getState().discard(bridgeId);
+            }}
             onRetrySave={() => void homeMapStore.getState().retrySave(bridgeId)}
           />
         )}
@@ -114,6 +161,17 @@ export function HomeMapView({
               void homeMapStore.getState().applyEdit(bridgeId, next);
           }}
           onUndo={() => void homeMapStore.getState().undo(bridgeId)}
+          hueQueue={hueQueue}
+          hueRunning={hueRunning}
+          onQueueHueOperation={(operation) => {
+            const queued = queueOperation(hueQueue, operation);
+            if (!queued.ok) return queued.error;
+            setHueQueue(queued.value);
+            return null;
+          }}
+          onRemoveHueOperation={(id) =>
+            setHueQueue((current) => removeOperation(current, id))
+          }
           canUndo={(entry?.draftState?.past.length ?? 0) > 0}
           busy={entry?.saving ?? false}
         />

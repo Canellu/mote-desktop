@@ -117,6 +117,17 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Hue operations checkpoint: **148 Home Map Bun tests (811 assertions)
+  passed**, including queue validation, one change per room, review copy for
+  both kinds, a later failure keeping earlier successes, retry running only
+  unresolved work, reconciliation linking an area to the created zone, and the
+  runner's command sequence for moving devices out of their old room. Rust
+  compiles with `cargo check`. Frontend typecheck, production build, targeted
+  ESLint/Prettier passed. Browser checks queued a zone from a room's placed
+  lights, read the review, saw a duplicate queueing refused with its reason,
+  and removed the change. **The bridge write path itself is not verified
+  here**: creating a zone and moving devices need the desktop app and a real
+  bridge, and were exercised only through an injected fake.
 - Floor scope checkpoint: **140 Home Map Bun tests (783 assertions) passed**,
   including exact floor scope, off-floor and unplaced members disabling the
   action, shared targets counted once, and offline, loading, unlinked, and

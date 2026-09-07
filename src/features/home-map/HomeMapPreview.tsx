@@ -10,6 +10,11 @@ import { Button } from "@/components/ui/button";
 import type { HueLight, HueRoomZone } from "@/types/hue";
 import { CreateMapWizard } from "./components/CreateMapWizard";
 import { HomeMapScreen } from "./HomeMapScreen";
+import {
+  queueOperation,
+  removeOperation,
+  type QueuedHueOperation,
+} from "./hueOperations";
 import type { HomeMapDocument, MapFloor } from "./types";
 import type { HomeMapLighting } from "./lighting";
 import { createSampleLighting, summarizeSampleTargets } from "./sampleLighting";
@@ -41,6 +46,8 @@ export default function HomeMapPreview({
   const [creating, setCreating] = useState(false);
   const [created, setCreated] = useState<HomeMapDocument | null>(null);
   const [history, setHistory] = useState<HomeMapDocument[]>([]);
+  // The example queue is reviewed locally; nothing is ever sent to a bridge.
+  const [queue, setQueue] = useState<QueuedHueOperation[]>([]);
   const syncedLightIds = mode === "syncing" ? [example.lights[0].id] : [];
   const roomZones = summarizeSampleTargets(example.roomZones, example.lights);
 
@@ -254,6 +261,16 @@ export default function HomeMapPreview({
         preview
         onOpenSpace={() => {}}
         onEditFloor={editFloor}
+        hueQueue={queue}
+        onQueueHueOperation={(operation) => {
+          const queued = queueOperation(queue, operation);
+          if (!queued.ok) return queued.error;
+          setQueue(queued.value);
+          return null;
+        }}
+        onRemoveHueOperation={(id) =>
+          setQueue((current) => removeOperation(current, id))
+        }
         onEditMap={(next) => {
           setHistory((current) => [...current, shown]);
           showMap(next);
