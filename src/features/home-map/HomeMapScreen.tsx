@@ -30,8 +30,10 @@ import type { HueRoomZone } from "@/types/hue";
 import { MapCanvas } from "./components/MapCanvas";
 import { MapEditorCanvas, type EditorTool } from "./components/MapEditorCanvas";
 import { SnapSettingsMenu } from "./components/SnapSettingsMenu";
+import { LightTrayPanel } from "./components/LightTrayPanel";
 import { RoomEditorPanel } from "./components/RoomEditorPanel";
 import { WallEditor } from "./components/WallEditor";
+import { blinkableLightIds, useBlinkLights } from "@/hooks/useBlinkLights";
 import { locatePoint, signedArea } from "./geometry";
 import { convertLength } from "./measurements";
 import {
@@ -54,6 +56,7 @@ import {
   setMapAreaTarget,
   splitMapArea,
 } from "./operations";
+import { buildTray, placeLight, unplaceLight } from "./placement";
 import { listWalls, moveWall } from "./walls";
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
@@ -77,6 +80,8 @@ export interface HomeMapScreenProps {
   onOpenSpace: (id: string) => void;
   /** Provided only where geometry edits can be kept as a draft. */
   onEditFloor?: (floor: MapFloor) => void;
+  /** Placement spans floors, so it edits the whole map. */
+  onEditMap?: (map: HomeMapDocument) => void;
   onUndo?: () => void;
   canUndo?: boolean;
   busy?: boolean;
@@ -92,6 +97,7 @@ export function HomeMapScreen({
   onSelect,
   onOpenSpace,
   onEditFloor,
+  onEditMap,
   onUndo,
   canUndo = false,
   busy = false,
@@ -112,6 +118,8 @@ export function HomeMapScreen({
   const [snap, setSnap] = useState<SnapSettings>(() => readSnapSettings());
   const [tool, setTool] = useState<EditorTool>("select");
   const [combineIds, setCombineIds] = useState<string[]>([]);
+  const [placingLightId, setPlacingLightId] = useState<string | null>(null);
+  const { blinkingKeys, blink } = useBlinkLights();
   const floor =
     map.floors.find((entry) => entry.id === selectedFloorId) ?? map.floors[0];
   const walls = editing ? listWalls(floor) : [];
@@ -132,6 +140,16 @@ export function HomeMapScreen({
     }
     setWallError(null);
     onEditFloor(result.value);
+  }
+
+  function applyMapEdit(result: ReturnType<typeof placeLight>) {
+    if (!onEditMap) return;
+    if (!result.ok) {
+      setWallError(result.error);
+      return;
+    }
+    setWallError(null);
+    onEditMap(result.value);
   }
 
   /** Returns whether the edit was accepted, so tools stay open on failure. */
@@ -312,11 +330,27 @@ export function HomeMapScreen({
                 aria-pressed={tool === "select"}
                 onClick={() => {
                   setCombineIds([]);
+                  setPlacingLightId(null);
                   setTool("select");
                 }}
               >
                 <MousePointer2 />
                 Select
+              </Button>
+              <Button
+                size="sm"
+                variant={tool === "lights" ? "secondary" : "ghost"}
+                aria-pressed={tool === "lights"}
+                disabled={!onEditMap}
+                onClick={() => {
+                  setWallError(null);
+                  setSelectedWallId(null);
+                  setCombineIds([]);
+                  setTool("lights");
+                }}
+              >
+                <Lightbulb />
+                Place lights
               </Button>
               <Button
                 size="sm"
@@ -354,6 +388,7 @@ export function HomeMapScreen({
                 setWallError(null);
                 setTool("select");
                 setCombineIds([]);
+                setPlacingLightId(null);
                 setEditing(!editing);
               }}
             >
@@ -371,6 +406,14 @@ export function HomeMapScreen({
             tool={tool}
             onDrawRoom={drawRoom}
             onDivideRoom={divideRoom}
+            placingLightId={placingLightId}
+            lightLabels={Object.fromEntries(
+              lighting.lights.map((light) => [light.id, light.name]),
+            )}
+            onPlaceLight={(lightId, point) => {
+              applyMapEdit(placeLight(map, floor.id, lightId, point));
+              setPlacingLightId(null);
+            }}
             combineIds={combineIds}
             onToggleCombine={(areaId) =>
               setCombineIds((current) =>
@@ -405,42 +448,63 @@ export function HomeMapScreen({
         <aside aria-label="Rooms and selection" className="min-w-0 space-y-6">
           {editing ? (
             <div className="space-y-6">
-              <RoomEditorPanel
-                floor={floor}
-                area={selected}
-                roomZones={roomZones}
-                combineIds={combineIds}
-                dividing={tool === "divide"}
-                combining={tool === "combine"}
-                busy={busy}
-                onRename={(name) =>
-                  selected && applyEdit(renameMapArea(floor, selected.id, name))
-                }
-                onLink={(target: MapControlTarget | null) =>
-                  selected &&
-                  applyEdit(setMapAreaTarget(floor, selected.id, target))
-                }
-                onRemove={() => {
-                  if (!selected) return;
-                  applyEdit(removeMapArea(floor, selected.id));
-                  onSelect(floor.id, null);
-                }}
-                onStartDivide={() => {
-                  setWallError(null);
-                  setTool("divide");
-                }}
-                onStartCombine={() => {
-                  setWallError(null);
-                  setCombineIds(selected ? [selected.id] : []);
-                  setTool("combine");
-                }}
-                onCombine={combineRooms}
-                onCancelTool={() => {
-                  setWallError(null);
-                  setCombineIds([]);
-                  setTool("select");
-                }}
-              />
+              {tool === "lights" ? (
+                <LightTrayPanel
+                  entries={buildTray(map, lighting.lights, roomZones)}
+                  floor={floor}
+                  placingLightId={placingLightId}
+                  blinkingKeys={blinkingKeys}
+                  busy={busy}
+                  onChoose={setPlacingLightId}
+                  onIdentify={(light) =>
+                    void blink(
+                      light.id,
+                      blinkableLightIds(light, lighting.lights),
+                    )
+                  }
+                  onRemove={(lightId) =>
+                    applyMapEdit(unplaceLight(map, lightId))
+                  }
+                />
+              ) : (
+                <RoomEditorPanel
+                  floor={floor}
+                  area={selected}
+                  roomZones={roomZones}
+                  combineIds={combineIds}
+                  dividing={tool === "divide"}
+                  combining={tool === "combine"}
+                  busy={busy}
+                  onRename={(name) =>
+                    selected &&
+                    applyEdit(renameMapArea(floor, selected.id, name))
+                  }
+                  onLink={(target: MapControlTarget | null) =>
+                    selected &&
+                    applyEdit(setMapAreaTarget(floor, selected.id, target))
+                  }
+                  onRemove={() => {
+                    if (!selected) return;
+                    applyEdit(removeMapArea(floor, selected.id));
+                    onSelect(floor.id, null);
+                  }}
+                  onStartDivide={() => {
+                    setWallError(null);
+                    setTool("divide");
+                  }}
+                  onStartCombine={() => {
+                    setWallError(null);
+                    setCombineIds(selected ? [selected.id] : []);
+                    setTool("combine");
+                  }}
+                  onCombine={combineRooms}
+                  onCancelTool={() => {
+                    setWallError(null);
+                    setCombineIds([]);
+                    setTool("select");
+                  }}
+                />
+              )}
               <WallEditor
                 floor={floor}
                 walls={walls}

@@ -39,6 +39,12 @@ type Drag =
       moved: boolean;
     }
   | {
+      kind: "light";
+      lightId: string;
+      grabOffset: MapPoint;
+      moved: boolean;
+    }
+  | {
       kind: "wall";
       wallId: string;
       orientation: "horizontal" | "vertical";
@@ -47,7 +53,7 @@ type Drag =
       moved: boolean;
     };
 
-export type EditorTool = "select" | "draw" | "divide" | "combine";
+export type EditorTool = "select" | "draw" | "divide" | "combine" | "lights";
 
 export interface MapEditorCanvasProps {
   floor: MapFloor;
@@ -58,6 +64,10 @@ export interface MapEditorCanvasProps {
   onDivideRoom: (divider: MapPoint[]) => void;
   combineIds: string[];
   onToggleCombine: (areaId: string) => void;
+  /** The light waiting for a position, chosen in the tray. */
+  placingLightId: string | null;
+  lightLabels: Record<string, string>;
+  onPlaceLight: (lightId: string, point: MapPoint) => void;
   units: "metric" | "imperial";
   snap: SnapSettings;
   selectedAreaId: string | null;
@@ -81,6 +91,9 @@ function EditorSurface({
   onDivideRoom,
   combineIds,
   onToggleCombine,
+  placingLightId,
+  lightLabels,
+  onPlaceLight,
   units,
   snap,
   selectedAreaId,
@@ -104,6 +117,10 @@ function EditorSurface({
   const [hoverWallId, setHoverWallId] = useState<string | null>(null);
   const [outline, setOutline] = useState<MapPoint[]>([]);
   const [outlineHover, setOutlineHover] = useState<MapPoint | null>(null);
+  const [lightPreview, setLightPreview] = useState<{
+    lightId: string;
+    point: MapPoint;
+  } | null>(null);
 
   /** Capture is best-effort: a browser may reject it mid-gesture. */
   function capture(event: React.PointerEvent, release = false) {
@@ -333,6 +350,16 @@ function EditorSurface({
       return;
     }
     const world = pointerWorld(event);
+    if (drag.kind === "light") {
+      const result = snapped(
+        { x: world.x + drag.grabOffset.x, y: world.y + drag.grabOffset.y },
+        [],
+      );
+      setGuides([]);
+      dragRef.current = { ...drag, moved: true };
+      setLightPreview({ lightId: drag.lightId, point: result.point });
+      return;
+    }
     if (drag.kind === "corner") {
       const result = snapped(
         {
@@ -371,10 +398,23 @@ function EditorSurface({
     if (!drag) return;
     capture(event, true);
     const committed = previewRef.current;
+    if (drag.kind === "light") {
+      const moved = lightPreview;
+      setLightPreview(null);
+      setDrag(null);
+      setGuides([]);
+      if (drag.moved && moved) onPlaceLight(moved.lightId, moved.point);
+      return;
+    }
     if (drag.kind !== "pan" && committed && drag.moved) onCommit(committed);
     if (drag.kind === "pan" && !drag.moved) {
       if (tool === "draw") placeCorner(event);
-      else if (tool === "divide") placeDividerCorner(event);
+      else if (tool === "lights") {
+        if (placingLightId) {
+          const { point } = draftCorner(event);
+          onPlaceLight(placingLightId, point);
+        } else onSelectArea(null);
+      } else if (tool === "divide") placeDividerCorner(event);
       else if (tool !== "combine") {
         onSelectArea(null);
         onSelectWall(null);
@@ -435,7 +475,7 @@ function EditorSurface({
       ref={surfaceRef}
       className={cn(
         "relative min-h-80 min-w-0 flex-1 touch-none overflow-hidden rounded-3xl border border-border/60 bg-muted/20 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-        tool === "draw" || tool === "divide"
+        tool === "draw" || tool === "divide" || placingLightId
           ? "cursor-crosshair"
           : drag?.kind === "pan"
             ? "cursor-grabbing"
@@ -517,7 +557,9 @@ function EditorSurface({
               ? `${floor.name} editor. Click one wall of the selected room, then the wall opposite.`
               : tool === "combine"
                 ? `${floor.name} editor. Click the rooms to combine.`
-                : `${floor.name} editor. Drag corners and walls; drag the background to pan.`
+                : tool === "lights"
+                  ? `${floor.name} editor. Drag light markers, or click to place the chosen light.`
+                  : `${floor.name} editor. Drag corners and walls; drag the background to pan.`
         }
       >
         {gridStep > 0 && (
@@ -584,7 +626,9 @@ function EditorSurface({
                       }
                 }
                 pointerEvents={
-                  tool === "draw" || tool === "divide" ? "none" : undefined
+                  tool === "draw" || tool === "divide" || tool === "lights"
+                    ? "none"
+                    : undefined
                 }
               />
               {labelPoint &&
@@ -696,6 +740,52 @@ function EditorSurface({
           />
         ))}
 
+        {shown.lights.map((light) => {
+          const live =
+            lightPreview?.lightId === light.lightId
+              ? lightPreview.point
+              : light;
+          const position = project(live);
+          const label = lightLabels[light.lightId] ?? "Light";
+          const dragging = lightPreview?.lightId === light.lightId;
+          return (
+            <g key={light.lightId}>
+              <circle
+                cx={position.x}
+                cy={position.y}
+                r={dragging ? 8 : 6}
+                strokeWidth={2}
+                className={cn(
+                  dragging
+                    ? "fill-primary stroke-background"
+                    : "fill-background stroke-foreground/70",
+                  tool === "lights" ? "cursor-move" : "pointer-events-none",
+                )}
+                aria-label={label}
+                onPointerDown={
+                  tool === "lights"
+                    ? (event) => {
+                        event.stopPropagation();
+                        capture(event);
+                        onError(null);
+                        const world = pointerWorld(event);
+                        setDrag({
+                          kind: "light",
+                          lightId: light.lightId,
+                          grabOffset: {
+                            x: light.x - world.x,
+                            y: light.y - world.y,
+                          },
+                          moved: false,
+                        });
+                      }
+                    : undefined
+                }
+              />
+            </g>
+          );
+        })}
+
         {outline.length > 0 && (
           <g className="pointer-events-none">
             <polyline
@@ -771,6 +861,16 @@ function EditorSurface({
           })}
       </svg>
 
+      {tool === "lights" && (
+        <p
+          role="status"
+          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+        >
+          {placingLightId
+            ? "Click where this light is in the room."
+            : "Drag a light marker to move it, or choose a light in the list."}
+        </p>
+      )}
       {tool === "divide" && (
         <p
           role="status"

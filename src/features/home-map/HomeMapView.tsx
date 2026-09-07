@@ -109,6 +109,10 @@ export function HomeMapView({
           onSelect={onSelect}
           onOpenSpace={onOpenSpace}
           onEditFloor={editFloor}
+          onEditMap={(next) => {
+            if (bridgeId)
+              void homeMapStore.getState().applyEdit(bridgeId, next);
+          }}
           onUndo={() => void homeMapStore.getState().undo(bridgeId)}
           canUndo={(entry?.draftState?.past.length ?? 0) > 0}
           busy={entry?.saving ?? false}

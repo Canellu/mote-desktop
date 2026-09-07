@@ -254,6 +254,10 @@ export default function HomeMapPreview({
         preview
         onOpenSpace={() => {}}
         onEditFloor={editFloor}
+        onEditMap={(next) => {
+          setHistory((current) => [...current, shown]);
+          showMap(next);
+        }}
         onUndo={undoEdit}
         canUndo={history.length > 0}
       />

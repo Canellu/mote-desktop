@@ -117,6 +117,15 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Placement checkpoint: **125 Home Map Bun tests (705 assertions) passed**,
+  including placing, moving between floors, rejected floors and coordinates,
+  unplacing, and locating a marker's area. Frontend typecheck, targeted
+  ESLint/Prettier passed. Browser checks placed an unplaced light by clicking,
+  saw the progress line move from 12 to 13, dragged a marker with a live
+  preview and a committed drop, removed a marker, and dragged one into another
+  room to confirm the tray discloses that its Hue target has not changed.
+  Identify calls the existing native signal and was not exercised against
+  hardware.
 - Rooms checkpoint: **120 Home Map Bun tests (681 assertions) passed**,
   including rename, link and unlink, rejected non-Hue references, and removal
   that drops only the geometry. Frontend typecheck, targeted ESLint/Prettier
