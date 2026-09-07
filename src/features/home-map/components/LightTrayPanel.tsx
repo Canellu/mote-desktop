@@ -1,4 +1,4 @@
-import { Crosshair, MapPin, Loader2, X } from "lucide-react";
+import { Crosshair, GripVertical, MapPin, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { HueLight } from "@/types/hue";
@@ -39,8 +39,9 @@ export function LightTrayPanel({
         <h3 className="text-base font-medium">Place lights</h3>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
           {`${onThisFloor.length} of ${entries.length} placed on ${floor.name}.`}{" "}
-          Choose a light, then click its position. Markers show where a lamp is;
-          its room membership still decides what a control affects.
+          Drag a light onto the map, or select it and click its position.
+          Markers show where a lamp is; its room membership still decides what a
+          control affects.
         </p>
       </div>
 
@@ -73,14 +74,28 @@ export function LightTrayPanel({
                     )}
                   >
                     <div className="flex items-center gap-1">
+                      <GripVertical
+                        className="size-4 shrink-0 text-muted-foreground/60"
+                        aria-hidden
+                      />
                       <button
                         type="button"
                         aria-pressed={choosing}
                         disabled={busy}
+                        draggable={!busy}
+                        onDragStart={(event) => {
+                          event.dataTransfer.setData(
+                            "text/plain",
+                            entry.light.id,
+                          );
+                          event.dataTransfer.effectAllowed = "move";
+                          onChoose(entry.light.id);
+                        }}
+                        onDragEnd={() => onChoose(null)}
                         onClick={() =>
                           onChoose(choosing ? null : entry.light.id)
                         }
-                        className="min-w-0 flex-1 rounded text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                        className="min-w-0 flex-1 cursor-grab rounded text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:cursor-grabbing"
                       >
                         <span className="block truncate text-sm">
                           {entry.light.name}
@@ -119,24 +134,25 @@ export function LightTrayPanel({
                         >
                           <X />
                         </Button>
+                      ) : entry.suggestedAreaName ? (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          aria-label={`Place ${entry.light.name} in ${entry.suggestedAreaName}`}
+                          title={`Place in ${entry.suggestedAreaName}`}
+                          disabled={busy}
+                          onClick={() => onPlaceInArea(entry)}
+                        >
+                          <MapPin />
+                        </Button>
                       ) : (
                         <MapPin
-                          className="mx-2 size-4 shrink-0 text-muted-foreground/50"
+                          className="mx-2 size-4 shrink-0 text-muted-foreground/30"
                           aria-hidden
                         />
                       )}
                     </div>
-                    {entry.floorId === null && entry.suggestedAreaName && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="mt-1 h-7 px-2"
-                        disabled={busy}
-                        onClick={() => onPlaceInArea(entry)}
-                      >
-                        Place in {entry.suggestedAreaName}
-                      </Button>
-                    )}
+
                     {entry.outsideTarget && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         Sitting in {entry.areaName}, which controls a different

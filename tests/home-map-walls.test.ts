@@ -1,5 +1,10 @@
 import { expect, test } from "bun:test";
-import { listWalls, moveWall } from "../src/features/home-map/walls";
+import {
+  insertCorner,
+  listWalls,
+  moveCorner,
+  moveWall,
+} from "../src/features/home-map/walls";
 import type { MapFloor } from "../src/features/home-map/types";
 import { validateMapFloor } from "../src/features/home-map/validation";
 
@@ -230,4 +235,53 @@ test("a boundary faced by two rooms moves as one wall", () => {
   for (const id of ["b", "m", "c"])
     expect(at(result.value, id).x).toBeCloseTo(6.5, 6);
   expect(at(result.value, "e").x).toBeCloseTo(10, 6);
+});
+
+test("a corner can be added on a wall, on both of its rooms", () => {
+  const base = floor();
+  const shared = dividingWall(base);
+  const result = insertCorner(base, { x: 4, y: 1.5 }, () => "new");
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(validateMapFloor(result.value.floor)).toEqual([]);
+  expect(result.value.vertexId).toBe("new");
+  // Both rooms along the shared wall gain the corner, so they still match.
+  for (const area of result.value.floor.areas)
+    expect(area.vertexIds).toContain("new");
+  expect(result.value.floor.vertices).toHaveLength(7);
+  // The wall is still one run until the new corner is moved off its line.
+  const walls = listWalls(result.value.floor);
+  expect(walls.find((wall) => wall.id === shared.id)?.vertexIds).toHaveLength(
+    3,
+  );
+  expect(base.vertices).toHaveLength(6);
+});
+
+test("adding a corner off a wall, or on an existing one, is refused", () => {
+  const base = floor();
+  expect(insertCorner(base, { x: 2, y: 1.5 }, () => "new")).toEqual({
+    ok: false,
+    error: "Click on a wall to add a corner.",
+  });
+  expect(insertCorner(base, { x: 4, y: 0 }, () => "new")).toEqual({
+    ok: false,
+    error: "There is already a corner here.",
+  });
+  expect(insertCorner(base, { x: Number.NaN, y: 0 }, () => "new").ok).toBe(
+    false,
+  );
+});
+
+test("a corner added on a wall can then be dragged into an angle", () => {
+  const added = insertCorner(floor(), { x: 4, y: 1.5 }, () => "new");
+  expect(added.ok).toBe(true);
+  if (!added.ok) return;
+  const moved = moveCorner(added.value.floor, "new", { x: 5.5, y: 1.5 });
+  expect(moved.ok).toBe(true);
+  if (!moved.ok) return;
+  expect(validateMapFloor(moved.value)).toEqual([]);
+  expect(at(moved.value, "new")).toMatchObject({ x: 5.5, y: 1.5 });
+  // The straight run became two walls that meet at the new corner.
+  const runs = listWalls(moved.value).filter((wall) => wall.dividing);
+  expect(runs).toHaveLength(2);
 });

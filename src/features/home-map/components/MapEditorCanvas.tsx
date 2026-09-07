@@ -77,6 +77,10 @@ export interface MapEditorCanvasProps {
   onSelectWall: (id: string | null) => void;
   /** Called once per completed drag, so a draft records whole moves. */
   onCommit: (floor: MapFloor) => void;
+  /** Adds a corner on a wall and returns the floor holding it. */
+  onInsertCorner: (
+    point: MapPoint,
+  ) => { floor: MapFloor; vertexId: string } | null;
   onError: (message: string | null) => void;
   className?: string;
 }
@@ -102,6 +106,7 @@ function EditorSurface({
   onSelectArea,
   onSelectWall,
   onCommit,
+  onInsertCorner,
   onError,
   className,
 }: MapEditorCanvasProps) {
@@ -513,6 +518,20 @@ function EditorSurface({
       onPointerMove={handlePointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
+      onDragOver={(event) => {
+        if (tool !== "lights") return;
+        // Accepting the drag is what makes the drop cursor appear.
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(event) => {
+        if (tool !== "lights") return;
+        event.preventDefault();
+        const lightId = event.dataTransfer.getData("text/plain");
+        if (!lightId) return;
+        const { point } = draftCorner(event);
+        onPlaceLight(lightId, point);
+      }}
       onDoubleClick={() => {
         if (tool === "draw") finishOutline();
       }}
@@ -838,6 +857,46 @@ function EditorSurface({
             })}
           </g>
         )}
+
+        {tool === "select" &&
+          walls.flatMap((wall) =>
+            wall.vertexIds.slice(0, -1).flatMap((startId, index) => {
+              const start = vertices.get(startId);
+              const end = vertices.get(wall.vertexIds[index + 1]);
+              if (!start || !end) return [];
+              const middle = {
+                x: (start.x + end.x) / 2,
+                y: (start.y + end.y) / 2,
+              };
+              const position = project(middle);
+              return [
+                <circle
+                  key={`add-${startId}-${wall.vertexIds[index + 1]}`}
+                  cx={position.x}
+                  cy={position.y}
+                  r={4}
+                  strokeWidth={1.5}
+                  className="cursor-copy fill-background/70 stroke-foreground/40 hover:fill-primary hover:stroke-background"
+                  onPointerDown={(event) => {
+                    event.stopPropagation();
+                    capture(event);
+                    onError(null);
+                    // Insert where the pointer is, then drag the new corner.
+                    const result = onInsertCorner(snapped(middle, []).point);
+                    if (!result) return;
+                    setPreview(result.floor);
+                    setDrag({
+                      kind: "corner",
+                      vertexId: result.vertexId,
+                      base: result.floor,
+                      grabOffset: { x: 0, y: 0 },
+                      moved: false,
+                    });
+                  }}
+                />,
+              ];
+            }),
+          )}
 
         {tool === "select" &&
           shown.vertices.map((vertex) => {

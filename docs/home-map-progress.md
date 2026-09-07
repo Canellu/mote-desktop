@@ -117,6 +117,14 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Editing UX checkpoint: **154 Home Map Bun tests (849 assertions) passed**,
+  including adding a corner on a shared wall so both rooms gain it, refusing a
+  corner away from a wall or on an existing corner, and dragging a newly added
+  corner into an angle that splits the run into two walls. Frontend typecheck,
+  targeted ESLint/Prettier passed. Browser checks pressed a midpoint handle and
+  dragged the new corner outward, dropped a tray light onto the map with a real
+  drag, and scrolled a long light list to the bottom with the plan still fully
+  visible and no page scrolling.
 - Free-form geometry checkpoint: **151 Home Map Bun tests (833 assertions)
   passed**, including angled and triangular rooms, a bow tie rejected for
   crossing itself, overlap between angled rooms, a corner drag that moves only

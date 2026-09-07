@@ -72,7 +72,7 @@ import {
   renameFloor,
   unplaceLight,
 } from "./placement";
-import { listWalls, moveWall } from "./walls";
+import { insertCorner, listWalls, moveWall } from "./walls";
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
 import { getFloorControlScope } from "./floorScope";
@@ -570,6 +570,18 @@ export function HomeMapScreen({
             onSelectArea={(id) => onSelect(floor.id, id)}
             onSelectWall={setSelectedWallId}
             onCommit={onEditFloor}
+            onInsertCorner={(point) => {
+              const result = insertCorner(floor, point, () =>
+                crypto.randomUUID(),
+              );
+              if (!result.ok) {
+                setWallError(result.error);
+                return null;
+              }
+              setWallError(null);
+              onEditFloor(result.value.floor);
+              return result.value;
+            }}
             onError={setWallError}
             className="h-[min(64vh,720px)] min-h-[400px]"
           />
@@ -586,7 +598,10 @@ export function HomeMapScreen({
             className="h-[min(64vh,720px)] min-h-[400px]"
           />
         )}
-        <aside aria-label="Rooms and selection" className="min-w-0 space-y-6">
+        <aside
+          aria-label="Rooms and selection"
+          className="min-w-0 space-y-6 min-[1000px]:max-h-[min(64vh,720px)] min-[1000px]:overflow-y-auto min-[1000px]:pr-1"
+        >
           {editing ? (
             <div className="space-y-6">
               {hueQueue.length > 0 && (

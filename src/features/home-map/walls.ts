@@ -281,3 +281,57 @@ export function moveCorner(
   const issue = validateMapFloor(result)[0];
   return issue ? failure(issue.message) : { ok: true, value: result };
 }
+
+/**
+ * Adds a corner on an existing wall. Every room along that wall gains it, so a
+ * shared boundary keeps matching on both sides and the new corner can be
+ * dragged away to shape either room.
+ */
+export function insertCorner(
+  floor: MapFloor,
+  point: MapPoint,
+  createId: () => string,
+): MapResult<{ floor: MapFloor; vertexId: string }> {
+  const initial = validateMapFloor(floor)[0];
+  if (initial) return { ok: false, error: initial.message };
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y))
+    return { ok: false, error: "Corner coordinates must be finite numbers." };
+  const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
+  if (floor.vertices.some((vertex) => samePoint(vertex, point)))
+    return { ok: false, error: "There is already a corner here." };
+
+  const id = createId();
+  if (!id.trim() || floor.vertices.some((vertex) => vertex.id === id))
+    return { ok: false, error: "Could not assign a unique ID to the corner." };
+
+  let touched = false;
+  const areas = floor.areas.map((area) => {
+    const vertexIds: string[] = [];
+    for (let index = 0; index < area.vertexIds.length; index++) {
+      const start = vertices.get(area.vertexIds[index]);
+      const end = vertices.get(
+        area.vertexIds[(index + 1) % area.vertexIds.length],
+      );
+      vertexIds.push(area.vertexIds[index]);
+      if (!start || !end) continue;
+      if (samePoint(start, point) || samePoint(end, point)) continue;
+      if (!pointOnSegment(point, start, end)) continue;
+      vertexIds.push(id);
+      touched = true;
+    }
+    return { ...area, vertexIds };
+  });
+  if (!touched) return { ok: false, error: "Click on a wall to add a corner." };
+
+  const result: MapFloor = {
+    ...floor,
+    vertices: [...floor.vertices, { id, x: point.x, y: point.y }],
+    areas,
+    dimensions: floor.dimensions.map((dimension) => ({ ...dimension })),
+    lights: floor.lights.map((light) => ({ ...light })),
+  };
+  const issue = validateMapFloor(result)[0];
+  return issue
+    ? { ok: false, error: issue.message }
+    : { ok: true, value: { floor: result, vertexId: id } };
+}
