@@ -1,4 +1,5 @@
 import { almostEqual, distance } from "./geometry";
+import { floorFromRing } from "./outline";
 import {
   HOME_MAP_SCHEMA_VERSION,
   type HomeMapDocument,
@@ -154,26 +155,18 @@ export function createHomeMapDocument({
   const ring = buildFloorRing(shape);
   if (!ring.ok) return ring;
 
-  const floorId = createId();
-  const vertices: MapVertex[] = ring.value.map((point) => ({
-    ...point,
-    id: createId(),
-  }));
-  const floor: MapFloor = {
-    id: floorId,
-    name: floorName.trim(),
-    vertices,
-    areas: [
-      {
-        id: createId(),
-        name: roomName.trim(),
-        vertexIds: vertices.map((vertex) => vertex.id),
-        target: null,
-      },
-    ],
-    dimensions: [],
-    lights: [],
-  };
+  const built = floorFromRing(
+    ring.value,
+    {
+      floorId: createId(),
+      floorName,
+      areaId: createId(),
+      areaName: roomName,
+    },
+    createId,
+  );
+  if (!built.ok) return built;
+  const floor = built.value;
 
   const corner = (x: number, y: number) =>
     floor.vertices.find(
