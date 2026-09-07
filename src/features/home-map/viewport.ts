@@ -50,6 +50,20 @@ export function zoomViewportAt(
   };
 }
 
+/** A floor with no geometry yet gets a workable metre scale, not a huge zoom. */
+export const DEFAULT_MAP_SCALE = 40;
+
+export function emptyViewport(size: {
+  width: number;
+  height: number;
+}): MapViewport {
+  return {
+    scale: DEFAULT_MAP_SCALE,
+    offsetX: size.width / 2,
+    offsetY: size.height / 2,
+  };
+}
+
 export function fitViewport(
   bounds: MapBounds,
   size: { width: number; height: number },

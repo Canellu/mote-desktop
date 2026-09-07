@@ -1,8 +1,12 @@
 import { expect, test } from "bun:test";
 import {
+  addFloor,
   areaAtPoint,
+  describeFloorRemoval,
   findPlacement,
   placeLight,
+  removeFloor,
+  renameFloor,
   unplaceLight,
 } from "../src/features/home-map/placement";
 import type { HomeMapDocument, MapFloor } from "../src/features/home-map/types";
@@ -128,4 +132,62 @@ test("a placement can be found, and its area described", () => {
   const upstairs = placed.value.floors[1];
   expect(areaAtPoint(upstairs, { x: 2, y: 1 })?.id).toBe("uarea");
   expect(areaAtPoint(upstairs, { x: 9, y: 9 })).toBeNull();
+});
+
+test("a floor is added empty and named, ready for its first room", () => {
+  const result = addFloor(document(), { id: "attic", name: "  Attic  " });
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(validateHomeMap(result.value)).toEqual([]);
+  expect(result.value.floors).toHaveLength(3);
+  const attic = result.value.floors[2];
+  expect(attic.name).toBe("Attic");
+  expect(attic.areas).toEqual([]);
+  expect(attic.vertices).toEqual([]);
+  expect(addFloor(document(), { id: "ground", name: "Second ground" })).toEqual(
+    { ok: false, error: "The new floor needs a unique ID." },
+  );
+  expect(addFloor(document(), { id: "attic", name: " " })).toEqual({
+    ok: false,
+    error: "Name this floor.",
+  });
+});
+
+test("floors can be renamed without touching their geometry", () => {
+  const base = document();
+  const result = renameFloor(base, "upstairs", "First floor");
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(result.value.floors[1].name).toBe("First floor");
+  expect(result.value.floors[1].areas).toEqual(base.floors[1].areas);
+  expect(renameFloor(base, "missing", "First floor")).toEqual({
+    ok: false,
+    error: "Choose a floor to rename.",
+  });
+  expect(renameFloor(base, "upstairs", "  ")).toEqual({
+    ok: false,
+    error: "Floors need a name.",
+  });
+});
+
+test("removing a floor is described first and keeps the last one", () => {
+  const placed = placeLight(document(), "upstairs", lightA, { x: 2, y: 2 });
+  expect(placed.ok).toBe(true);
+  if (!placed.ok) return;
+  expect(describeFloorRemoval(placed.value, "upstairs")).toEqual({
+    roomNames: ["Upstairs room"],
+    lightCount: 1,
+  });
+  expect(describeFloorRemoval(placed.value, "missing")).toBeNull();
+
+  const removed = removeFloor(placed.value, "upstairs");
+  expect(removed.ok).toBe(true);
+  if (!removed.ok) return;
+  expect(removed.value.floors.map((floor) => floor.id)).toEqual(["ground"]);
+  // The marker goes with the floor; the light itself is untouched.
+  expect(findPlacement(removed.value, lightA)).toBeNull();
+  expect(removeFloor(removed.value, "ground")).toEqual({
+    ok: false,
+    error: "A map keeps at least one floor.",
+  });
 });

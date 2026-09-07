@@ -117,6 +117,14 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Floors checkpoint: **134 Home Map Bun tests (762 assertions) passed**,
+  including adding, renaming, and removing floors, the removal summary, and
+  the refusal to remove the last floor. Frontend typecheck, targeted
+  ESLint/Prettier passed. Browser checks added a floor, drew its first room at
+  the default scale, renamed the floor and saw the picker and canvas label
+  follow, and removed it through the confirmation, which named the room it
+  took with it. Browser review found an empty floor opening at 1000% zoom and
+  a wall panel claiming a room existed; both are fixed.
 - Measured checkpoint: **131 Home Map Bun tests (742 assertions) passed**,
   including measuring an unmeasured wall, anchor choice, reusing an existing
   measurement, a locked length refusing a conflicting entry until released,

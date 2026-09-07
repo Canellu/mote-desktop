@@ -102,9 +102,11 @@ export function WallEditor({
       <div>
         <h3 className="text-base font-medium">Edit walls</h3>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          {shared.length > 0
-            ? "Drag a wall or a corner on the map. Moving a shared wall resizes both rooms it separates."
-            : "Drag a wall or a corner on the map. This floor has one room, so every wall is an outside wall."}
+          {walls.length === 0
+            ? "This floor has no walls yet. Use Draw room to place its first room."
+            : shared.length > 0
+              ? "Drag a wall or a corner on the map. Moving a shared wall resizes both rooms it separates."
+              : "Drag a wall or a corner on the map. Every wall on this floor is an outside wall."}
         </p>
       </div>
 

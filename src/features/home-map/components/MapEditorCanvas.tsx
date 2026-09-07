@@ -17,6 +17,7 @@ import {
   getMapBounds,
 } from "../viewGeometry";
 import {
+  emptyViewport,
   fitViewport,
   panViewport,
   toScreen,
@@ -165,7 +166,11 @@ function EditorSurface({
   // The first usable size decides the starting view; later edits keep it.
   useEffect(() => {
     if (view || size.width < 2) return;
-    setView(fitViewport(getMapBounds(floor.vertices), size));
+    setView(
+      floor.vertices.length === 0
+        ? emptyViewport(size)
+        : fitViewport(getMapBounds(floor.vertices), size),
+    );
   }, [view, size, floor.vertices]);
 
   useEffect(() => {
@@ -940,7 +945,13 @@ function EditorSurface({
           variant="ghost"
           size="icon-sm"
           aria-label="Fit floor"
-          onClick={() => setView(fitViewport(bounds, size))}
+          onClick={() =>
+            setView(
+              shown.vertices.length === 0
+                ? emptyViewport(size)
+                : fitViewport(bounds, size),
+            )
+          }
         >
           <Maximize />
         </Button>

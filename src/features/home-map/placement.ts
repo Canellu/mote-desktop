@@ -138,3 +138,86 @@ export function buildTray(
     };
   });
 }
+
+/** Floors are added empty; the draw tool gives the first room its shape. */
+export function addFloor(
+  document: HomeMapDocument,
+  floor: { id: string; name: string },
+): MapResult<HomeMapDocument> {
+  if (
+    !floor.id.trim() ||
+    document.floors.some((entry) => entry.id === floor.id)
+  )
+    return { ok: false, error: "The new floor needs a unique ID." };
+  if (!floor.name.trim()) return { ok: false, error: "Name this floor." };
+  const next: HomeMapDocument = {
+    ...document,
+    floors: [
+      ...document.floors,
+      {
+        id: floor.id,
+        name: floor.name.trim(),
+        vertices: [],
+        areas: [],
+        dimensions: [],
+        lights: [],
+      },
+    ],
+  };
+  const issue = validateHomeMap(next)[0];
+  return issue
+    ? { ok: false, error: issue.message }
+    : { ok: true, value: next };
+}
+
+export function renameFloor(
+  document: HomeMapDocument,
+  floorId: string,
+  name: string,
+): MapResult<HomeMapDocument> {
+  if (!document.floors.some((floor) => floor.id === floorId))
+    return { ok: false, error: "Choose a floor to rename." };
+  if (!name.trim()) return { ok: false, error: "Floors need a name." };
+  const next: HomeMapDocument = {
+    ...document,
+    floors: document.floors.map((floor) =>
+      floor.id === floorId ? { ...floor, name: name.trim() } : floor,
+    ),
+  };
+  const issue = validateHomeMap(next)[0];
+  return issue
+    ? { ok: false, error: issue.message }
+    : { ok: true, value: next };
+}
+
+/** Says what a floor takes with it, so removal is never a surprise. */
+export function describeFloorRemoval(
+  document: HomeMapDocument,
+  floorId: string,
+): { roomNames: string[]; lightCount: number } | null {
+  const floor = document.floors.find((entry) => entry.id === floorId);
+  if (!floor) return null;
+  return {
+    roomNames: floor.areas.map((area) => area.name),
+    lightCount: floor.lights.length,
+  };
+}
+
+/** Removing a floor unplaces its markers; Hue resources are untouched. */
+export function removeFloor(
+  document: HomeMapDocument,
+  floorId: string,
+): MapResult<HomeMapDocument> {
+  if (!document.floors.some((floor) => floor.id === floorId))
+    return { ok: false, error: "Choose a floor to remove." };
+  if (document.floors.length === 1)
+    return { ok: false, error: "A map keeps at least one floor." };
+  const next: HomeMapDocument = {
+    ...document,
+    floors: document.floors.filter((floor) => floor.id !== floorId),
+  };
+  const issue = validateHomeMap(next)[0];
+  return issue
+    ? { ok: false, error: issue.message }
+    : { ok: true, value: next };
+}

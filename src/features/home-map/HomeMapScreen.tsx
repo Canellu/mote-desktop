@@ -30,6 +30,7 @@ import type { HueRoomZone } from "@/types/hue";
 import { MapCanvas } from "./components/MapCanvas";
 import { MapEditorCanvas, type EditorTool } from "./components/MapEditorCanvas";
 import { SnapSettingsMenu } from "./components/SnapSettingsMenu";
+import { FloorEditor } from "./components/FloorEditor";
 import { LightTrayPanel } from "./components/LightTrayPanel";
 import { RoomEditorPanel } from "./components/RoomEditorPanel";
 import { WallEditor } from "./components/WallEditor";
@@ -61,7 +62,14 @@ import {
   setMapAreaTarget,
   splitMapArea,
 } from "./operations";
-import { buildTray, placeLight, unplaceLight } from "./placement";
+import {
+  addFloor,
+  buildTray,
+  placeLight,
+  removeFloor,
+  renameFloor,
+  unplaceLight,
+} from "./placement";
 import { listWalls, moveWall } from "./walls";
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
@@ -128,6 +136,35 @@ export function HomeMapScreen({
   const floor =
     map.floors.find((entry) => entry.id === selectedFloorId) ?? map.floors[0];
   const walls = editing ? listWalls(floor) : [];
+
+  function createFloor() {
+    const id = crypto.randomUUID();
+    const result = addFloor(map, {
+      id,
+      name: `Floor ${map.floors.length + 1}`,
+    });
+    if (!result.ok) {
+      setWallError(result.error);
+      return;
+    }
+    setWallError(null);
+    onEditMap?.(result.value);
+    // A new floor is empty, so the draw tool is the only useful next step.
+    onSelect(id, null);
+    setSelectedWallId(null);
+    setTool("draw");
+  }
+
+  function deleteFloor() {
+    const result = removeFloor(map, floor.id);
+    if (!result.ok) {
+      setWallError(result.error);
+      return;
+    }
+    setWallError(null);
+    onEditMap?.(result.value);
+    onSelect(result.value.floors[0].id, null);
+  }
 
   function drawRoom(ring: MapPoint[]) {
     if (!onEditFloor) return;
@@ -453,6 +490,18 @@ export function HomeMapScreen({
         <aside aria-label="Rooms and selection" className="min-w-0 space-y-6">
           {editing ? (
             <div className="space-y-6">
+              {onEditMap && (
+                <FloorEditor
+                  map={map}
+                  floor={floor}
+                  busy={busy}
+                  onRename={(name) =>
+                    applyMapEdit(renameFloor(map, floor.id, name))
+                  }
+                  onAddFloor={createFloor}
+                  onRemoveFloor={deleteFloor}
+                />
+              )}
               {tool === "lights" ? (
                 <LightTrayPanel
                   entries={buildTray(map, lighting.lights, roomZones)}
