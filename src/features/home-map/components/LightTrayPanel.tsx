@@ -14,6 +14,7 @@ export function LightTrayPanel({
   onChoose,
   onIdentify,
   onRemove,
+  onPlaceInArea,
 }: {
   entries: TrayLight[];
   floor: MapFloor;
@@ -23,6 +24,8 @@ export function LightTrayPanel({
   onChoose: (lightId: string | null) => void;
   onIdentify: (light: HueLight) => void;
   onRemove: (lightId: string) => void;
+  /** Places without aiming, so a mouse click on the canvas is never required. */
+  onPlaceInArea: (entry: TrayLight) => void;
 }) {
   const onThisFloor = entries.filter((entry) => entry.floorId === floor.id);
   const elsewhere = entries.filter(
@@ -123,6 +126,17 @@ export function LightTrayPanel({
                         />
                       )}
                     </div>
+                    {entry.floorId === null && entry.suggestedAreaName && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="mt-1 h-7 px-2"
+                        disabled={busy}
+                        onClick={() => onPlaceInArea(entry)}
+                      >
+                        Place in {entry.suggestedAreaName}
+                      </Button>
+                    )}
                     {entry.outsideTarget && (
                       <p className="mt-1 text-xs text-muted-foreground">
                         Sitting in {entry.areaName}, which controls a different

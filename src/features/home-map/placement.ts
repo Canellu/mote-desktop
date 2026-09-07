@@ -1,5 +1,6 @@
 import type { HueLight, HueRoomZone } from "@/types/hue";
 import { locatePoint } from "./geometry";
+import { getAreaLabelPoint } from "./viewGeometry";
 import type {
   HomeMapDocument,
   MapArea,
@@ -91,6 +92,11 @@ export function areaAtPoint(floor: MapFloor, point: MapPoint): MapArea | null {
 }
 
 export interface TrayLight {
+  /** A mapped area linked to this light's target, for placing without aiming. */
+  suggestedAreaId: string | null;
+  suggestedAreaName: string | null;
+  suggestedFloorId: string | null;
+  suggestedPoint: MapPoint | null;
   light: HueLight;
   /** The Hue room or zone whose membership actually controls this light. */
   target: HueRoomZone | null;
@@ -119,9 +125,34 @@ export function buildTray(
     const target =
       roomZones.find((candidate) => candidate.lightIds.includes(light.id)) ??
       null;
+    const suggested = target
+      ? (map.floors.flatMap((entry) =>
+          entry.areas
+            .filter(
+              (candidate) =>
+                candidate.target?.resourceId === target.id &&
+                candidate.target.resourceType === target.resourceType,
+            )
+            .map((candidate) => ({ floor: entry, area: candidate })),
+        )[0] ?? null)
+      : null;
+    const suggestedPoint = suggested
+      ? getAreaLabelPoint(
+          suggested.area.vertexIds.flatMap((id) => {
+            const vertex = suggested.floor.vertices.find(
+              (entry) => entry.id === id,
+            );
+            return vertex ? [vertex] : [];
+          }),
+        )
+      : null;
     return {
       light,
       target,
+      suggestedAreaId: suggested?.area.id ?? null,
+      suggestedAreaName: suggested?.area.name ?? null,
+      suggestedFloorId: suggested?.floor.id ?? null,
+      suggestedPoint,
       floorId: placement?.floorId ?? null,
       floorName: placedFloor?.name ?? null,
       areaName: area?.name ?? null,

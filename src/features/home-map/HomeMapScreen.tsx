@@ -5,6 +5,7 @@ import {
   Layers,
   Lightbulb,
   MousePointer2,
+  Power,
   PenLine,
   PencilRuler,
   Ruler,
@@ -73,6 +74,7 @@ import {
 import { listWalls, moveWall } from "./walls";
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
+import { getFloorControlScope } from "./floorScope";
 import { MapRoomControls } from "./components/MapRoomControls";
 
 const wideQuery = "(min-width: 1000px)";
@@ -136,6 +138,23 @@ export function HomeMapScreen({
   const floor =
     map.floors.find((entry) => entry.id === selectedFloorId) ?? map.floors[0];
   const walls = editing ? listWalls(floor) : [];
+  const floorScope = getFloorControlScope({
+    document: map,
+    floor,
+    roomZones,
+    lights: lighting.lights,
+    syncedLightIds: lighting.syncedLightIds,
+    bridgeConnected: lighting.bridgeConnected,
+    resourcesLoading: lighting.resourcesLoading,
+  });
+  const floorOffDisabled =
+    floorScope.disabledReason !== null || floorScope.onCount === 0;
+
+  function turnFloorOff() {
+    if (floorOffDisabled) return;
+    // One command per distinct target: shared targets must not be sent twice.
+    for (const target of floorScope.targets) lighting.onToggle(target, false);
+  }
 
   function createFloor() {
     const id = crypto.randomUUID();
@@ -340,7 +359,7 @@ export function HomeMapScreen({
         <div
           role="group"
           aria-label="Map details"
-          className="flex items-center gap-1"
+          className="flex min-w-0 flex-wrap items-center gap-1"
         >
           <Button
             size="sm"
@@ -360,11 +379,28 @@ export function HomeMapScreen({
             <Ruler />
             Dimensions
           </Button>
+          {!editing && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={floorOffDisabled}
+              aria-describedby={
+                floorScope.disabledReason ? "map-floor-scope" : undefined
+              }
+              title={floorScope.disabledReason ?? undefined}
+              onClick={turnFloorOff}
+            >
+              <Power />
+              {floorScope.onCount > 0 && !floorScope.disabledReason
+                ? `All off · ${floorScope.onCount} on`
+                : "All off on this floor"}
+            </Button>
+          )}
           {onEditFloor && editing && (
             <div
               role="group"
               aria-label="Editor tool"
-              className="flex items-center gap-1"
+              className="flex flex-wrap items-center gap-1"
             >
               <Button
                 size="sm"
@@ -440,6 +476,33 @@ export function HomeMapScreen({
           )}
         </div>
       </div>
+
+      {!editing &&
+        (floorScope.disabledReason ||
+          floorScope.missingTargetAreaNames.length > 0) && (
+          <div className="space-y-1">
+            {floorScope.disabledReason && (
+              <p
+                id="map-floor-scope"
+                className="text-sm wrap-anywhere text-muted-foreground"
+              >
+                {`All off on this floor is unavailable. ${floorScope.disabledReason}`}
+              </p>
+            )}
+            {floorScope.missingTargetAreaNames.length > 0 && (
+              <p
+                role="status"
+                className="text-sm wrap-anywhere text-muted-foreground"
+              >
+                {`${floorScope.missingTargetAreaNames.join(", ")} ${
+                  floorScope.missingTargetAreaNames.length === 1 ? "is" : "are"
+                } linked to a Hue room or zone that is no longer on this bridge. Open Edit walls to link ${
+                  floorScope.missingTargetAreaNames.length === 1 ? "it" : "them"
+                } again.`}
+              </p>
+            )}
+          </div>
+        )}
 
       <div className="grid min-w-0 items-start gap-6 min-[1000px]:grid-cols-[minmax(0,1fr)_280px]">
         {editing && onEditFloor ? (
@@ -519,6 +582,19 @@ export function HomeMapScreen({
                   onRemove={(lightId) =>
                     applyMapEdit(unplaceLight(map, lightId))
                   }
+                  onPlaceInArea={(entry) => {
+                    if (!entry.suggestedFloorId || !entry.suggestedPoint)
+                      return;
+                    applyMapEdit(
+                      placeLight(
+                        map,
+                        entry.suggestedFloorId,
+                        entry.light.id,
+                        entry.suggestedPoint,
+                      ),
+                    );
+                    setPlacingLightId(null);
+                  }}
                 />
               ) : (
                 <RoomEditorPanel

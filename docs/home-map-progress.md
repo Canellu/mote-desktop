@@ -117,6 +117,16 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Floor scope checkpoint: **140 Home Map Bun tests (783 assertions) passed**,
+  including exact floor scope, off-floor and unplaced members disabling the
+  action, shared targets counted once, and offline, loading, unlinked, and
+  sync-excluded states. Frontend typecheck, targeted ESLint/Prettier passed.
+  Browser checks saw the action disabled with its reason, placed the last
+  light, saw it become "All off · 10 on", used it, and saw it disable again
+  with nothing on. Browser review found two defects: a singular count reading
+  "1 light ... are not placed", and the toolbar overflowing the window at
+  660 px because its button group could not wrap. Both are fixed, and the
+  narrow layout was rechecked in light theme with no horizontal page scroll.
 - Floors checkpoint: **134 Home Map Bun tests (762 assertions) passed**,
   including adding, renaming, and removing floors, the removal summary, and
   the refusal to remove the last floor. Frontend typecheck, targeted
