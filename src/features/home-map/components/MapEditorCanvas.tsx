@@ -8,6 +8,7 @@ import {
   constrainCorner,
   outlineCloseError,
 } from "../outline";
+import { distance } from "../geometry";
 import { snapWorldPoint, type SnapGuide, type SnapSettings } from "../snapping";
 import { locatePoint } from "../geometry";
 import type { MapFloor, MapPoint } from "../types";
@@ -54,7 +55,13 @@ type Drag =
       moved: boolean;
     };
 
-export type EditorTool = "select" | "draw" | "divide" | "combine" | "lights";
+export type EditorTool =
+  | "select"
+  | "points"
+  | "draw"
+  | "divide"
+  | "combine"
+  | "lights";
 
 export interface MapEditorCanvasProps {
   floor: MapFloor;
@@ -81,6 +88,10 @@ export interface MapEditorCanvasProps {
   onInsertCorner: (
     point: MapPoint,
   ) => { floor: MapFloor; vertexId: string } | null;
+  selectedVertexId: string | null;
+  onSelectVertex: (vertexId: string | null) => void;
+  /** Welds a dragged corner onto the one it was dropped on. */
+  onMergeCorners: (fromVertexId: string, intoVertexId: string) => void;
   onError: (message: string | null) => void;
   className?: string;
 }
@@ -107,6 +118,9 @@ function EditorSurface({
   onSelectWall,
   onCommit,
   onInsertCorner,
+  selectedVertexId,
+  onSelectVertex,
+  onMergeCorners,
   onError,
   className,
 }: MapEditorCanvasProps) {
@@ -123,6 +137,7 @@ function EditorSurface({
   const [hoverWallId, setHoverWallId] = useState<string | null>(null);
   const [outline, setOutline] = useState<MapPoint[]>([]);
   const [outlineHover, setOutlineHover] = useState<MapPoint | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
   const [lightPreview, setLightPreview] = useState<{
     lightId: string;
     point: MapPoint;
@@ -382,8 +397,19 @@ function EditorSurface({
         [drag.vertexId],
       );
       setGuides(result.guides);
-      const moved = moveCorner(drag.base, drag.vertexId, result.point);
       dragRef.current = { ...drag, moved: true };
+      // Landing on another corner is a merge, not an invalid position.
+      const onto = drag.base.vertices.find(
+        (vertex) =>
+          vertex.id !== drag.vertexId &&
+          distance(vertex, result.point) <= SNAP_TOLERANCE_PX / current.scale,
+      );
+      setMergeTargetId(onto?.id ?? null);
+      if (onto) {
+        onError(null);
+        return;
+      }
+      const moved = moveCorner(drag.base, drag.vertexId, result.point);
       applyPreview(
         moved.ok ? moved.value : null,
         moved.ok ? null : moved.error,
@@ -429,6 +455,15 @@ function EditorSurface({
       if (drag.moved && moved) onPlaceLight(moved.lightId, moved.point);
       return;
     }
+    if (drag.kind === "corner" && drag.moved && mergeTargetId) {
+      const onto = mergeTargetId;
+      setDrag(null);
+      setPreview(null);
+      setGuides([]);
+      setMergeTargetId(null);
+      onMergeCorners(drag.vertexId, onto);
+      return;
+    }
     if (drag.kind !== "pan" && committed && drag.moved) onCommit(committed);
     if (drag.kind === "pan" && !drag.moved) {
       if (tool === "draw") placeCorner(event);
@@ -446,6 +481,7 @@ function EditorSurface({
     setDrag(null);
     setPreview(null);
     setGuides([]);
+    setMergeTargetId(null);
   }
 
   const gridStep = useMemo(() => {
@@ -593,11 +629,13 @@ function EditorSurface({
             ? `${floor.name} editor. Click to place corners, click the first corner to finish.`
             : tool === "divide"
               ? `${floor.name} editor. Click one wall of the selected room, then the wall opposite.`
-              : tool === "combine"
-                ? `${floor.name} editor. Click the rooms to combine.`
-                : tool === "lights"
-                  ? `${floor.name} editor. Drag light markers, or click to place the chosen light.`
-                  : `${floor.name} editor. Drag corners and walls; drag the background to pan.`
+              : tool === "points"
+                ? `${floor.name} editor. Drag corners, add corners on walls, or drop one corner on another to merge.`
+                : tool === "combine"
+                  ? `${floor.name} editor. Click the rooms to combine.`
+                  : tool === "lights"
+                    ? `${floor.name} editor. Drag light markers, or click to place the chosen light.`
+                    : `${floor.name} editor. Drag corners and walls; drag the background to pan.`
         }
       >
         {gridStep > 0 && (
@@ -718,7 +756,9 @@ function EditorSurface({
                       ? "stroke-foreground/15"
                       : "stroke-transparent",
                 )}
-                pointerEvents={tool === "select" ? undefined : "none"}
+                pointerEvents={
+                  tool === "select" || tool === "points" ? undefined : "none"
+                }
                 onPointerEnter={() => setHoverWallId(wall.id)}
                 onPointerLeave={() =>
                   setHoverWallId((value) => (value === wall.id ? null : value))
@@ -858,7 +898,7 @@ function EditorSurface({
           </g>
         )}
 
-        {tool === "select" &&
+        {tool === "points" &&
           walls.flatMap((wall) =>
             wall.vertexIds.slice(0, -1).flatMap((startId, index) => {
               const start = vertices.get(startId);
@@ -874,9 +914,10 @@ function EditorSurface({
                   key={`add-${startId}-${wall.vertexIds[index + 1]}`}
                   cx={position.x}
                   cy={position.y}
-                  r={4}
+                  r={5}
                   strokeWidth={1.5}
-                  className="cursor-copy fill-background/70 stroke-foreground/40 hover:fill-primary hover:stroke-background"
+                  aria-label="Add a corner here"
+                  className="cursor-copy fill-background/60 stroke-dashed stroke-foreground/40 hover:fill-primary hover:stroke-background"
                   onPointerDown={(event) => {
                     event.stopPropagation();
                     capture(event);
@@ -884,6 +925,8 @@ function EditorSurface({
                     // Insert where the pointer is, then drag the new corner.
                     const result = onInsertCorner(snapped(middle, []).point);
                     if (!result) return;
+                    // Selecting it puts Remove and Merge one click away.
+                    onSelectVertex(result.vertexId);
                     setPreview(result.floor);
                     setDrag({
                       kind: "corner",
@@ -898,29 +941,41 @@ function EditorSurface({
             }),
           )}
 
-        {tool === "select" &&
+        {(tool === "select" || tool === "points") &&
           shown.vertices.map((vertex) => {
             const position = project(vertex);
+            const merging = mergeTargetId === vertex.id;
             const active =
-              drag?.kind === "corner" && drag.vertexId === vertex.id;
+              (drag?.kind === "corner" && drag.vertexId === vertex.id) ||
+              selectedVertexId === vertex.id;
+            // Corners are squares so they never read as light markers.
+            const size = merging ? 14 : active ? 11 : 8;
             return (
-              <circle
+              <rect
                 key={vertex.id}
-                cx={position.x}
-                cy={position.y}
-                r={active ? 7 : 5}
+                x={position.x - size / 2}
+                y={position.y - size / 2}
+                width={size}
+                height={size}
+                rx={1.5}
                 strokeWidth={2}
+                role="button"
+                aria-label={`Corner at ${vertex.x.toFixed(2)}, ${vertex.y.toFixed(2)}`}
+                aria-pressed={selectedVertexId === vertex.id}
                 className={cn(
                   "cursor-move",
-                  active
-                    ? "fill-primary stroke-background"
-                    : "fill-background stroke-foreground/70 hover:fill-primary/40",
+                  merging
+                    ? "fill-primary stroke-primary"
+                    : active
+                      ? "fill-primary stroke-background"
+                      : "fill-background stroke-foreground/70 hover:fill-primary/40",
                 )}
                 onPointerDown={(event) => {
                   event.stopPropagation();
                   capture(event);
                   onError(null);
                   onSelectWall(null);
+                  onSelectVertex(vertex.id);
                   const world = pointerWorld(event);
                   setDrag({
                     kind: "corner",
@@ -947,6 +1002,15 @@ function EditorSurface({
           {placingLightId
             ? "Click where this light is in the room."
             : "Drag a light marker to move it, or choose a light in the list."}
+        </p>
+      )}
+      {tool === "points" && (
+        <p
+          role="status"
+          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+        >
+          Drag a square corner to move it. Dashed circles add a corner. Drop a
+          corner on another to merge them.
         </p>
       )}
       {tool === "divide" && (

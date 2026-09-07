@@ -335,3 +335,147 @@ export function insertCorner(
     ? { ok: false, error: issue.message }
     : { ok: true, value: { floor: result, vertexId: id } };
 }
+
+function rebuildRings(
+  floor: MapFloor,
+  rewrite: (vertexIds: string[]) => string[],
+): MapFloor {
+  return {
+    ...floor,
+    areas: floor.areas.map((area) => {
+      const next = rewrite([...area.vertexIds]);
+      // A ring must not repeat a corner in a row after an edit.
+      const deduped = next.filter(
+        (id, index) => id !== next[(index + 1) % next.length],
+      );
+      return {
+        ...area,
+        vertexIds: deduped,
+        target: area.target ? { ...area.target } : null,
+      };
+    }),
+    dimensions: floor.dimensions.map((dimension) => ({ ...dimension })),
+    lights: floor.lights.map((light) => ({ ...light })),
+  };
+}
+
+/** Removes a corner from every room that uses it. */
+export function removeCorner(
+  floor: MapFloor,
+  vertexId: string,
+): MapResult<MapFloor> {
+  const initial = validateMapFloor(floor)[0];
+  if (initial) return failure(initial.message);
+  if (!floor.vertices.some((vertex) => vertex.id === vertexId))
+    return failure("Select a corner on this floor.");
+  if (
+    floor.areas.some(
+      (area) => area.vertexIds.includes(vertexId) && area.vertexIds.length <= 3,
+    )
+  )
+    return failure("A room needs at least three corners.");
+  if (
+    floor.dimensions.some(
+      (dimension) =>
+        dimension.locked &&
+        (dimension.startVertexId === vertexId ||
+          dimension.endVertexId === vertexId),
+    )
+  )
+    return failure("Release this wall's kept length before removing a corner.");
+
+  const result = rebuildRings(floor, (ids) =>
+    ids.filter((id) => id !== vertexId),
+  );
+  result.vertices = floor.vertices
+    .filter((vertex) => vertex.id !== vertexId)
+    .map((vertex) => ({ ...vertex }));
+  result.dimensions = result.dimensions.filter(
+    (dimension) =>
+      dimension.startVertexId !== vertexId &&
+      dimension.endVertexId !== vertexId,
+  );
+  const issue = validateMapFloor(result)[0];
+  return issue ? failure(issue.message) : { ok: true, value: result };
+}
+
+/**
+ * Welds one corner onto another, so two points become a single shared corner.
+ * The surviving corner keeps its position.
+ */
+export function mergeCorners(
+  floor: MapFloor,
+  fromVertexId: string,
+  intoVertexId: string,
+): MapResult<MapFloor> {
+  const initial = validateMapFloor(floor)[0];
+  if (initial) return failure(initial.message);
+  if (fromVertexId === intoVertexId)
+    return failure("Choose two different corners to merge.");
+  const from = floor.vertices.find((vertex) => vertex.id === fromVertexId);
+  const into = floor.vertices.find((vertex) => vertex.id === intoVertexId);
+  if (!from || !into) return failure("Select two corners on this floor.");
+  if (
+    floor.areas.some(
+      (area) =>
+        area.vertexIds.includes(fromVertexId) &&
+        area.vertexIds.includes(intoVertexId) &&
+        area.vertexIds.length <= 3,
+    )
+  )
+    return failure("Merging these corners would leave a room with no shape.");
+  if (
+    floor.dimensions.some(
+      (dimension) =>
+        dimension.locked &&
+        (dimension.startVertexId === fromVertexId ||
+          dimension.endVertexId === fromVertexId),
+    )
+  )
+    return failure("Release this wall's kept length before merging corners.");
+
+  const result = rebuildRings(floor, (ids) =>
+    ids.map((id) => (id === fromVertexId ? intoVertexId : id)),
+  );
+  result.vertices = floor.vertices
+    .filter((vertex) => vertex.id !== fromVertexId)
+    .map((vertex) => ({ ...vertex }));
+  result.dimensions = result.dimensions
+    .map((dimension) => ({
+      ...dimension,
+      startVertexId:
+        dimension.startVertexId === fromVertexId
+          ? intoVertexId
+          : dimension.startVertexId,
+      endVertexId:
+        dimension.endVertexId === fromVertexId
+          ? intoVertexId
+          : dimension.endVertexId,
+    }))
+    .filter((dimension) => dimension.startVertexId !== dimension.endVertexId);
+  const moved = new Map(result.vertices.map((vertex) => [vertex.id, vertex]));
+  for (const dimension of result.dimensions)
+    dimension.lengthMeters = distance(
+      moved.get(dimension.startVertexId)!,
+      moved.get(dimension.endVertexId)!,
+    );
+  const issue = validateMapFloor(result)[0];
+  return issue ? failure(issue.message) : { ok: true, value: result };
+}
+
+/** The nearest other corner, used to offer a merge without dragging. */
+export function nearestCorner(
+  floor: MapFloor,
+  vertexId: string,
+): { vertexId: string; distanceMeters: number } | null {
+  const corner = floor.vertices.find((vertex) => vertex.id === vertexId);
+  if (!corner) return null;
+  let best: { vertexId: string; distanceMeters: number } | null = null;
+  for (const other of floor.vertices) {
+    if (other.id === vertexId) continue;
+    const gap = distance(corner, other);
+    if (!best || gap < best.distanceMeters)
+      best = { vertexId: other.id, distanceMeters: gap };
+  }
+  return best;
+}

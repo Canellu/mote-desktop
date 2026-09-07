@@ -69,6 +69,12 @@ have rounded line ends and shared segments render once. Light markers are
 fixed-size circles (5px radius) with a background fill and foreground outline
 (2px); they indicate placement and are not individual light controls.
 
+Editor handles are told apart by shape, not only by size: corners are small
+squares, the dashed circles between them add a corner, and lights stay circles.
+Corner and midpoint handles belong to their tools — Select shows corners and
+walls, Points adds the dashed midpoints, and Place lights shows markers alone —
+so the plan is never covered in dots that mean different things.
+
 ## Components
 
 - **Navigation:** Dashboard / Map and the last selected floor and room are

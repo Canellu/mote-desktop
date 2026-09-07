@@ -2,8 +2,11 @@ import { expect, test } from "bun:test";
 import {
   insertCorner,
   listWalls,
+  mergeCorners,
   moveCorner,
   moveWall,
+  nearestCorner,
+  removeCorner,
 } from "../src/features/home-map/walls";
 import type { MapFloor } from "../src/features/home-map/types";
 import { validateMapFloor } from "../src/features/home-map/validation";
@@ -284,4 +287,111 @@ test("a corner added on a wall can then be dragged into an angle", () => {
   // The straight run became two walls that meet at the new corner.
   const runs = listWalls(moved.value).filter((wall) => wall.dividing);
   expect(runs).toHaveLength(2);
+});
+
+test("a corner added on a wall can be removed again", () => {
+  const added = insertCorner(floor(), { x: 4, y: 1.5 }, () => "new");
+  expect(added.ok).toBe(true);
+  if (!added.ok) return;
+  const removed = removeCorner(added.value.floor, "new");
+  expect(removed.ok).toBe(true);
+  if (!removed.ok) return;
+  expect(validateMapFloor(removed.value)).toEqual([]);
+  expect(removed.value.vertices).toHaveLength(6);
+  expect(
+    removed.value.areas.every((area) => !area.vertexIds.includes("new")),
+  ).toBe(true);
+});
+
+test("removing a corner leaves a valid room, and a triangle keeps its three", () => {
+  const base = floor();
+  // Four corners can lose one: each room becomes a triangle that still fits.
+  const trimmed = removeCorner(base, "b");
+  expect(trimmed.ok).toBe(true);
+  if (!trimmed.ok) return;
+  expect(validateMapFloor(trimmed.value)).toEqual([]);
+  expect(trimmed.value.areas.every((area) => area.vertexIds.length === 3)).toBe(
+    true,
+  );
+  // A triangle has nothing left to give.
+  expect(removeCorner(trimmed.value, "c")).toEqual({
+    ok: false,
+    error: "A room needs at least three corners.",
+  });
+  expect(removeCorner(base, "missing")).toEqual({
+    ok: false,
+    error: "Select a corner on this floor.",
+  });
+});
+
+test("a corner under a kept length cannot be removed until it is released", () => {
+  const added = insertCorner(floor(), { x: 4, y: 1.5 }, () => "new");
+  expect(added.ok).toBe(true);
+  if (!added.ok) return;
+  const locked = {
+    ...added.value.floor,
+    dimensions: [
+      {
+        id: "kept",
+        startVertexId: "b",
+        endVertexId: "new",
+        lengthMeters: 1.5,
+        locked: true,
+        verified: true,
+      },
+    ],
+  };
+  expect(removeCorner(locked, "new")).toEqual({
+    ok: false,
+    error: "Release this wall's kept length before removing a corner.",
+  });
+});
+
+test("two corners can be merged into one shared corner", () => {
+  const added = insertCorner(floor(), { x: 4, y: 1.5 }, () => "new");
+  expect(added.ok).toBe(true);
+  if (!added.ok) return;
+  // Pull the new corner near an existing one, then weld them together.
+  const moved = moveCorner(added.value.floor, "new", { x: 4.2, y: 2.9 });
+  expect(moved.ok).toBe(true);
+  if (!moved.ok) return;
+  const merged = mergeCorners(moved.value, "new", "c");
+  expect(merged.ok).toBe(true);
+  if (!merged.ok) return;
+  expect(validateMapFloor(merged.value)).toEqual([]);
+  expect(merged.value.vertices.map((vertex) => vertex.id)).not.toContain("new");
+  expect(at(merged.value, "c")).toMatchObject({ x: 4, y: 3 });
+  expect(merged.value.areas.every((area) => area.vertexIds.includes("c"))).toBe(
+    true,
+  );
+});
+
+test("merges reject the same corner twice, unknown corners, and flattened rooms", () => {
+  const base = floor();
+  expect(mergeCorners(base, "b", "b")).toEqual({
+    ok: false,
+    error: "Choose two different corners to merge.",
+  });
+  expect(mergeCorners(base, "b", "missing")).toEqual({
+    ok: false,
+    error: "Select two corners on this floor.",
+  });
+  // Welding two corners of a triangle would leave it with a single wall.
+  const trimmed = removeCorner(base, "b");
+  expect(trimmed.ok).toBe(true);
+  if (!trimmed.ok) return;
+  expect(mergeCorners(trimmed.value, "a", "d")).toEqual({
+    ok: false,
+    error: "Merging these corners would leave a room with no shape.",
+  });
+});
+
+test("the nearest corner is offered for merging without dragging", () => {
+  const added = insertCorner(floor(), { x: 4, y: 2.5 }, () => "new");
+  expect(added.ok).toBe(true);
+  if (!added.ok) return;
+  const nearest = nearestCorner(added.value.floor, "new");
+  expect(nearest?.vertexId).toBe("c");
+  expect(nearest?.distanceMeters).toBeCloseTo(0.5, 6);
+  expect(nearestCorner(added.value.floor, "missing")).toBeNull();
 });

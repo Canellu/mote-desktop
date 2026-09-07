@@ -117,6 +117,16 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Point editing checkpoint: **160 Home Map Bun tests (876 assertions) passed**,
+  including removing a corner into a valid triangle, refusing to take a
+  triangle below three corners, refusing removal under a kept length, merging
+  two corners into a shared one, refusing merges that flatten a room, and
+  finding the nearest corner. Frontend typecheck, targeted ESLint/Prettier
+  passed. Browser checks confirmed Select shows no add handles while Points
+  shows all of them, added a corner and saw it selected with Remove and Merge
+  offered, removed it, dragged one corner onto another with the target
+  highlighted and the merge applied on release, and scrolled the light list
+  inside the ScrollArea with the plan still fully visible.
 - Editing UX checkpoint: **154 Home Map Bun tests (849 assertions) passed**,
   including adding a corner on a shared wall so both rooms gain it, refusing a
   corner away from a wall or on an existing corner, and dragging a newly added
