@@ -62,7 +62,9 @@ depth treatment.
 ## Shapes
 
 The canvas uses Mote's large rounded corners, list rows use smaller rounded
-corners, and the zoom group is a pill. Room geometry remains orthogonal. Walls
+corners, and the zoom group is a pill. Rooms may take any shape, including
+angled walls and triangles; snapping offers 90, 45, and 15 degree steps and a
+free angle. Walls
 have rounded line ends and shared segments render once. Light markers are
 fixed-size circles (5px radius) with a background fill and foreground outline
 (2px); they indicate placement and are not individual light controls.

@@ -85,8 +85,8 @@ test("accepts rectangles, collinear shared corners, and concave orthogonal rooms
   expect(validateHomeMap(document())).toEqual([]);
 });
 
-test("rejects repeated corners, diagonal walls, tiny slivers, and crossed rings", () => {
-  expect(validateRing([...rectangle(), { x: 0, y: 0 }])).not.toBeNull();
+test("accepts angled and triangular rooms", () => {
+  // Walls may run at any angle now, and three corners are enough.
   expect(
     validateRing([
       { x: 0, y: 0 },
@@ -94,7 +94,24 @@ test("rejects repeated corners, diagonal walls, tiny slivers, and crossed rings"
       { x: 4, y: 3 },
       { x: 0, y: 3 },
     ]),
-  ).not.toBeNull();
+  ).toBeNull();
+  expect(
+    validateRing([
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+      { x: 2, y: 3 },
+    ]),
+  ).toBeNull();
+});
+
+test("rejects repeated corners, tiny slivers, and crossed rings", () => {
+  expect(validateRing([...rectangle(), { x: 0, y: 0 }])).not.toBeNull();
+  expect(
+    validateRing([
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+    ]),
+  ).toBe("A room needs at least three corners.");
   expect(validateRing(rectangle(0, 0, 0.001, 3))).not.toBeNull();
   expect(
     validateRing([
@@ -106,6 +123,15 @@ test("rejects repeated corners, diagonal walls, tiny slivers, and crossed rings"
       { x: 0, y: -1 },
     ]),
   ).not.toBeNull();
+  // A bow tie crosses itself even though every corner is distinct.
+  expect(
+    validateRing([
+      { x: 0, y: 0 },
+      { x: 4, y: 4 },
+      { x: 4, y: 0 },
+      { x: 0, y: 4 },
+    ]),
+  ).not.toBeNull();
 });
 
 test("overlap detection distinguishes shared walls from containment and boundary-only vertex overlap", () => {
@@ -114,6 +140,21 @@ test("overlap detection distinguishes shared walls from containment and boundary
   expect(ringsOverlap(rectangle(), rectangle(1, 1, 1, 1))).toBe(true);
   expect(ringsOverlap(rectangle(), rectangle(2, 0))).toBe(true);
   expect(ringsOverlap(rectangle(), rectangle(1, -1, 1, 5))).toBe(true);
+  // Angled rooms are compared the same way as rectangles.
+  expect(
+    ringsOverlap(rectangle(), [
+      { x: 3, y: 1 },
+      { x: 7, y: 1 },
+      { x: 5, y: 3 },
+    ]),
+  ).toBe(true);
+  expect(
+    ringsOverlap(rectangle(), [
+      { x: 5, y: 1 },
+      { x: 9, y: 1 },
+      { x: 7, y: 3 },
+    ]),
+  ).toBe(false);
 });
 
 test("validates unknown storage data, schema versions, UUID references and map-wide placement uniqueness", () => {

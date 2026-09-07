@@ -22,6 +22,32 @@ export const signedArea = (ring: MapPoint[]): number =>
 export const isOrthogonalEdge = (a: MapPoint, b: MapPoint): boolean =>
   !samePoint(a, b) && (almostEqual(a.x, b.x) || almostEqual(a.y, b.y));
 
+export const cross = (p: MapPoint, q: MapPoint, r: MapPoint): number =>
+  (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+
+/** Walls of any angle are allowed; only collinear ones share a run. */
+export const areCollinear = (
+  a: MapPoint,
+  b: MapPoint,
+  c: MapPoint,
+  d: MapPoint,
+): boolean => {
+  const length = Math.max(distance(a, b), distance(c, d), 1);
+  return (
+    Math.abs(cross(a, b, c)) <= MAP_EPSILON * length &&
+    Math.abs(cross(a, b, d)) <= MAP_EPSILON * length
+  );
+};
+
+/** True only when the segments' interiors cross; touching does not count. */
+export const segmentsCrossProperly = (
+  a: MapPoint,
+  b: MapPoint,
+  c: MapPoint,
+  d: MapPoint,
+): boolean =>
+  cross(a, b, c) * cross(a, b, d) < 0 && cross(c, d, a) * cross(c, d, b) < 0;
+
 export const pointOnSegment = (
   point: MapPoint,
   a: MapPoint,
@@ -74,13 +100,14 @@ export const segmentsIntersect = (
 
 /** Returns a user-facing reason without normalizing away invalid geometry. */
 export function validateRing(ring: MapPoint[]): string | null {
-  if (ring.length < 4) return "A room needs at least four corners.";
+  if (ring.length < 3) return "A room needs at least three corners.";
   if (ring.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y)))
     return "Room coordinates must be finite numbers.";
   for (let i = 0; i < ring.length; i++) {
     const a = ring[i];
     const b = ring[(i + 1) % ring.length];
-    if (!isOrthogonalEdge(a, b)) return "Walls must be horizontal or vertical.";
+    // Walls may run at any angle; only degenerate ones are rejected.
+    if (samePoint(a, b)) return "A room cannot repeat a corner.";
     if (distance(a, b) < MIN_WALL_METERS - MAP_EPSILON)
       return "A wall must be at least one centimeter long.";
     for (let j = i + 1; j < ring.length; j++) {
@@ -98,33 +125,43 @@ export function validateRing(ring: MapPoint[]): string | null {
   return null;
 }
 
-/** Orthogonal polygons overlap iff one open grid cell is inside both. */
-export function ringsOverlap(a: MapPoint[], b: MapPoint[]): boolean {
-  // A horizontal scan between every corner height also catches identical rooms
-  // and overlaps whose vertices all happen to lie on another room's boundary.
-  const ys = [...new Set([...a, ...b].map((p) => p.y))].sort((x, y) => x - y);
-  const intervals = (ring: MapPoint[], y: number): [number, number][] => {
-    const xs: number[] = [];
-    ring.forEach((p, i) => {
-      const q = ring[(i + 1) % ring.length];
-      if (p.y > y !== q.y > y) xs.push(p.x);
-    });
-    xs.sort((x, z) => x - z);
-    return xs.filter((_, i) => i % 2 === 0).map((x, i) => [x, xs[i * 2 + 1]]);
-  };
-  for (let i = 1; i < ys.length; i++) {
-    if (ys[i] - ys[i - 1] <= MAP_EPSILON) continue;
-    const y = (ys[i] + ys[i - 1]) / 2;
-    const left = intervals(a, y);
-    const right = intervals(b, y);
-    if (
-      left.some(([a0, a1]) =>
-        right.some(
-          ([b0, b1]) => Math.min(a1, b1) - Math.max(a0, b0) > MAP_EPSILON,
-        ),
-      )
-    )
-      return true;
+/** A point just inside each wall, used to compare interiors of any shape. */
+function interiorSamples(ring: MapPoint[]): MapPoint[] {
+  const inward = signedArea(ring) > 0 ? 1 : -1;
+  const offset = Math.max(MAP_EPSILON * 10, 1e-4);
+  const samples: MapPoint[] = [];
+  for (let index = 0; index < ring.length; index++) {
+    const a = ring[index];
+    const b = ring[(index + 1) % ring.length];
+    const length = distance(a, b);
+    if (length <= 0) continue;
+    const normal = {
+      x: (-(b.y - a.y) / length) * inward,
+      y: ((b.x - a.x) / length) * inward,
+    };
+    const point = {
+      x: (a.x + b.x) / 2 + normal.x * offset,
+      y: (a.y + b.y) / 2 + normal.y * offset,
+    };
+    if (locatePoint(point, ring) === "inside") samples.push(point);
   }
-  return false;
+  return samples;
+}
+
+/** Rooms overlap when their interiors meet; a shared wall is not an overlap. */
+export function ringsOverlap(a: MapPoint[], b: MapPoint[]): boolean {
+  for (let i = 0; i < a.length; i++) {
+    const a1 = a[i];
+    const a2 = a[(i + 1) % a.length];
+    for (let j = 0; j < b.length; j++) {
+      const b1 = b[j];
+      const b2 = b[(j + 1) % b.length];
+      if (segmentsCrossProperly(a1, a2, b1, b2)) return true;
+    }
+  }
+  // Containment and identical shapes cross no walls, so compare interiors too.
+  return (
+    interiorSamples(a).some((point) => locatePoint(point, b) === "inside") ||
+    interiorSamples(b).some((point) => locatePoint(point, a) === "inside")
+  );
 }

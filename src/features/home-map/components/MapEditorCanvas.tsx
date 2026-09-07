@@ -25,7 +25,7 @@ import {
   zoomViewportAt,
   type MapViewport,
 } from "../viewport";
-import { listWalls, moveCorner, moveWall } from "../walls";
+import { listWalls, moveCorner, moveWall, type MapWall } from "../walls";
 
 /** Screen pixels within which the pointer aligns to an existing corner. */
 const SNAP_TOLERANCE_PX = 12;
@@ -48,7 +48,7 @@ type Drag =
   | {
       kind: "wall";
       wallId: string;
-      orientation: "horizontal" | "vertical";
+      orientation: MapWall["orientation"];
       base: MapFloor;
       startWorld: MapPoint;
       moved: boolean;
@@ -229,7 +229,10 @@ function EditorSurface({
   function draftCorner(event: { clientX: number; clientY: number }) {
     const world = pointerWorld(event);
     const previous = outline[outline.length - 1] ?? null;
-    const constrained = constrainCorner(previous, world, 0);
+    const constrained = constrainCorner(previous, world, {
+      snapMeters: snap.enabled ? snap.incrementMeters : 0,
+      angleDegrees: snap.enabled ? snap.angleDegrees : 0,
+    });
     const result = snapWorldPoint(constrained, {
       settings: snap,
       corners: [...floor.vertices, ...outline],
@@ -386,13 +389,23 @@ function EditorSurface({
       (candidate) => candidate.id === drag.wallId,
     );
     if (!wall) return;
-    const axis = drag.orientation === "vertical" ? "x" : "y";
     const anchor = drag.base.vertices.find(
       (vertex) => vertex.id === wall.startVertexId,
     )!;
     const result = snapped(world, wall.vertexIds);
-    setGuides(result.guides.filter((guide) => guide.axis === axis));
-    const delta = result.point[axis] - anchor[axis];
+    setGuides(
+      wall.orientation === "angled"
+        ? []
+        : result.guides.filter((guide) =>
+            wall.orientation === "vertical"
+              ? guide.axis === "x"
+              : guide.axis === "y",
+          ),
+    );
+    // Distance from the wall's line, measured along the side it moves towards.
+    const delta =
+      (result.point.x - anchor.x) * wall.normal.x +
+      (result.point.y - anchor.y) * wall.normal.y;
     dragRef.current = { ...drag, moved: true };
     const moved = moveWall(drag.base, drag.wallId, delta);
     applyPreview(moved.ok ? moved.value : null, moved.ok ? null : moved.error);
@@ -532,9 +545,10 @@ function EditorSurface({
         if (!selectedWallId) return;
         const wall = walls.find((candidate) => candidate.id === selectedWallId);
         if (!wall) return;
-        const back = wall.orientation === "vertical" ? "ArrowLeft" : "ArrowUp";
+        const back =
+          wall.orientation === "horizontal" ? "ArrowUp" : "ArrowLeft";
         const forward =
-          wall.orientation === "vertical" ? "ArrowRight" : "ArrowDown";
+          wall.orientation === "horizontal" ? "ArrowDown" : "ArrowRight";
         if (event.key !== back && event.key !== forward) return;
         // Keyboard moves use the snap increment so both routes agree.
         event.preventDefault();

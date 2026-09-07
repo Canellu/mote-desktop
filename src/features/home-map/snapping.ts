@@ -3,6 +3,9 @@ import type { MapPoint, MapVertex } from "./types";
 export const SNAP_INCREMENTS = [0.05, 0.1, 0.25, 0.5, 1] as const;
 export type SnapIncrement = (typeof SNAP_INCREMENTS)[number];
 
+export const ANGLE_SNAPS = [0, 15, 45, 90] as const;
+export type AngleSnap = (typeof ANGLE_SNAPS)[number];
+
 export interface SnapSettings {
   /** Off means the pointer position is used exactly as it lands. */
   enabled: boolean;
@@ -10,6 +13,8 @@ export interface SnapSettings {
   showGrid: boolean;
   /** Align to existing corners as well as to the grid. */
   snapToCorners: boolean;
+  /** Degrees a drawn wall's direction snaps to; 0 draws at any angle. */
+  angleDegrees: AngleSnap;
 }
 
 export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
@@ -17,6 +22,7 @@ export const DEFAULT_SNAP_SETTINGS: SnapSettings = {
   incrementMeters: 0.1,
   showGrid: true,
   snapToCorners: true,
+  angleDegrees: 90,
 };
 
 /** A line the pointer aligned to, drawn while dragging like Figma's guides. */
@@ -111,6 +117,9 @@ export function parseSnapSettings(value: unknown): SnapSettings {
       typeof record.snapToCorners === "boolean"
         ? record.snapToCorners
         : DEFAULT_SNAP_SETTINGS.snapToCorners,
+    angleDegrees: ANGLE_SNAPS.some((angle) => angle === record.angleDegrees)
+      ? (record.angleDegrees as AngleSnap)
+      : DEFAULT_SNAP_SETTINGS.angleDegrees,
   };
 }
 

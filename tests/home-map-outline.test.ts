@@ -31,20 +31,28 @@ test("snapping rounds to the drawing grid", () => {
   expect(snapPoint({ x: 1.234, y: 5.678 }, 0)).toEqual({ x: 1.234, y: 5.678 });
 });
 
-test("a corner is constrained to the longer axis from the last one", () => {
-  expect(constrainCorner(null, { x: 1.04, y: 2.03 })).toEqual({
-    x: 1,
-    y: 2,
-  });
-  // Mostly horizontal movement draws a horizontal wall.
-  expect(constrainCorner({ x: 0, y: 0 }, { x: 3.02, y: 0.44 })).toEqual({
-    x: 3,
-    y: 0,
-  });
-  expect(constrainCorner({ x: 0, y: 0 }, { x: 0.44, y: 3.02 })).toEqual({
-    x: 0,
-    y: 3,
-  });
+test("a wall can be drawn at any angle, or snapped to one", () => {
+  expect(constrainCorner(null, { x: 1.04, y: 2.03 })).toEqual({ x: 1, y: 2 });
+  // With no angle snap the pointer keeps its own direction.
+  const free = constrainCorner({ x: 0, y: 0 }, { x: 3.02, y: 1.44 });
+  expect(free).toEqual({ x: 3, y: 1.4 });
+
+  // A right-angle snap reproduces the old behaviour.
+  const square = constrainCorner(
+    { x: 0, y: 0 },
+    { x: 3.02, y: 0.44 },
+    { angleDegrees: 90 },
+  );
+  expect(square.y).toBeCloseTo(0, 6);
+  expect(square.x).toBeGreaterThan(2.9);
+
+  // A 45 degree snap keeps a diagonal exactly diagonal.
+  const diagonal = constrainCorner(
+    { x: 0, y: 0 },
+    { x: 3, y: 2.6 },
+    { angleDegrees: 45 },
+  );
+  expect(diagonal.x).toBeCloseTo(diagonal.y, 6);
 });
 
 test("corner feedback names the specific drawing problem", () => {
@@ -55,9 +63,8 @@ test("corner feedback names the specific drawing problem", () => {
   expect(outlineCornerError([{ x: 0, y: 0 }], { x: 0, y: 0 })).toBe(
     "Move away from the previous corner.",
   );
-  expect(outlineCornerError([{ x: 0, y: 0 }], { x: 2, y: 2 })).toBe(
-    "Walls must be horizontal or vertical.",
-  );
+  // Angled walls are allowed; only degenerate ones are not.
+  expect(outlineCornerError([{ x: 0, y: 0 }], { x: 2, y: 2 })).toBeNull();
   expect(outlineCornerError([{ x: 0, y: 0 }], { x: 0.005, y: 0 })).toBe(
     "A wall must be at least one centimeter long.",
   );
@@ -96,14 +103,21 @@ test("a new wall cannot cross an earlier one", () => {
   expect(outlineCornerError(drawn, { x: 2, y: 1 })).toBeNull();
 });
 
-test("closing requires four aligned corners and a valid room", () => {
+test("closing requires three corners and a room that does not cross itself", () => {
+  expect(
+    outlineCloseError([
+      { x: 0, y: 0 },
+      { x: 4, y: 0 },
+    ]),
+  ).toBe("An outline needs at least three corners.");
+  // A triangle closes, and so does an outline whose last wall is angled.
   expect(
     outlineCloseError([
       { x: 0, y: 0 },
       { x: 4, y: 0 },
       { x: 4, y: 3 },
     ]),
-  ).toBe("An outline needs at least four corners.");
+  ).toBeNull();
   expect(
     outlineCloseError([
       { x: 0, y: 0 },
@@ -111,9 +125,15 @@ test("closing requires four aligned corners and a valid room", () => {
       { x: 4, y: 3 },
       { x: 1, y: 2 },
     ]),
-  ).toBe(
-    "Move the last corner in line with the first one to close the outline.",
-  );
+  ).toBeNull();
+  expect(
+    outlineCloseError([
+      { x: 0, y: 0 },
+      { x: 4, y: 4 },
+      { x: 4, y: 0 },
+      { x: 0, y: 4 },
+    ]),
+  ).not.toBeNull();
   const square = [
     { x: 0, y: 0 },
     { x: 4, y: 0 },
@@ -167,7 +187,6 @@ test("a floor is never built from an invalid ring or blank name", () => {
       [
         { x: 0, y: 0 },
         { x: 4, y: 0 },
-        { x: 4, y: 3 },
       ],
       names,
       ids(),
@@ -282,6 +301,7 @@ test("a drawn room cannot overlap an existing room or repeat its ID", () => {
       ids(),
     ),
   ).toEqual({ ok: false, error: "The new room needs a unique ID." });
+  // A triangle is a valid room; a two-corner outline is not.
   expect(
     addOutlineArea(
       singleRoomFloor(),
@@ -291,6 +311,17 @@ test("a drawn room cannot overlap an existing room or repeat its ID", () => {
         { x: 8, y: 3 },
       ],
       { id: "kitchen", name: "Kitchen" },
+      ids(),
+    ).ok,
+  ).toBe(true);
+  expect(
+    addOutlineArea(
+      singleRoomFloor(),
+      [
+        { x: 6, y: 6 },
+        { x: 8, y: 6 },
+      ],
+      { id: "sliver", name: "Sliver" },
       ids(),
     ).ok,
   ).toBe(false);

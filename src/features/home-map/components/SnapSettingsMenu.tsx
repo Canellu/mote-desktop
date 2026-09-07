@@ -13,7 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { convertLength } from "../measurements";
 import {
+  ANGLE_SNAPS,
   SNAP_INCREMENTS,
+  type AngleSnap,
   type SnapIncrement,
   type SnapSettings,
 } from "../snapping";
@@ -88,6 +90,27 @@ export function SnapSettingsMenu({
         >
           Show grid
         </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuRadioGroup
+          value={String(settings.angleDegrees)}
+          onValueChange={(value) =>
+            onChange({
+              ...settings,
+              angleDegrees: Number(value) as AngleSnap,
+            })
+          }
+        >
+          <DropdownMenuLabel>Wall angles</DropdownMenuLabel>
+          {ANGLE_SNAPS.map((angle) => (
+            <DropdownMenuRadioItem
+              key={angle}
+              value={String(angle)}
+              disabled={!settings.enabled}
+            >
+              {angle === 0 ? "Any angle" : `${angle}° steps`}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup
           value={String(settings.incrementMeters)}

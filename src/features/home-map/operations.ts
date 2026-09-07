@@ -3,7 +3,6 @@ import {
   MIN_WALL_METERS,
   almostEqual,
   distance,
-  isOrthogonalEdge,
   locatePoint,
   pointOnSegment,
   samePoint,
@@ -86,8 +85,8 @@ function dividerError(divider: MapPoint[], ring: MapPoint[]): string | null {
   for (let i = 0; i < divider.length - 1; i++) {
     const a = divider[i];
     const b = divider[i + 1];
-    if (!isOrthogonalEdge(a, b))
-      return "Divider lines must be horizontal or vertical.";
+    if (samePoint(a, b))
+      return "A divider corner must differ from the one before it.";
     if (distance(a, b) < MIN_WALL_METERS - MAP_EPSILON)
       return "A divider segment must be at least one centimeter long.";
     if (

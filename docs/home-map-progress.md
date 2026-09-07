@@ -117,6 +117,14 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Free-form geometry checkpoint: **151 Home Map Bun tests (833 assertions)
+  passed**, including angled and triangular rooms, a bow tie rejected for
+  crossing itself, overlap between angled rooms, a corner drag that moves only
+  its own corner, a corner refused on top of another, angle snapping at 45 and
+  90 degrees, closing an outline with an angled last wall, and a diagonal
+  divider splitting a room. Frontend typecheck, targeted ESLint/Prettier
+  passed. Browser checks dragged the plan's top-left corner and saw only its
+  two walls follow, then drew a free-angle triangular room with Any angle.
 - Hue operations checkpoint: **148 Home Map Bun tests (811 assertions)
   passed**, including queue validation, one change per room, review copy for
   both kinds, a later failure keeping earlier successes, retry running only

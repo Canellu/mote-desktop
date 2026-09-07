@@ -1,7 +1,7 @@
 import {
   almostEqual,
+  areCollinear,
   distance,
-  isOrthogonalEdge,
   pointOnSegment,
   ringsOverlap,
   samePoint,
@@ -36,22 +36,19 @@ export function hasBoundarySpan(
   a: MapPoint,
   b: MapPoint,
 ): boolean {
-  if (!isOrthogonalEdge(a, b)) return false;
+  const length = distance(a, b);
+  if (length < MAP_EPSILON) return false;
   const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
-  const vertical = almostEqual(a.x, b.x);
-  const axis = (point: MapPoint) => (vertical ? point.y : point.x);
-  const fixed = (point: MapPoint) => (vertical ? point.x : point.y);
+  // Walls run at any angle, so coverage is measured along the wall itself.
+  const unit = { x: (b.x - a.x) / length, y: (b.y - a.y) / length };
+  const axis = (point: MapPoint) =>
+    (point.x - a.x) * unit.x + (point.y - a.y) * unit.y;
   const intervals: [number, number][] = [];
   for (const area of floor.areas) {
     for (let i = 0; i < area.vertexIds.length; i++) {
       const p = vertices.get(area.vertexIds[i]);
       const q = vertices.get(area.vertexIds[(i + 1) % area.vertexIds.length]);
-      if (
-        p &&
-        q &&
-        almostEqual(fixed(p), fixed(a)) &&
-        almostEqual(fixed(q), fixed(a))
-      )
+      if (p && q && areCollinear(a, b, p, q))
         intervals.push([
           Math.min(axis(p), axis(q)),
           Math.max(axis(p), axis(q)),
@@ -59,8 +56,8 @@ export function hasBoundarySpan(
     }
   }
   intervals.sort((x, y) => x[0] - y[0]);
-  let covered = Math.min(axis(a), axis(b));
-  const end = Math.max(axis(a), axis(b));
+  let covered = 0;
+  const end = length;
   for (const [start, stop] of intervals) {
     if (stop < covered - MAP_EPSILON) continue;
     if (start > covered + MAP_EPSILON) return false;

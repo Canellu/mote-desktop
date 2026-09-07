@@ -1,6 +1,7 @@
 import {
   MAP_EPSILON,
   almostEqual,
+  areCollinear,
   distance,
   pointOnSegment,
   samePoint,
@@ -13,8 +14,12 @@ export interface MapWall {
   id: string;
   startVertexId: string;
   endVertexId: string;
-  orientation: "horizontal" | "vertical";
+  orientation: "horizontal" | "vertical" | "angled";
   lengthMeters: number;
+  /** Unit direction from start to end, for angled walls. */
+  direction: MapPoint;
+  /** Unit normal a move follows, pointing right or down. */
+  normal: MapPoint;
   /** Every corner along the run, including the corners between segments. */
   vertexIds: string[];
   /** Every area bordering the run, on either side. */
@@ -28,6 +33,17 @@ const failure = (error: string): MapResult<MapFloor> => ({ ok: false, error });
 const wallId = (a: string, b: string) => [a, b].sort().join(":");
 
 /**
+ * The side a positive move pushes a wall towards: right for walls that run
+ * mostly up and down, down for walls that run mostly across.
+ */
+function wallNormal(direction: MapPoint): MapPoint {
+  const normal = { x: direction.y, y: -direction.x };
+  const flip =
+    Math.abs(normal.x) >= Math.abs(normal.y) ? normal.x < 0 : normal.y < 0;
+  return flip ? { x: -normal.x, y: -normal.y } : normal;
+}
+
+/**
  * One entry per straight boundary run. Segments that continue in the same
  * line are one wall: moving only part of a straight boundary would leave a
  * diagonal, which orthogonal plans cannot represent.
@@ -39,7 +55,6 @@ export function listWalls(floor: MapFloor): MapWall[] {
     {
       startId: string;
       endId: string;
-      orientation: "horizontal" | "vertical";
       areaIds: string[];
     }
   >();
@@ -56,12 +71,7 @@ export function listWalls(floor: MapFloor): MapWall[] {
         if (!existing.areaIds.includes(area.id)) existing.areaIds.push(area.id);
         continue;
       }
-      segments.set(id, {
-        startId,
-        endId,
-        orientation: almostEqual(start.x, end.x) ? "vertical" : "horizontal",
-        areaIds: [area.id],
-      });
+      segments.set(id, { startId, endId, areaIds: [area.id] });
     }
   }
 
@@ -69,10 +79,8 @@ export function listWalls(floor: MapFloor): MapWall[] {
   const used = new Set<string>();
   for (const [id, segment] of segments) {
     if (used.has(id)) continue;
-    const orientation = segment.orientation;
-    const axis = orientation === "vertical" ? "y" : "x";
-    const fixed = orientation === "vertical" ? "x" : "y";
-    const line = vertices.get(segment.startId)![fixed];
+    const from = vertices.get(segment.startId)!;
+    const to = vertices.get(segment.endId)!;
     const runIds = new Set([segment.startId, segment.endId]);
     const areaIds = [...segment.areaIds];
     let dividing = segment.areaIds.length > 1;
@@ -82,8 +90,17 @@ export function listWalls(floor: MapFloor): MapWall[] {
     while (extended) {
       extended = false;
       for (const [otherId, other] of segments) {
-        if (used.has(otherId) || other.orientation !== orientation) continue;
-        if (!almostEqual(vertices.get(other.startId)![fixed], line)) continue;
+        if (used.has(otherId)) continue;
+        // Segments join a run when they continue along the same line.
+        if (
+          !areCollinear(
+            from,
+            to,
+            vertices.get(other.startId)!,
+            vertices.get(other.endId)!,
+          )
+        )
+          continue;
         if (!runIds.has(other.startId) && !runIds.has(other.endId)) continue;
         runIds.add(other.startId);
         runIds.add(other.endId);
@@ -94,17 +111,33 @@ export function listWalls(floor: MapFloor): MapWall[] {
         extended = true;
       }
     }
+    const along = { x: to.x - from.x, y: to.y - from.y };
+    const alongLength = Math.hypot(along.x, along.y) || 1;
+    const project = (point: MapPoint) =>
+      ((point.x - from.x) * along.x + (point.y - from.y) * along.y) /
+      alongLength;
     const ordered = [...runIds]
       .map((vertexId) => vertices.get(vertexId)!)
-      .sort((a, b) => a[axis] - b[axis]);
+      .sort((a, b) => project(a) - project(b));
     const start = ordered[0];
     const end = ordered[ordered.length - 1];
+    const length = distance(start, end) || 1;
+    const direction = {
+      x: (end.x - start.x) / length,
+      y: (end.y - start.y) / length,
+    };
     walls.push({
       id: wallId(start.id, end.id),
       startVertexId: start.id,
       endVertexId: end.id,
-      orientation,
+      orientation: almostEqual(start.x, end.x)
+        ? "vertical"
+        : almostEqual(start.y, end.y)
+          ? "horizontal"
+          : "angled",
       lengthMeters: distance(start, end),
+      direction,
+      normal: wallNormal(direction),
       vertexIds: ordered.map((vertex) => vertex.id),
       areaIds,
       dividing,
@@ -133,7 +166,6 @@ export function moveWall(
   const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
   const start = vertices.get(wall.startVertexId)!;
   const end = vertices.get(wall.endVertexId)!;
-  const axis = wall.orientation === "vertical" ? "x" : "y";
   // Every corner on the run moves, including corners shared with other rooms.
   const moving = new Set([
     ...wall.vertexIds,
@@ -146,7 +178,11 @@ export function moveWall(
     ...floor,
     vertices: floor.vertices.map((vertex) =>
       moving.has(vertex.id)
-        ? { ...vertex, [axis]: vertex[axis] + deltaMeters }
+        ? {
+            ...vertex,
+            x: vertex.x + wall.normal.x * deltaMeters,
+            y: vertex.y + wall.normal.y * deltaMeters,
+          }
         : { ...vertex },
     ),
     areas: floor.areas.map((area) => ({
@@ -189,8 +225,9 @@ export function moveWall(
 }
 
 /**
- * Drags a corner by moving the two straight runs that meet there. Orthogonal
- * plans have no free corners: a corner is the intersection of its walls.
+ * Moves one corner to a new position. Only the walls that meet there follow,
+ * which is what dragging a point in a drawing tool means; every room using
+ * that corner keeps sharing it.
  */
 export function moveCorner(
   floor: MapFloor,
@@ -203,23 +240,44 @@ export function moveCorner(
   if (!corner) return failure("Select a corner on this floor.");
   if (!Number.isFinite(target.x) || !Number.isFinite(target.y))
     return failure("Corner coordinates must be finite numbers.");
+  if (samePoint(corner, target)) return { ok: true, value: floor };
 
-  let result = floor;
-  for (const orientation of ["vertical", "horizontal"] as const) {
-    const current = result.vertices.find((vertex) => vertex.id === vertexId)!;
-    const delta =
-      orientation === "vertical" ? target.x - current.x : target.y - current.y;
-    if (Math.abs(delta) <= MAP_EPSILON) continue;
-    // Runs are re-listed between moves: the first move can change membership.
-    const wall = listWalls(result).find(
-      (candidate) =>
-        candidate.orientation === orientation &&
-        candidate.vertexIds.includes(vertexId),
+  const result: MapFloor = {
+    ...floor,
+    vertices: floor.vertices.map((vertex) =>
+      vertex.id === vertexId
+        ? { ...vertex, x: target.x, y: target.y }
+        : { ...vertex },
+    ),
+    areas: floor.areas.map((area) => ({
+      ...area,
+      vertexIds: [...area.vertexIds],
+      target: area.target ? { ...area.target } : null,
+    })),
+    dimensions: floor.dimensions.map((dimension) => ({ ...dimension })),
+    lights: floor.lights.map((light) => ({ ...light })),
+  };
+  if (
+    result.vertices.some(
+      (vertex) => vertex.id !== vertexId && samePoint(vertex, target),
+    )
+  )
+    return failure("A corner cannot sit on another corner.");
+
+  const moved = new Map(result.vertices.map((vertex) => [vertex.id, vertex]));
+  for (const dimension of result.dimensions) {
+    const length = distance(
+      moved.get(dimension.startVertexId)!,
+      moved.get(dimension.endVertexId)!,
     );
-    if (!wall) return failure("This corner has no wall to move in that way.");
-    const moved = moveWall(result, wall.id, delta);
-    if (!moved.ok) return moved;
-    result = moved.value;
+    if (almostEqual(length, dimension.lengthMeters)) continue;
+    if (dimension.locked)
+      return failure(
+        `Release the ${dimension.lengthMeters.toFixed(2)} m wall length before moving this corner.`,
+      );
+    dimension.lengthMeters = length;
+    dimension.verified = false;
   }
-  return { ok: true, value: result };
+  const issue = validateMapFloor(result)[0];
+  return issue ? failure(issue.message) : { ok: true, value: result };
 }

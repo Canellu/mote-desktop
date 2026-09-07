@@ -3,7 +3,6 @@ import {
   MIN_WALL_METERS,
   almostEqual,
   distance,
-  isOrthogonalEdge,
   samePoint,
   segmentsIntersect,
   validateRing,
@@ -31,19 +30,33 @@ export function snapPoint(
 }
 
 /**
- * Constrains a pointer position to an orthogonal wall from the last corner.
- * The longer axis wins, so a drag reads as the wall the user is drawing.
+ * Places the next corner. Walls may run at any angle; an angle increment
+ * snaps the direction from the previous corner, and 90 degrees reproduces the
+ * old right-angle drawing.
  */
 export function constrainCorner(
   previous: MapPoint | null,
   point: MapPoint,
-  snapMeters = DEFAULT_SNAP_METERS,
+  options: { snapMeters?: number; angleDegrees?: number | null } = {},
 ): MapPoint {
-  const snapped = snapPoint(point, snapMeters);
-  if (!previous) return snapped;
-  return Math.abs(snapped.x - previous.x) >= Math.abs(snapped.y - previous.y)
-    ? { x: snapped.x, y: previous.y }
-    : { x: previous.x, y: snapped.y };
+  const { snapMeters = DEFAULT_SNAP_METERS, angleDegrees = null } = options;
+  if (!previous) return snapPoint(point, snapMeters);
+  if (!angleDegrees || angleDegrees <= 0) return snapPoint(point, snapMeters);
+  const dx = point.x - previous.x;
+  const dy = point.y - previous.y;
+  const length = Math.hypot(dx, dy);
+  if (length < MAP_EPSILON) return snapPoint(point, snapMeters);
+  const step = (angleDegrees * Math.PI) / 180;
+  const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+  // Snap the length along the chosen direction so the grid still applies.
+  const snappedLength =
+    snapMeters > 0
+      ? Math.max(snapMeters, Math.round(length / snapMeters) * snapMeters)
+      : length;
+  return {
+    x: previous.x + Math.cos(angle) * snappedLength,
+    y: previous.y + Math.sin(angle) * snappedLength,
+  };
 }
 
 /** Explains why a corner cannot extend the outline, for feedback while drawing. */
@@ -59,8 +72,6 @@ export function outlineCornerError(
   // Name the reused corner before the geometry of the wall reaching it.
   if (points.some((point) => samePoint(point, next)))
     return "This outline already has a corner here.";
-  if (!isOrthogonalEdge(last, next))
-    return "Walls must be horizontal or vertical.";
   if (distance(last, next) < MIN_WALL_METERS - MAP_EPSILON)
     return "A wall must be at least one centimeter long.";
   if (
@@ -90,11 +101,7 @@ export function appendOutlineCorner(
 
 /** Explains why the outline cannot close yet; null means Enter finishes it. */
 export function outlineCloseError(points: readonly MapPoint[]): string | null {
-  if (points.length < 4) return "An outline needs at least four corners.";
-  const last = points[points.length - 1];
-  const first = points[0];
-  if (!isOrthogonalEdge(last, first))
-    return "Move the last corner in line with the first one to close the outline.";
+  if (points.length < 3) return "An outline needs at least three corners.";
   return validateRing([...points]);
 }
 

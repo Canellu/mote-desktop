@@ -177,14 +177,31 @@ test("a divider ending on a shared wall nodes the neighboring room with the same
   expect(areaSize(result)).toBe(32);
 });
 
-test("split rejects unfinished, outside, diagonal, boundary-running, self-crossing and sliver dividers", () => {
+test("a diagonal divider splits a room into two valid areas", () => {
+  const floor = makeFloor();
+  const result = unwrap(split(floor, [point(0, 2), point(4, 3)]));
+  expect(result.areas).toHaveLength(2);
+  expect(
+    result.areas.every(
+      (area) =>
+        Math.abs(
+          signedArea(
+            area.vertexIds.map(
+              (id) => result.vertices.find((vertex) => vertex.id === id)!,
+            ),
+          ),
+        ) > 0.5,
+    ),
+  ).toBe(true);
+});
+
+test("split rejects unfinished, outside, boundary-running, self-crossing and sliver dividers", () => {
   const floor = makeFloor();
   const before = JSON.stringify(floor);
   for (const divider of [
     [point(0, 2)],
     [point(1, 2), point(4, 2)],
     [point(0, 2), point(0, 2)],
-    [point(0, 2), point(4, 3)],
     [point(0, 2), point(-1, 2), point(-1, 4), point(2, 4)],
     [point(0, 0), point(4, 0)],
     [point(0, 2), point(2, 2), point(2, 0), point(4, 0)],

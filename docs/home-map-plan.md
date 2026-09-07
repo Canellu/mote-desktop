@@ -29,13 +29,13 @@ The flows below are proposals for Mote.
 
 ## Screen structure
 
-| Region | Everyday use | Edit map |
-| --- | --- | --- |
-| Header | Existing bridge selector; Dashboard / Map; floor picker; Edit map | Floor name; Undo / Redo; Save and close |
-| Main canvas | Rooms, names, power buttons, light markers | Grid, walls, handles, live operation preview |
-| Left panel | Optional searchable room list | Steps during setup; rooms and unplaced lights afterward |
-| Right inspector | Selected room or light controls | Name, dimensions, room link, and selected operation |
-| Canvas tools | Zoom, Fit floor, lights visibility | Select, Draw, Divide, Combine, Place lights, snapping, dimensions |
+| Region          | Everyday use                                                      | Edit map                                                          |
+| --------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Header          | Existing bridge selector; Dashboard / Map; floor picker; Edit map | Floor name; Undo / Redo; Save and close                           |
+| Main canvas     | Rooms, names, power buttons, light markers                        | Grid, walls, handles, live operation preview                      |
+| Left panel      | Optional searchable room list                                     | Steps during setup; rooms and unplaced lights afterward           |
+| Right inspector | Selected room or light controls                                   | Name, dimensions, room link, and selected operation               |
+| Canvas tools    | Zoom, Fit floor, lights visibility                                | Select, Draw, Divide, Combine, Place lights, snapping, dimensions |
 
 The canvas remains visible when selecting a room. Keep the inspector in a
 stable position instead of opening controls over whichever room was clicked.
@@ -99,8 +99,10 @@ keyboard nudging. Tool help follows the current operation, for example
 "Click a wall to start the divider." Escape cancels the unfinished operation;
 Undo / Redo acts on completed map edits.
 
-For the first release, prioritize rectangular and orthogonal outlines, including
-L-shapes. Walls shared by two rooms are one editable boundary: moving it
+Rooms may take any shape. Walls run at any angle, three corners are enough, and
+snapping offers 90, 45, and 15 degree steps as well as free drawing. Right
+angles remain the default because most homes have them, not because the model
+requires them. Walls shared by two rooms are one editable boundary: moving it
 updates both rooms in a single preview. Reject crossing walls, open regions,
 overlaps, and unusably small slivers before applying the edit. Explain a failed
 division beside the line: "Connect this line to the opposite wall."
@@ -136,16 +138,16 @@ version, a linked area targets one existing Hue room or zone. The inspector
 always identifies that target and lists all its members, including unplaced
 lights. Marker coordinates never determine command scope implicitly.
 
-| Action | Geometry result | Lighting result |
-| --- | --- | --- |
-| Rename on map | Changes the map label | Hue name stays; an explicit "Rename Hue room too" action can change it |
-| Move a wall or marker | Changes shape or position | Membership and scenes stay |
-| Divide, keep one control | Two named areas | Both deliberately share the original target; selecting either highlights both and says "Controls both areas" |
-| Divide, control separately | Two named areas | Link two existing targets, or explicitly create zones for the reviewed light subsets |
-| Combine areas with the same target | One shape, choose a label | Original target and scenes remain |
-| Combine areas with different targets | Preview one shape | Link a suitable existing zone, or explicitly create a zone containing the reviewed union of lights |
-| Remove from map | Removes shape/link; affected markers go to Unplaced | Hue rooms, lights, and scenes remain |
-| Create an actual Hue room | Adds a linked target after success | Explicit device membership change, with source rooms and affected devices listed |
+| Action                               | Geometry result                                     | Lighting result                                                                                              |
+| ------------------------------------ | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Rename on map                        | Changes the map label                               | Hue name stays; an explicit "Rename Hue room too" action can change it                                       |
+| Move a wall or marker                | Changes shape or position                           | Membership and scenes stay                                                                                   |
+| Divide, keep one control             | Two named areas                                     | Both deliberately share the original target; selecting either highlights both and says "Controls both areas" |
+| Divide, control separately           | Two named areas                                     | Link two existing targets, or explicitly create zones for the reviewed light subsets                         |
+| Combine areas with the same target   | One shape, choose a label                           | Original target and scenes remain                                                                            |
+| Combine areas with different targets | Preview one shape                                   | Link a suitable existing zone, or explicitly create a zone containing the reviewed union of lights           |
+| Remove from map                      | Removes shape/link; affected markers go to Unplaced | Hue rooms, lights, and scenes remain                                                                         |
+| Create an actual Hue room            | Adds a linked target after success                  | Explicit device membership change, with source rooms and affected devices listed                             |
 
 **Divide flow:** select area → draw boundary → preview two areas → name each →
 choose shared or separate control → review affected lights → apply. Placed
@@ -197,15 +199,15 @@ membership change can affect existing scenes.
 
 ## Everyday lighting controls
 
-| User action | Result |
-| --- | --- |
-| Click room surface or its list row | Select room and open its inspector; keep map context |
-| Click explicit room power button | Toggle the room directly; do not trigger room navigation |
-| Use room brightness slider | Adjust that target through existing paced group controls |
-| Click favorite scene in inspector | Apply immediately; show pending, applied, or failed state |
-| Click light marker | Open the existing light controls with a back action to its room |
-| Click empty canvas / press Escape | Clear selection; preserve current light state |
-| Click All off on this floor | Turn off the distinct mapped targets on the selected floor |
+| User action                        | Result                                                          |
+| ---------------------------------- | --------------------------------------------------------------- |
+| Click room surface or its list row | Select room and open its inspector; keep map context            |
+| Click explicit room power button   | Toggle the room directly; do not trigger room navigation        |
+| Use room brightness slider         | Adjust that target through existing paced group controls        |
+| Click favorite scene in inspector  | Apply immediately; show pending, applied, or failed state       |
+| Click light marker                 | Open the existing light controls with a back action to its room |
+| Click empty canvas / press Escape  | Clear selection; preserve current light state                   |
+| Click All off on this floor        | Turn off the distinct mapped targets on the selected floor      |
 
 Inspector order: **room name and status → power → brightness → favorite scenes
 → lights → manage room**. Show a few pinned scenes first, then **All scenes**.
@@ -270,17 +272,17 @@ communicated solely by highlighting visible polygons.
 
 This is a plan, not a proposed rewrite of the shared state or SSE layer.
 
-| Existing source | Intended reuse or constraint |
-| --- | --- |
-| `src/features/home-screen/HomeScreen.tsx` and `components/SpaceTile.tsx` | Home view switch, room state, power/brightness behavior |
-| `src/routes/SpaceRoute.tsx`, `src/routes/RootLayout.tsx`, `src/features/space-screen/` | Existing inspectors, scenes, and full room navigation |
-| `src/stores/HueResourcesStore.tsx` | Live resources and control actions; preserve sync exclusions |
-| `src/hooks/useBlinkLights.ts` | Identify during placement |
-| `src/features/settings-screen/components/RoomZoneWizard.tsx` | Room/zone selection, creation, and device review patterns |
-| `src/features/space-screen/spaceEditActions.ts` | Scene copying and explicit membership operations; account for partial failure |
-| `src/features/entertainment-placement/` | Assess reusable coordinate and pointer helpers; entertainment placement remains a separate domain |
-| `src/router.tsx` | Extend the actual hash-history/search-state patterns for view, floor, and inspector selection |
-| `src/App.css` | Existing theme, typography, selection, and control styling |
+| Existing source                                                                        | Intended reuse or constraint                                                                      |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `src/features/home-screen/HomeScreen.tsx` and `components/SpaceTile.tsx`               | Home view switch, room state, power/brightness behavior                                           |
+| `src/routes/SpaceRoute.tsx`, `src/routes/RootLayout.tsx`, `src/features/space-screen/` | Existing inspectors, scenes, and full room navigation                                             |
+| `src/stores/HueResourcesStore.tsx`                                                     | Live resources and control actions; preserve sync exclusions                                      |
+| `src/hooks/useBlinkLights.ts`                                                          | Identify during placement                                                                         |
+| `src/features/settings-screen/components/RoomZoneWizard.tsx`                           | Room/zone selection, creation, and device review patterns                                         |
+| `src/features/space-screen/spaceEditActions.ts`                                        | Scene copying and explicit membership operations; account for partial failure                     |
+| `src/features/entertainment-placement/`                                                | Assess reusable coordinate and pointer helpers; entertainment placement remains a separate domain |
+| `src/router.tsx`                                                                       | Extend the actual hash-history/search-state patterns for view, floor, and inspector selection     |
+| `src/App.css`                                                                          | Existing theme, typography, selection, and control styling                                        |
 
 Add feature-local map geometry, editor state, and persistence under
 `src/features/home-map/`. Keep physical vertices/shared boundaries, area IDs,

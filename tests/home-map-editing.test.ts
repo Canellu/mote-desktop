@@ -161,26 +161,49 @@ test("stored snap settings are validated before use", () => {
       incrementMeters: 0.5,
       showGrid: false,
       snapToCorners: false,
+      angleDegrees: 15,
     }),
   ).toEqual({
     enabled: false,
     incrementMeters: 0.5,
     showGrid: false,
     snapToCorners: false,
+    angleDegrees: 15,
   });
+  // An unsupported angle falls back to the default rather than free drawing.
+  expect(parseSnapSettings({ angleDegrees: 37 }).angleDegrees).toBe(
+    DEFAULT_SNAP_SETTINGS.angleDegrees,
+  );
 });
 
-test("dragging a corner moves both walls that meet there", () => {
+test("dragging a corner moves only that corner, and its walls follow", () => {
   const result = moveCorner(floor(), "b", { x: 5, y: -1 });
   expect(result.ok).toBe(true);
   if (!result.ok) return;
   expect(validateMapFloor(result.value)).toEqual([]);
-  // The shared wall follows on x, the top wall follows on y.
   expect(at(result.value, "b")).toMatchObject({ x: 5, y: -1 });
-  expect(at(result.value, "c").x).toBeCloseTo(5, 6);
-  expect(at(result.value, "a").y).toBeCloseTo(-1, 6);
-  expect(at(result.value, "e").y).toBeCloseTo(-1, 6);
-  expect(at(result.value, "d").y).toBeCloseTo(3, 6);
+  // Every other corner stays put; the walls to b are simply angled now.
+  for (const [id, point] of [
+    ["a", { x: 0, y: 0 }],
+    ["c", { x: 4, y: 3 }],
+    ["d", { x: 0, y: 3 }],
+    ["e", { x: 10, y: 0 }],
+    ["f", { x: 10, y: 3 }],
+  ] as const) {
+    expect(at(result.value, id).x).toBeCloseTo(point.x, 6);
+    expect(at(result.value, id).y).toBeCloseTo(point.y, 6);
+  }
+  // Both rooms still share the moved corner.
+  expect(result.value.areas.every((area) => area.vertexIds.includes("b"))).toBe(
+    true,
+  );
+});
+
+test("a corner cannot be dropped onto another corner", () => {
+  expect(moveCorner(floor(), "b", { x: 4, y: 3 })).toEqual({
+    ok: false,
+    error: "A corner cannot sit on another corner.",
+  });
 });
 
 test("a corner drag that would collapse a room is refused whole", () => {
