@@ -9,6 +9,7 @@ import {
   outlineCloseError,
 } from "../outline";
 import { snapWorldPoint, type SnapGuide, type SnapSettings } from "../snapping";
+import { locatePoint } from "../geometry";
 import type { MapFloor, MapPoint } from "../types";
 import {
   getAreaLabelPoint,
@@ -46,13 +47,17 @@ type Drag =
       moved: boolean;
     };
 
-export type EditorTool = "select" | "draw";
+export type EditorTool = "select" | "draw" | "divide" | "combine";
 
 export interface MapEditorCanvasProps {
   floor: MapFloor;
   tool: EditorTool;
   /** Receives a closed, orthogonal outline in world meters. */
   onDrawRoom: (ring: MapPoint[]) => void;
+  /** Receives a divider drawn from one wall of the selected room to another. */
+  onDivideRoom: (divider: MapPoint[]) => void;
+  combineIds: string[];
+  onToggleCombine: (areaId: string) => void;
   units: "metric" | "imperial";
   snap: SnapSettings;
   selectedAreaId: string | null;
@@ -73,6 +78,9 @@ function EditorSurface({
   floor,
   tool,
   onDrawRoom,
+  onDivideRoom,
+  combineIds,
+  onToggleCombine,
   units,
   snap,
   selectedAreaId,
@@ -144,7 +152,7 @@ function EditorSurface({
   }, [view, size, floor.vertices]);
 
   useEffect(() => {
-    if (tool !== "draw") {
+    if (tool !== "draw" && tool !== "divide") {
       setOutline([]);
       setOutlineHover(null);
     }
@@ -221,6 +229,48 @@ function EditorSurface({
     return { point, guides: result.guides };
   }
 
+  const selectedRing = selectedAreaId
+    ? (shown.areas
+        .find((area) => area.id === selectedAreaId)
+        ?.vertexIds.flatMap((id) => {
+          const vertex = vertices.get(id);
+          return vertex ? [vertex] : [];
+        }) ?? null)
+    : null;
+
+  function placeDividerCorner(event: React.PointerEvent) {
+    if (!selectedRing) {
+      onError("Select the room to divide first.");
+      return;
+    }
+    const { point } = draftCorner(event);
+    const where = locatePoint(point, selectedRing);
+    if (outline.length === 0) {
+      if (where !== "boundary") {
+        onError("Start the divider on a wall of the selected room.");
+        return;
+      }
+      onError(null);
+      setOutline([point]);
+      return;
+    }
+    // A divider ends as soon as it reaches another wall of the same room.
+    if (where === "boundary") {
+      onError(null);
+      onDivideRoom([...outline, point]);
+      setOutline([]);
+      setOutlineHover(null);
+      return;
+    }
+    const next = appendOutlineCorner(outline, point);
+    if (!next.ok) {
+      onError(next.error);
+      return;
+    }
+    onError(null);
+    setOutline(next.value);
+  }
+
   function placeCorner(event: React.PointerEvent) {
     const { point } = draftCorner(event);
     const first = outline[0];
@@ -263,7 +313,7 @@ function EditorSurface({
   function handlePointerMove(event: React.PointerEvent) {
     const drag = dragRef.current;
     if (!drag) {
-      if (tool === "draw") {
+      if (tool === "draw" || tool === "divide") {
         const draft = draftCorner(event);
         setOutlineHover(draft.point);
         setGuides(draft.guides);
@@ -324,7 +374,8 @@ function EditorSurface({
     if (drag.kind !== "pan" && committed && drag.moved) onCommit(committed);
     if (drag.kind === "pan" && !drag.moved) {
       if (tool === "draw") placeCorner(event);
-      else {
+      else if (tool === "divide") placeDividerCorner(event);
+      else if (tool !== "combine") {
         onSelectArea(null);
         onSelectWall(null);
       }
@@ -384,7 +435,7 @@ function EditorSurface({
       ref={surfaceRef}
       className={cn(
         "relative min-h-80 min-w-0 flex-1 touch-none overflow-hidden rounded-3xl border border-border/60 bg-muted/20 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-        tool === "draw"
+        tool === "draw" || tool === "divide"
           ? "cursor-crosshair"
           : drag?.kind === "pan"
             ? "cursor-grabbing"
@@ -462,7 +513,11 @@ function EditorSurface({
         aria-label={
           tool === "draw"
             ? `${floor.name} editor. Click to place corners, click the first corner to finish.`
-            : `${floor.name} editor. Drag corners and walls; drag the background to pan.`
+            : tool === "divide"
+              ? `${floor.name} editor. Click one wall of the selected room, then the wall opposite.`
+              : tool === "combine"
+                ? `${floor.name} editor. Click the rooms to combine.`
+                : `${floor.name} editor. Drag corners and walls; drag the background to pan.`
         }
       >
         {gridStep > 0 && (
@@ -509,21 +564,28 @@ function EditorSurface({
                 points={ring.map((point) => `${point.x},${point.y}`).join(" ")}
                 className={cn(
                   "cursor-pointer transition-colors motion-reduce:transition-none",
-                  selectedAreaId === area.id
-                    ? "fill-primary/12 stroke-foreground/60"
-                    : "fill-tile-off stroke-transparent hover:fill-foreground/10",
+                  combineIds.includes(area.id)
+                    ? "fill-primary/25 stroke-foreground/60"
+                    : selectedAreaId === area.id
+                      ? "fill-primary/12 stroke-foreground/60"
+                      : "fill-tile-off stroke-transparent hover:fill-foreground/10",
                 )}
                 strokeWidth={1}
                 onPointerDown={
-                  tool === "draw"
+                  tool === "draw" || tool === "divide"
                     ? undefined
                     : (event) => {
                         event.stopPropagation();
-                        onSelectArea(area.id);
-                        onSelectWall(null);
+                        if (tool === "combine") onToggleCombine(area.id);
+                        else {
+                          onSelectArea(area.id);
+                          onSelectWall(null);
+                        }
                       }
                 }
-                pointerEvents={tool === "draw" ? "none" : undefined}
+                pointerEvents={
+                  tool === "draw" || tool === "divide" ? "none" : undefined
+                }
               />
               {labelPoint &&
                 getAreaLabelWidth(
@@ -574,7 +636,7 @@ function EditorSurface({
                       ? "stroke-foreground/15"
                       : "stroke-transparent",
                 )}
-                pointerEvents={tool === "draw" ? "none" : undefined}
+                pointerEvents={tool === "select" ? undefined : "none"}
                 onPointerEnter={() => setHoverWallId(wall.id)}
                 onPointerLeave={() =>
                   setHoverWallId((value) => (value === wall.id ? null : value))
@@ -709,6 +771,18 @@ function EditorSurface({
           })}
       </svg>
 
+      {tool === "divide" && (
+        <p
+          role="status"
+          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+        >
+          {!selectedRing
+            ? "Select a room in the list, then draw the dividing wall."
+            : outline.length === 0
+              ? "Click a wall of the selected room to start the divider."
+              : "Click the opposite wall to finish the divider."}
+        </p>
+      )}
       {tool === "draw" && (
         <p
           role="status"

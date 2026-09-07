@@ -30,6 +30,7 @@ import type { HueRoomZone } from "@/types/hue";
 import { MapCanvas } from "./components/MapCanvas";
 import { MapEditorCanvas, type EditorTool } from "./components/MapEditorCanvas";
 import { SnapSettingsMenu } from "./components/SnapSettingsMenu";
+import { RoomEditorPanel } from "./components/RoomEditorPanel";
 import { WallEditor } from "./components/WallEditor";
 import { locatePoint, signedArea } from "./geometry";
 import { convertLength } from "./measurements";
@@ -38,9 +39,21 @@ import {
   writeSnapSettings,
   type SnapSettings,
 } from "./snapping";
-import type { HomeMapDocument, MapFloor, MapPoint } from "./types";
+import type {
+  HomeMapDocument,
+  MapControlTarget,
+  MapFloor,
+  MapPoint,
+} from "./types";
 import { type WallStep } from "./wallDisplay";
-import { addOutlineArea } from "./operations";
+import {
+  addOutlineArea,
+  combineMapAreas,
+  removeMapArea,
+  renameMapArea,
+  setMapAreaTarget,
+  splitMapArea,
+} from "./operations";
 import { listWalls, moveWall } from "./walls";
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
@@ -98,6 +111,7 @@ export function HomeMapScreen({
   const [wallError, setWallError] = useState<string | null>(null);
   const [snap, setSnap] = useState<SnapSettings>(() => readSnapSettings());
   const [tool, setTool] = useState<EditorTool>("select");
+  const [combineIds, setCombineIds] = useState<string[]>([]);
   const floor =
     map.floors.find((entry) => entry.id === selectedFloorId) ?? map.floors[0];
   const walls = editing ? listWalls(floor) : [];
@@ -118,6 +132,47 @@ export function HomeMapScreen({
     }
     setWallError(null);
     onEditFloor(result.value);
+  }
+
+  /** Returns whether the edit was accepted, so tools stay open on failure. */
+  function applyEdit(result: ReturnType<typeof renameMapArea>) {
+    if (!onEditFloor) return false;
+    if (!result.ok) {
+      setWallError(result.error);
+      return false;
+    }
+    setWallError(null);
+    onEditFloor(result.value);
+    return true;
+  }
+
+  function divideRoom(divider: MapPoint[]) {
+    if (!selected) return;
+    const applied = applyEdit(
+      splitMapArea(
+        floor,
+        selected.id,
+        divider,
+        { id: crypto.randomUUID(), name: `${selected.name} 2` },
+        () => crypto.randomUUID(),
+      ),
+    );
+    if (applied) setTool("select");
+  }
+
+  function combineRooms() {
+    const first = floor.areas.find((area) => area.id === combineIds[0]);
+    if (!first) return;
+    const applied = applyEdit(
+      combineMapAreas(floor, combineIds, {
+        id: first.id,
+        name: first.name,
+        target: first.target,
+      }),
+    );
+    if (!applied) return;
+    setCombineIds([]);
+    setTool("select");
   }
 
   function moveSelectedWall(direction: -1 | 1) {
@@ -255,7 +310,10 @@ export function HomeMapScreen({
                 size="sm"
                 variant={tool === "select" ? "secondary" : "ghost"}
                 aria-pressed={tool === "select"}
-                onClick={() => setTool("select")}
+                onClick={() => {
+                  setCombineIds([]);
+                  setTool("select");
+                }}
               >
                 <MousePointer2 />
                 Select
@@ -267,6 +325,7 @@ export function HomeMapScreen({
                 onClick={() => {
                   setWallError(null);
                   setSelectedWallId(null);
+                  setCombineIds([]);
                   setTool("draw");
                 }}
               >
@@ -294,6 +353,7 @@ export function HomeMapScreen({
                 setSelectedWallId(null);
                 setWallError(null);
                 setTool("select");
+                setCombineIds([]);
                 setEditing(!editing);
               }}
             >
@@ -310,6 +370,15 @@ export function HomeMapScreen({
             floor={floor}
             tool={tool}
             onDrawRoom={drawRoom}
+            onDivideRoom={divideRoom}
+            combineIds={combineIds}
+            onToggleCombine={(areaId) =>
+              setCombineIds((current) =>
+                current.includes(areaId)
+                  ? current.filter((id) => id !== areaId)
+                  : [...current, areaId],
+              )
+            }
             units={map.units}
             snap={snap}
             selectedAreaId={selected?.id ?? null}
@@ -335,26 +404,64 @@ export function HomeMapScreen({
         )}
         <aside aria-label="Rooms and selection" className="min-w-0 space-y-6">
           {editing ? (
-            <WallEditor
-              floor={floor}
-              walls={walls}
-              selectedWallId={selectedWallId}
-              units={map.units}
-              step={wallStep}
-              error={wallError}
-              busy={busy}
-              canUndo={canUndo}
-              onSelectWall={(id) => {
-                setWallError(null);
-                setSelectedWallId(id);
-              }}
-              onStepChange={setWallStep}
-              onMove={moveSelectedWall}
-              onUndo={() => {
-                setWallError(null);
-                onUndo?.();
-              }}
-            />
+            <div className="space-y-6">
+              <RoomEditorPanel
+                floor={floor}
+                area={selected}
+                roomZones={roomZones}
+                combineIds={combineIds}
+                dividing={tool === "divide"}
+                combining={tool === "combine"}
+                busy={busy}
+                onRename={(name) =>
+                  selected && applyEdit(renameMapArea(floor, selected.id, name))
+                }
+                onLink={(target: MapControlTarget | null) =>
+                  selected &&
+                  applyEdit(setMapAreaTarget(floor, selected.id, target))
+                }
+                onRemove={() => {
+                  if (!selected) return;
+                  applyEdit(removeMapArea(floor, selected.id));
+                  onSelect(floor.id, null);
+                }}
+                onStartDivide={() => {
+                  setWallError(null);
+                  setTool("divide");
+                }}
+                onStartCombine={() => {
+                  setWallError(null);
+                  setCombineIds(selected ? [selected.id] : []);
+                  setTool("combine");
+                }}
+                onCombine={combineRooms}
+                onCancelTool={() => {
+                  setWallError(null);
+                  setCombineIds([]);
+                  setTool("select");
+                }}
+              />
+              <WallEditor
+                floor={floor}
+                walls={walls}
+                selectedWallId={selectedWallId}
+                units={map.units}
+                step={wallStep}
+                error={wallError}
+                busy={busy}
+                canUndo={canUndo}
+                onSelectWall={(id) => {
+                  setWallError(null);
+                  setSelectedWallId(id);
+                }}
+                onStepChange={setWallStep}
+                onMove={moveSelectedWall}
+                onUndo={() => {
+                  setWallError(null);
+                  onUndo?.();
+                }}
+              />
+            </div>
           ) : (
             <>
               {wide && (

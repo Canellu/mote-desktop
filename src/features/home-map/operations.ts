@@ -424,3 +424,78 @@ export function addOutlineArea(
   ];
   return checked(result);
 }
+
+/** Map names are the user's own labels; Hue names are never changed here. */
+export function renameMapArea(
+  floor: MapFloor,
+  areaId: string,
+  name: string,
+): MapResult<MapFloor> {
+  const input = checked(floor);
+  if (!input.ok) return input;
+  if (!floor.areas.some((area) => area.id === areaId))
+    return failure("Choose a room to rename.");
+  if (!name.trim()) return failure("Rooms need a name.");
+  if (name.length > 200)
+    return failure("A room name can be at most 200 characters.");
+  const result = copyFloor(floor);
+  const area = result.areas.find((candidate) => candidate.id === areaId)!;
+  area.name = name.trim();
+  return checked(result);
+}
+
+/**
+ * Points a mapped area at an existing Hue room or zone, or clears the link.
+ * Creating Hue resources is a separate, explicitly reviewed operation.
+ */
+export function setMapAreaTarget(
+  floor: MapFloor,
+  areaId: string,
+  target: MapControlTarget | null,
+): MapResult<MapFloor> {
+  const input = checked(floor);
+  if (!input.ok) return input;
+  if (!floor.areas.some((area) => area.id === areaId))
+    return failure("Choose a room to link.");
+  const result = copyFloor(floor);
+  const area = result.areas.find((candidate) => candidate.id === areaId)!;
+  area.target = target ? { ...target } : null;
+  const issue = validateMapFloor(result)[0];
+  // The validator rejects anything that is not a Hue v2 reference.
+  return issue
+    ? failure("Choose an existing Hue room or zone.")
+    : { ok: true, value: result };
+}
+
+/** Removing an area keeps its lights and every Hue resource untouched. */
+export function removeMapArea(
+  floor: MapFloor,
+  areaId: string,
+): MapResult<MapFloor> {
+  const input = checked(floor);
+  if (!input.ok) return input;
+  if (!floor.areas.some((area) => area.id === areaId))
+    return failure("Choose a room to remove.");
+  if (floor.areas.length === 1)
+    return failure("A floor keeps at least one room.");
+  const result = copyFloor(floor);
+  result.areas = result.areas.filter((area) => area.id !== areaId);
+  const referenced = new Set(result.areas.flatMap((area) => area.vertexIds));
+  const removedDimensions = result.dimensions.filter(
+    (dimension) =>
+      !referenced.has(dimension.startVertexId) ||
+      !referenced.has(dimension.endVertexId),
+  );
+  if (removedDimensions.some((dimension) => dimension.locked))
+    return failure(
+      "Release locked wall lengths on this room before removing it.",
+    );
+  const removedIds = new Set(removedDimensions.map((entry) => entry.id));
+  result.dimensions = result.dimensions.filter(
+    (dimension) => !removedIds.has(dimension.id),
+  );
+  result.vertices = result.vertices.filter((vertex) =>
+    referenced.has(vertex.id),
+  );
+  return checked(result);
+}

@@ -117,6 +117,13 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Rooms checkpoint: **120 Home Map Bun tests (681 assertions) passed**,
+  including rename, link and unlink, rejected non-Hue references, and removal
+  that drops only the geometry. Frontend typecheck, targeted ESLint/Prettier
+  passed. Browser checks renamed a room and saw the map label follow, divided
+  it with two clicks, combined the halves back, changed and cleared the Hue
+  link from the picker, and confirmed that combining rooms with no shared wall
+  is refused with the reason and no geometry change. Light theme checked.
 - Draw tool checkpoint: **117 Home Map Bun tests (658 assertions) passed**,
   including drawn rooms that reuse corners, node a partly shared wall on both
   sides, refuse overlaps and duplicate IDs, and stay separate when drawn away

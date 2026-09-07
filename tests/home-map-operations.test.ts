@@ -6,6 +6,9 @@ import {
 } from "../src/features/home-map/geometry";
 import {
   combineMapAreas,
+  removeMapArea,
+  renameMapArea,
+  setMapAreaTarget,
   splitMapArea,
 } from "../src/features/home-map/operations";
 import type {
@@ -394,4 +397,51 @@ test("combine accepts mixed winding and rejects stale selections or target IDs",
       target: { resourceType: "room", resourceId: "legacy-id" },
     }).ok,
   ).toBe(false);
+});
+
+test("renaming changes the map label and leaves Hue links alone", () => {
+  const floor = makeFloor();
+  const result = renameMapArea(floor, "area0", "  Snug  ");
+  const renamed = unwrap(result);
+  expect(renamed.areas[0].name).toBe("Snug");
+  expect(renamed.areas[0].target).toEqual(roomTarget);
+  expect(floor.areas[0].name).toBe("Room 1");
+  expect(renameMapArea(floor, "area0", "  ")).toEqual({
+    ok: false,
+    error: "Rooms need a name.",
+  });
+  expect(renameMapArea(floor, "missing", "Snug")).toEqual({
+    ok: false,
+    error: "Choose a room to rename.",
+  });
+  expect(renameMapArea(floor, "area0", "x".repeat(201)).ok).toBe(false);
+});
+
+test("linking points an area at an existing room or zone, or clears it", () => {
+  const floor = makeFloor();
+  const linked = unwrap(setMapAreaTarget(floor, "area0", zoneTarget));
+  expect(linked.areas[0].target).toEqual(zoneTarget);
+  const cleared = unwrap(setMapAreaTarget(linked, "area0", null));
+  expect(cleared.areas[0].target).toBeNull();
+  expect(
+    setMapAreaTarget(floor, "area0", {
+      resourceType: "room",
+      resourceId: "not-a-uuid",
+    }),
+  ).toEqual({ ok: false, error: "Choose an existing Hue room or zone." });
+  expect(setMapAreaTarget(floor, "missing", zoneTarget).ok).toBe(false);
+});
+
+test("removing an area drops its geometry but never a Hue resource", () => {
+  const floor = makeFloor([rectangle(), rectangle(4, 0, 3, 4)]);
+  const result = unwrap(removeMapArea(floor, "area1"));
+  expect(result.areas.map((area) => area.id)).toEqual(["area0"]);
+  // The corners that only belonged to the removed room are gone.
+  expect(result.vertices).toHaveLength(4);
+  expect(result.lights).toEqual(floor.lights);
+  expect(removeMapArea(makeFloor(), "area0")).toEqual({
+    ok: false,
+    error: "A floor keeps at least one room.",
+  });
+  expect(removeMapArea(floor, "missing").ok).toBe(false);
 });
