@@ -117,6 +117,16 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Measured checkpoint: **131 Home Map Bun tests (742 assertions) passed**,
+  including measuring an unmeasured wall, anchor choice, reusing an existing
+  measurement, a locked length refusing a conflicting entry until released,
+  and calibration rescaling geometry and markers. Frontend typecheck, targeted
+  ESLint/Prettier passed. Browser checks set a scale on the sketch preview
+  (10 m read as 8 m, the map became measured with dimensions shown), entered
+  an exact 9.5 m length on another wall, saw a move refused by a kept length,
+  and completed it after releasing that length. Browser review found the
+  refusal named a length the selected wall's own Release could not clear;
+  every kept length is now listed with its own Release.
 - Placement checkpoint: **125 Home Map Bun tests (705 assertions) passed**,
   including placing, moving between floors, rejected floors and coordinates,
   unplacing, and locating a marker's area. Frontend typecheck, targeted

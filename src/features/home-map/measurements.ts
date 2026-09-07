@@ -131,3 +131,123 @@ export function calibrateFloor(
     ? { ok: false, error: resultError.message }
     : { ok: true, value: result };
 }
+
+/** Finds the dimension spanning a wall run, or adds one for it. */
+function wallDimensionId(
+  floor: MapFloor,
+  startVertexId: string,
+  endVertexId: string,
+  createId: () => string,
+): MapResult<{ floor: MapFloor; dimensionId: string }> {
+  const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
+  const start = vertices.get(startVertexId);
+  const end = vertices.get(endVertexId);
+  if (!start || !end)
+    return { ok: false, error: "Select a wall on this floor." };
+  const existing = floor.dimensions.find(
+    (dimension) =>
+      (dimension.startVertexId === startVertexId &&
+        dimension.endVertexId === endVertexId) ||
+      (dimension.startVertexId === endVertexId &&
+        dimension.endVertexId === startVertexId),
+  );
+  if (existing) return { ok: true, value: { floor, dimensionId: existing.id } };
+  const id = createId();
+  if (!id.trim() || floor.dimensions.some((entry) => entry.id === id))
+    return { ok: false, error: "Could not assign a unique measurement ID." };
+  const next: MapFloor = {
+    ...floor,
+    dimensions: [
+      ...floor.dimensions,
+      {
+        id,
+        startVertexId,
+        endVertexId,
+        lengthMeters: distance(start, end),
+        locked: false,
+        verified: false,
+      },
+    ],
+  };
+  const error = validateMapFloor(next)[0];
+  return error
+    ? { ok: false, error: error.message }
+    : { ok: true, value: { floor: next, dimensionId: id } };
+}
+
+/**
+ * Sets an exact length for a wall, measuring it first if it had no dimension.
+ * An entered length is the user's own measurement, so it is locked.
+ */
+export function setWallLengthForWall(
+  floor: MapFloor,
+  wall: { startVertexId: string; endVertexId: string },
+  lengthMeters: number,
+  anchor: "start" | "end",
+  createId: () => string,
+): MapResult<MapFloor> {
+  const prepared = wallDimensionId(
+    floor,
+    wall.startVertexId,
+    wall.endVertexId,
+    createId,
+  );
+  if (!prepared.ok) return prepared;
+  const result = setWallLength(
+    prepared.value.floor,
+    prepared.value.dimensionId,
+    lengthMeters,
+    anchor,
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    value: {
+      ...result.value,
+      dimensions: result.value.dimensions.map((dimension) =>
+        dimension.id === prepared.value.dimensionId
+          ? { ...dimension, locked: true, verified: true }
+          : dimension,
+      ),
+    },
+  };
+}
+
+/** Releasing a length lets neighbouring edits change that wall again. */
+export function releaseWallLength(
+  floor: MapFloor,
+  dimensionId: string,
+): MapResult<MapFloor> {
+  const dimension = floor.dimensions.find((entry) => entry.id === dimensionId);
+  if (!dimension) return { ok: false, error: "Select a measured wall." };
+  return {
+    ok: true,
+    value: {
+      ...floor,
+      dimensions: floor.dimensions.map((entry) =>
+        entry.id === dimensionId ? { ...entry, locked: false } : entry,
+      ),
+    },
+  };
+}
+
+/** Rescales a sketch around one wall whose real length the user knows. */
+export function calibrateFloorFromWall(
+  floor: MapFloor,
+  wall: { startVertexId: string; endVertexId: string },
+  lengthMeters: number,
+  createId: () => string,
+): MapResult<MapFloor> {
+  const prepared = wallDimensionId(
+    floor,
+    wall.startVertexId,
+    wall.endVertexId,
+    createId,
+  );
+  if (!prepared.ok) return prepared;
+  return calibrateFloor(
+    prepared.value.floor,
+    prepared.value.dimensionId,
+    lengthMeters,
+  );
+}

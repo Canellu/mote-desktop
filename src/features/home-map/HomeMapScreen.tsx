@@ -35,7 +35,12 @@ import { RoomEditorPanel } from "./components/RoomEditorPanel";
 import { WallEditor } from "./components/WallEditor";
 import { blinkableLightIds, useBlinkLights } from "@/hooks/useBlinkLights";
 import { locatePoint, signedArea } from "./geometry";
-import { convertLength } from "./measurements";
+import {
+  calibrateFloorFromWall,
+  convertLength,
+  releaseWallLength,
+  setWallLengthForWall,
+} from "./measurements";
 import {
   readSnapSettings,
   writeSnapSettings,
@@ -506,6 +511,39 @@ export function HomeMapScreen({
                 />
               )}
               <WallEditor
+                measured={map.drawingMode === "measured"}
+                onSetLength={(wall, meters) =>
+                  applyEdit(
+                    setWallLengthForWall(floor, wall, meters, "start", () =>
+                      crypto.randomUUID(),
+                    ),
+                  )
+                }
+                onReleaseLength={(dimension) =>
+                  applyEdit(releaseWallLength(floor, dimension.id))
+                }
+                onSetScale={(wall, meters) => {
+                  const scaled = calibrateFloorFromWall(
+                    floor,
+                    wall,
+                    meters,
+                    () => crypto.randomUUID(),
+                  );
+                  if (!scaled.ok || !onEditMap) {
+                    applyEdit(scaled);
+                    return;
+                  }
+                  // A measured scale turns the sketch into a measured plan.
+                  setWallError(null);
+                  onEditMap({
+                    ...map,
+                    drawingMode: "measured",
+                    floors: map.floors.map((entry) =>
+                      entry.id === floor.id ? scaled.value : entry,
+                    ),
+                  });
+                  setShowDimensions(true);
+                }}
                 floor={floor}
                 walls={walls}
                 selectedWallId={selectedWallId}

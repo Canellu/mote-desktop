@@ -1,5 +1,16 @@
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Undo2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  Lock,
+  Ruler,
+  Undo2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -8,7 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import type { MapFloor } from "../types";
+import { convertLength } from "../measurements";
+import type { MapDimension, MapFloor } from "../types";
 import { WALL_STEPS, wallLabel, type WallStep } from "../wallDisplay";
 import type { MapWall } from "../walls";
 
@@ -21,10 +33,14 @@ export function WallEditor({
   error,
   busy,
   canUndo,
+  measured,
   onSelectWall,
   onStepChange,
   onMove,
   onUndo,
+  onSetLength,
+  onReleaseLength,
+  onSetScale,
 }: {
   floor: MapFloor;
   walls: MapWall[];
@@ -34,14 +50,52 @@ export function WallEditor({
   error: string | null;
   busy: boolean;
   canUndo: boolean;
+  /** Measured maps show and keep entered lengths; sketches start with a scale. */
+  measured: boolean;
   onSelectWall: (id: string | null) => void;
   onStepChange: (step: WallStep) => void;
   onMove: (direction: -1 | 1) => void;
   onUndo: () => void;
+  onSetLength: (wall: MapWall, lengthMeters: number) => void;
+  onReleaseLength: (dimension: MapDimension) => void;
+  onSetScale: (wall: MapWall, lengthMeters: number) => void;
 }) {
   const selected = walls.find((wall) => wall.id === selectedWallId) ?? null;
   const unit = units === "metric" ? "m" : "ft";
   const shared = walls.filter((wall) => wall.dividing);
+  const dimension = selected
+    ? (floor.dimensions.find(
+        (entry) =>
+          (entry.startVertexId === selected.startVertexId &&
+            entry.endVertexId === selected.endVertexId) ||
+          (entry.startVertexId === selected.endVertexId &&
+            entry.endVertexId === selected.startVertexId),
+      ) ?? null)
+    : null;
+  const shownLength = selected
+    ? convertLength(selected.lengthMeters, "m", unit)
+    : 0;
+  const [length, setLength] = useState("");
+  const selectedLength = selected?.lengthMeters ?? null;
+  useEffect(() => {
+    setLength(
+      selectedLength === null
+        ? ""
+        : String(
+            Math.round(convertLength(selectedLength, "m", unit) * 100) / 100,
+          ),
+    );
+  }, [selectedLength, unit]);
+
+  function submitLength(mode: "length" | "scale") {
+    if (!selected) return;
+    const entered = Number.parseFloat(length.replace(",", "."));
+    if (!Number.isFinite(entered) || entered <= 0) return;
+    const meters =
+      units === "metric" ? entered : convertLength(entered, "ft", "m");
+    if (mode === "scale") onSetScale(selected, meters);
+    else onSetLength(selected, meters);
+  }
 
   return (
     <div className="space-y-4">
@@ -127,6 +181,64 @@ export function WallEditor({
               Undo
             </Button>
           </div>
+          <div className="grid gap-1.5">
+            <Label htmlFor="map-wall-length">
+              {measured ? `Length (${unit})` : `Known length (${unit})`}
+            </Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="map-wall-length"
+                inputMode="decimal"
+                className="tabular-nums"
+                value={length}
+                disabled={busy}
+                onChange={(event) => setLength(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter") return;
+                  event.preventDefault();
+                  submitLength(measured ? "length" : "scale");
+                }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => submitLength(measured ? "length" : "scale")}
+              >
+                <Ruler />
+                {measured ? "Set" : "Set scale"}
+              </Button>
+            </div>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              {measured
+                ? "An entered length is kept, and other walls move to fit it."
+                : `This sketch has no scale yet. Entering one wall's real length rescales the floor; it currently reads ${
+                    Math.round(shownLength * 100) / 100
+                  } ${unit}.`}
+            </p>
+          </div>
+          {dimension?.locked && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Lock className="size-3.5" aria-hidden />
+                Length kept at{" "}
+                <span className="tabular-nums">
+                  {Math.round(
+                    convertLength(dimension.lengthMeters, "m", unit) * 100,
+                  ) / 100}{" "}
+                  {unit}
+                </span>
+              </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => onReleaseLength(dimension)}
+              >
+                Release length
+              </Button>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">
             Drag the wall on the map, or use these buttons. Arrow keys also move
             it while the map has focus.
@@ -142,6 +254,41 @@ export function WallEditor({
         <p role="alert" className="text-sm wrap-anywhere text-destructive">
           {error}
         </p>
+      )}
+
+      {floor.dimensions.some((entry) => entry.locked) && (
+        <div>
+          <h4 className="mb-1.5 text-xs text-muted-foreground">Kept lengths</h4>
+          {/* Any kept length can block an edit, including one on another wall. */}
+          <ul className="space-y-1">
+            {floor.dimensions
+              .filter((entry) => entry.locked)
+              .map((entry) => (
+                <li
+                  key={entry.id}
+                  className="flex items-center justify-between gap-2"
+                >
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Lock className="size-3.5 shrink-0" aria-hidden />
+                    <span className="tabular-nums">
+                      {Math.round(
+                        convertLength(entry.lengthMeters, "m", unit) * 100,
+                      ) / 100}{" "}
+                      {unit}
+                    </span>
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={busy}
+                    onClick={() => onReleaseLength(entry)}
+                  >
+                    Release
+                  </Button>
+                </li>
+              ))}
+          </ul>
+        </div>
       )}
 
       <ul className="space-y-1">
