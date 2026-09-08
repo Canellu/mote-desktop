@@ -255,7 +255,17 @@ export function CreateMapWizard({
             onMergeCorners={() => {}}
             onCommit={() => {}}
             onInsertCorner={() => null}
-            onDrawRoom={(ring) => setDrawnRing([...ring])}
+            onDrawRoom={(ring) => {
+              // A new plan is stored from its first corner, without the
+              // work area moving under the pointer while it is drawn.
+              const [origin] = ring;
+              setDrawnRing(
+                ring.map((point) => ({
+                  x: Math.round((point.x - origin.x) * 1e6) / 1e6,
+                  y: Math.round((point.y - origin.y) * 1e6) / 1e6,
+                })),
+              );
+            }}
             onError={() => {}}
             className="h-full w-full rounded-none border-0 bg-transparent"
             insetRight={PANEL_INSET}
@@ -417,7 +427,7 @@ export function CreateMapWizard({
                 <p className="text-sm leading-relaxed text-muted-foreground sm:col-span-2">
                   {drawnRing
                     ? "Outline drawn. Create the map, then reshape it in the editor."
-                    : "Click corners on the plan to draw the outline, then click the first corner to close it."}
+                    : "Click corners on the plan to draw the outline. Close it by clicking the first corner, pressing Enter, or double-clicking. Backspace removes the last corner and Esc starts over."}
                 </p>
               )}
               {source === "draw" && drawnRing && (

@@ -71,9 +71,14 @@ Creating a map uses the same shell: a full-bleed work area with the editor's
 grid and rulers, the title at the top left, shape and snapping at the top
 right, and a floating settings panel whose footer pins Create map and Cancel.
 The preview refits whenever the shape changes, so the outline is always framed.
-Drawing a new plan starts at the origin: the first corner snaps to the grid and
-becomes 0,0, with the view shifted so nothing appears to move, and each pending
-wall carries its length until the corner is placed.
+A drawn plan is stored from its first corner, normalised when the outline
+closes rather than by moving the work area under the pointer. Each pending wall
+carries its length until the corner is placed.
+
+Nothing is hidden: every tool states its keys in the hint above the plan — Esc
+cancels or clears, Enter finishes an outline, Backspace removes the last corner,
+arrow keys nudge a selected wall — and a quiet line at the bottom right of the
+work area says drag to pan and scroll to zoom.
 
 Grid and ruler steps come from one ladder of round values (5 cm to 100 m), so
 lines land on whole metres at every zoom instead of drifting with the snap

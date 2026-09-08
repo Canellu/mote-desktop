@@ -419,27 +419,6 @@ function EditorSurface({
   }
 
   function placeCorner(event: React.PointerEvent) {
-    if (outline.length === 0 && floor.vertices.length === 0) {
-      // Start a new plan at 0,0: the view shifts so nothing appears to move.
-      const rect = surfaceRef.current!.getBoundingClientRect();
-      const screen = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top,
-      };
-      const snappedScreen = toScreen(
-        snapped(toWorld(screen, current), []).point,
-        current,
-      );
-      setView({
-        scale: current.scale,
-        offsetX: snappedScreen.x,
-        offsetY: snappedScreen.y,
-      });
-      viewTouched.current = true;
-      onError(null);
-      setOutline([{ x: 0, y: 0 }]);
-      return;
-    }
     const { point } = draftCorner(event);
     const first = outline[0];
     const closeTolerance = SNAP_TOLERANCE_PX / current.scale;
@@ -1154,7 +1133,17 @@ function EditorSurface({
           >
             {placingLightId
               ? "Click where this light is in the room."
-              : "Drag a light marker to move it, or choose a light in the list."}
+              : "Drag a marker to move it, or drag a light in from the list."}
+          </p>
+        )}
+        {tool === "select" && (
+          <p
+            role="status"
+            className="rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+          >
+            {selectedWallId
+              ? "Drag the wall, or nudge it with the arrow keys · Esc clears"
+              : "Drag a wall or a corner to reshape the plan · Click a room to select it"}
           </p>
         )}
         {tool === "points" && (
@@ -1162,8 +1151,8 @@ function EditorSurface({
             role="status"
             className="rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
           >
-            Drag a square corner to move it. Dashed circles add a corner. Drop a
-            corner on another to merge them.
+            Drag a square corner to move it · Dashed circles add a corner · Drop
+            a corner on another to merge them · Esc clears
           </p>
         )}
         {tool === "divide" && (
@@ -1174,8 +1163,8 @@ function EditorSurface({
             {!selectedRing
               ? "Select a room in the list, then draw the dividing wall."
               : outline.length === 0
-                ? "Click a wall of the selected room to start the divider."
-                : "Click the opposite wall to finish the divider."}
+                ? "Click a wall of the selected room to start the divider · Esc cancels"
+                : "Click the opposite wall to finish the divider · Esc cancels"}
           </p>
         )}
         {tool === "draw" && (
@@ -1184,13 +1173,21 @@ function EditorSurface({
             className="rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
           >
             {outline.length === 0
-              ? "Click to place the first corner of a room."
+              ? "Click to place the first corner of a room · Esc cancels"
               : outline.length < 3
-                ? "Keep clicking corners. Walls stay horizontal or vertical."
-                : "Click the first corner to finish. Backspace removes the last one."}
+                ? "Keep clicking corners · Backspace removes the last · Esc cancels"
+                : "Click the first corner or press Enter to finish · Backspace removes the last"}
           </p>
         )}
       </div>
+
+      <p
+        aria-hidden
+        className="pointer-events-none absolute bottom-6 text-[10px] tracking-wide text-muted-foreground/70 uppercase"
+        style={{ right: insetRight + 16 }}
+      >
+        Drag to pan · Scroll to zoom
+      </p>
 
       <MapRulers view={current} size={size} units={units} />
 
