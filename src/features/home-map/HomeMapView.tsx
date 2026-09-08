@@ -1,5 +1,16 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
+import { useBlocker } from "@tanstack/react-router";
 import { Map as MapIcon, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import type { HueRoomZone } from "@/types/hue";
 import { CreateMapWizard } from "./components/CreateMapWizard";
@@ -59,6 +70,14 @@ export function HomeMapView({
   const [saving, setSaving] = useState(false);
   const [hueQueue, setHueQueue] = useState<QueuedHueOperation[]>([]);
   const [hueRunning, setHueRunning] = useState(false);
+  // A map being created lives in the wizard alone, so navigating away throws
+  // it away. The ref is read while a navigation is being decided, which is
+  // sooner than a re-render would arrive.
+  const createDirty = useRef(false);
+  const leaveCreate = useBlocker({
+    shouldBlockFn: () => createDirty.current,
+    withResolver: true,
+  });
   const draft = entry?.draftState?.draft ?? null;
   const published = entry?.draftState?.published ?? null;
   // A draft is the working copy; it hides the published map until resolved.
@@ -68,6 +87,8 @@ export function HomeMapView({
 
   async function create(document: HomeMapDocument) {
     if (!bridgeId) return;
+    // The map is about to be saved, so leaving it behind loses nothing.
+    createDirty.current = false;
     setSaving(true);
     setCreateError(null);
     const result = await homeMapStore.getState().createMap(bridgeId, document);
@@ -114,16 +135,52 @@ export function HomeMapView({
     );
   if (creating && bridgeId && ready)
     return (
-      <CreateMapWizard
-        bridgeId={bridgeId}
-        busy={saving}
-        error={createError}
-        onCreate={(document) => void create(document)}
-        onCancel={() => {
-          setCreateError(null);
-          onCreatingChange(false);
-        }}
-      />
+      <>
+        <CreateMapWizard
+          bridgeId={bridgeId}
+          busy={saving}
+          lights={lighting.lights}
+          roomZones={roomZones}
+          error={createError}
+          onCreate={(document) => void create(document)}
+          onCancel={() => {
+            setCreateError(null);
+            createDirty.current = false;
+            onCreatingChange(false);
+          }}
+          onDirtyChange={(dirty) => {
+            createDirty.current = dirty;
+          }}
+        />
+        <AlertDialog
+          open={leaveCreate.status === "blocked"}
+          onOpenChange={(open) => {
+            if (!open) leaveCreate.reset?.();
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Leave without this map?</AlertDialogTitle>
+              <AlertDialogDescription>
+                The map is not saved until the last step, so the outline, the
+                rooms and the light positions all go with it.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep going</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  createDirty.current = false;
+                  leaveCreate.proceed?.();
+                }}
+              >
+                Discard
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </>
     );
   function editFloor(next: MapFloor) {
     if (!bridgeId || !map) return;

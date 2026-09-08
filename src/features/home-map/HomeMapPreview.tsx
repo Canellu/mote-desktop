@@ -171,6 +171,8 @@ export default function HomeMapPreview({
           bridgeId={example.map.bridgeId}
           busy={false}
           error={null}
+          lights={example.lights}
+          roomZones={roomZones}
           onCreate={(document) => {
             setCreated(document);
             setCreating(false);

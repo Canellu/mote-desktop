@@ -1,6 +1,6 @@
 # Home Map implementation progress
 
-Updated: **2026-09-07**. Branch: `codex/home-map-foundation`.
+Updated: **2026-09-08**. Branch: `codex/home-map-foundation`.
 
 The [UX plan](./home-map-plan.md) defines the intended complete experience.
 Each chunk gets its own focused verification and commit. Existing unrelated
@@ -116,6 +116,20 @@ partial-failure reconciliation before publishing map links. 13. Floor control sc
 accessibility, theme, and narrow-window checks.
 
 ## Verification
+
+- Stepped creation checkpoint: **167 Home Map Bun tests (909 assertions)
+  passed**, including two new draft tests for creating a map after one was
+  discarded and for refusing a created map from another bridge. Frontend
+  typecheck, production build, targeted ESLint/Prettier passed. Browser checks
+  ran the whole creation flow through a temporary harness: an outline drawn and
+  closed, Next into Rooms, a divider drawn across the floor, a room renamed,
+  Next into Lights, a light placed from the tray, Create map landing on a map
+  with two rooms and one placed light, and Cancel with work in progress raising
+  the discard confirmation, with Keep going leaving the work intact. The
+  console stayed free of errors through the flow, which also caught an empty
+  canvas refitting itself forever. The harness was removed after verification.
+  The router-level guard for leaving the page by navigation is not exercisable
+  in that harness; it needs the app's router.
 
 - Units and drawing checkpoint: **162 Home Map Bun tests (870 assertions)
   passed**, including a drawn outline becoming the floor exactly as drawn and

@@ -30,6 +30,19 @@ import {
 import { listWalls, moveCorner, moveWall, type MapWall } from "../walls";
 import { MapRulers, RULER_SIZE } from "./MapRulers";
 
+/** Reuses the viewport in place when a fit lands on the one already shown. */
+function sameViewport(
+  value: MapViewport | null,
+  next: MapViewport,
+): MapViewport {
+  return value &&
+    value.scale === next.scale &&
+    value.offsetX === next.offsetX &&
+    value.offsetY === next.offsetY
+    ? value
+    : next;
+}
+
 /** Screen pixels within which the pointer aligns to an existing corner. */
 const SNAP_TOLERANCE_PX = 12;
 
@@ -106,6 +119,8 @@ export interface MapEditorCanvasProps {
    * them. The canvas keeps its own group when this is not given.
    */
   onViewportControls?: (controls: MapViewportControls) => void;
+  /** Reports a part-drawn outline or divider, so leaving can warn about it. */
+  onDraftingChange?: (drafting: boolean) => void;
 }
 
 export interface MapViewportControls {
@@ -147,6 +162,7 @@ function EditorSurface({
   insetRight = 0,
   overlayInsetClassName,
   onViewportControls,
+  onDraftingChange,
 }: MapEditorCanvasProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 520 });
@@ -160,6 +176,10 @@ function EditorSurface({
   const [guides, setGuides] = useState<SnapGuide[]>([]);
   const [hoverWallId, setHoverWallId] = useState<string | null>(null);
   const [outline, setOutline] = useState<MapPoint[]>([]);
+  const drafting = outline.length > 0;
+  useEffect(() => {
+    onDraftingChange?.(drafting);
+  }, [drafting, onDraftingChange]);
   const [outlineHover, setOutlineHover] = useState<MapPoint | null>(null);
   // Framing follows the container until the view is moved by hand.
   const viewTouched = useRef(false);
@@ -227,10 +247,15 @@ function EditorSurface({
 
   useEffect(() => {
     if (viewTouched.current || size.width < 2) return;
-    setView(
-      floor.vertices.length === 0
-        ? emptyViewport(framed)
-        : fitViewport(getMapBounds(floor.vertices), framed, 48 + RULER_SIZE),
+    // Keeping the same viewport object ends the fit; a new one every time
+    // would re-run this effect through its own `view` dependency.
+    setView((value) =>
+      sameViewport(
+        value,
+        floor.vertices.length === 0
+          ? emptyViewport(framed)
+          : fitViewport(getMapBounds(floor.vertices), framed, 48 + RULER_SIZE),
+      ),
     );
     // framed is derived from size and insetRight, which are both listed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -252,10 +277,13 @@ function EditorSurface({
       : "";
   useEffect(() => {
     if (tool !== "view" || size.width < 2) return;
-    setView(
-      floor.vertices.length === 0
-        ? emptyViewport(framed)
-        : fitViewport(getMapBounds(floor.vertices), framed, 48 + RULER_SIZE),
+    setView((value) =>
+      sameViewport(
+        value,
+        floor.vertices.length === 0
+          ? emptyViewport(framed)
+          : fitViewport(getMapBounds(floor.vertices), framed, 48 + RULER_SIZE),
+      ),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool, previewKey, size.width, size.height, insetRight]);
