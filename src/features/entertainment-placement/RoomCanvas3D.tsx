@@ -38,12 +38,16 @@ import { roomDisplayFrames, roomFrameOptionsFor } from "./display-geometry";
 
 const CAMERA_FOV = 38;
 const CAMERA_ASPECT = 16 / 10;
-const DEFAULT_CAMERA_RADIUS = 3.8;
+const DEFAULT_CAMERA_RADIUS = 6.5;
 const MIN_CAMERA_RADIUS = 2.6;
-const MAX_CAMERA_RADIUS = 10;
+const MAX_CAMERA_RADIUS = 12;
+/** The camera distance at which a pin overlay renders at its full size. */
+const PIN_FULL_SIZE_DISTANCE = 3.8;
 const DEFAULT_CAMERA_TARGET = { x: 0, y: -0.05, z: 0 };
-const DEFAULT_YAW = 0;
-const DEFAULT_TILT = 0.28;
+// Three-quarter view: both the screen wall and one side wall stay readable,
+// and the whole room sits inside the canvas.
+const DEFAULT_YAW = -0.75;
+const DEFAULT_TILT = 0.3;
 const MIN_TILT = -0.08;
 const MAX_TILT = Math.PI / 2;
 const ORBIT_YAW_RATE = 2.6;
@@ -640,10 +644,12 @@ export const RoomCanvas3D = ({
       {displayPins.map((pin) => {
         const world = positionToWorld(pin.position);
         const distance = camera.position.distanceTo(world);
+        // Pins track the zoom rather than floating at a fixed size, so a
+        // zoomed-out room isn't buried under its own numbers.
         const scale = MathUtils.clamp(
-          DEFAULT_CAMERA_RADIUS / distance,
-          0.72,
-          1.2,
+          PIN_FULL_SIZE_DISTANCE / distance,
+          0.5,
+          1.3,
         );
         const active = activeKey === pin.key;
         return (
@@ -666,7 +672,7 @@ export const RoomCanvas3D = ({
                 !isAnimating &&
                 "transition-[left,top,transform] duration-300 ease-out",
               pin.color
-                ? "border-white/80 text-white [text-shadow:0_1px_2px_rgb(0_0_0/0.45)]"
+                ? "border-placement-pin-foreground/65 text-placement-pin-foreground"
                 : "bg-background",
               active
                 ? overlaySelectionClassName
