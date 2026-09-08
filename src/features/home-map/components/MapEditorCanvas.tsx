@@ -58,6 +58,7 @@ type Drag =
     };
 
 export type EditorTool =
+  | "view"
   | "select"
   | "points"
   | "draw"
@@ -201,6 +202,23 @@ function EditorSurface({
       setOutlineHover(null);
     }
   }, [tool]);
+
+  // A preview is framed by the shape it shows, so it refits as that changes.
+  const previewKey =
+    tool === "view"
+      ? floor.vertices
+          .map((vertex) => `${vertex.x.toFixed(3)},${vertex.y.toFixed(3)}`)
+          .join(";")
+      : "";
+  useEffect(() => {
+    if (tool !== "view" || size.width < 2) return;
+    setView(
+      floor.vertices.length === 0
+        ? emptyViewport(size)
+        : fitViewport(getMapBounds(floor.vertices), size, 48 + RULER_SIZE),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool, previewKey, size.width, size.height]);
 
   const current: MapViewport = view ?? { scale: 40, offsetX: 40, offsetY: 40 };
   const project = (point: MapPoint) => toScreen(point, current);
@@ -635,7 +653,9 @@ function EditorSurface({
                   ? `${floor.name} editor. Click the rooms to combine.`
                   : tool === "lights"
                     ? `${floor.name} editor. Drag light markers, or click to place the chosen light.`
-                    : `${floor.name} editor. Drag corners and walls; drag the background to pan.`
+                    : tool === "view"
+                      ? `${floor.name} preview. Drag to pan, scroll to zoom.`
+                      : `${floor.name} editor. Drag corners and walls; drag the background to pan.`
         }
       >
         {gridStep > 0 && (
@@ -702,9 +722,7 @@ function EditorSurface({
                       }
                 }
                 pointerEvents={
-                  tool === "draw" || tool === "divide" || tool === "lights"
-                    ? "none"
-                    : undefined
+                  tool === "select" || tool === "combine" ? undefined : "none"
                 }
               />
               {labelPoint &&

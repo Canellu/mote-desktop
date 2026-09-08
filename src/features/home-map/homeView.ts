@@ -8,6 +8,8 @@ export interface HomeViewSearch {
   mapPreview?: boolean;
   /** The map editor takes over the window, so the layout reads this. */
   mapEdit?: boolean;
+  /** Map creation takes over the window in the same way. */
+  mapCreate?: boolean;
 }
 
 export function validateHomeViewSearch(
@@ -26,6 +28,7 @@ export function validateHomeViewSearch(
     mapPreview:
       import.meta.env.DEV && search.mapPreview === true ? true : undefined,
     mapEdit: search.mapEdit === true ? true : undefined,
+    mapCreate: search.mapCreate === true ? true : undefined,
   };
 }
 

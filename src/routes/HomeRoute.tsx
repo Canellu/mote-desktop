@@ -76,7 +76,9 @@ export const HomeRoute: React.FC = () => {
     navigateHome({ ...scopedSearch, view: next, mapPreview: undefined });
   }
 
-  const mapEditing = view === "map" && scopedSearch.mapEdit === true;
+  const mapEditing =
+    view === "map" &&
+    (scopedSearch.mapEdit === true || scopedSearch.mapCreate === true);
 
   return (
     <div className={mapEditing ? "h-full" : "space-y-6"}>
@@ -115,7 +117,15 @@ export const HomeRoute: React.FC = () => {
               );
             openSpace(id);
           }}
-          editing={mapEditing}
+          creating={scopedSearch.mapCreate === true}
+          onCreatingChange={(next) =>
+            navigateHome({
+              ...scopedSearch,
+              view: "map",
+              mapCreate: next ? true : undefined,
+            })
+          }
+          editing={view === "map" && scopedSearch.mapEdit === true}
           onEditingChange={(next) =>
             navigateHome({
               ...scopedSearch,

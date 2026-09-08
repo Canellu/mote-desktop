@@ -166,17 +166,19 @@ export default function HomeMapPreview({
 
   if (creating)
     return (
-      <CreateMapWizard
-        bridgeId={example.map.bridgeId}
-        busy={false}
-        error={null}
-        onCreate={(document) => {
-          setCreated(document);
-          setCreating(false);
-          onSelect(document.floors[0].id, document.floors[0].areas[0].id);
-        }}
-        onCancel={() => setCreating(false)}
-      />
+      <div className="h-full min-h-0">
+        <CreateMapWizard
+          bridgeId={example.map.bridgeId}
+          busy={false}
+          error={null}
+          onCreate={(document) => {
+            setCreated(document);
+            setCreating(false);
+            onSelect(document.floors[0].id, document.floors[0].areas[0].id);
+          }}
+          onCancel={() => setCreating(false)}
+        />
+      </div>
     );
 
   const shown = created ?? example.map;

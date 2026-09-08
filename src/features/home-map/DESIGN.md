@@ -62,6 +62,11 @@ the floor picker and the dimensions toggle, the tools sit in a floating pill
 centred at the bottom, and the zoom group keeps the lower right. Rulers run
 along the top and left edges in the map's units.
 
+Creating a map uses the same shell: a full-bleed work area with the editor's
+grid and rulers, the title at the top left, shape and snapping at the top
+right, and a floating settings panel whose footer pins Create map and Cancel.
+The preview refits whenever the shape changes, so the outline is always framed.
+
 Grid and ruler steps come from one ladder of round values (5 cm to 100 m), so
 lines land on whole metres at every zoom instead of drifting with the snap
 increment.

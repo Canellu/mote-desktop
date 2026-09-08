@@ -30,6 +30,8 @@ export function HomeMapView({
   roomZones,
   editing,
   onEditingChange,
+  creating,
+  onCreatingChange,
   onSelect,
   onOpenSpace,
   onPreview,
@@ -42,6 +44,8 @@ export function HomeMapView({
   roomZones: HueRoomZone[];
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
+  creating: boolean;
+  onCreatingChange: (creating: boolean) => void;
   onSelect: (floorId: string, areaId: string | null) => void;
   onOpenSpace: (id: string) => void;
   onPreview: () => void;
@@ -51,7 +55,6 @@ export function HomeMapView({
   const entry = useHomeMapStore((state) =>
     bridgeId ? state.entries[bridgeId] : undefined,
   );
-  const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [hueQueue, setHueQueue] = useState<QueuedHueOperation[]>([]);
@@ -70,7 +73,7 @@ export function HomeMapView({
     const result = await homeMapStore.getState().applyEdit(bridgeId, document);
     setSaving(false);
     if (result.ok) {
-      setCreating(false);
+      onCreatingChange(false);
       onSelect(document.floors[0].id, document.floors[0].areas[0].id);
     } else setCreateError(result.error);
   }
@@ -118,7 +121,7 @@ export function HomeMapView({
         onCreate={(document) => void create(document)}
         onCancel={() => {
           setCreateError(null);
-          setCreating(false);
+          onCreatingChange(false);
         }}
       />
     );
@@ -225,7 +228,7 @@ export function HomeMapView({
             </Button>
           )}
           {!failed && bridgeId && ready && (
-            <Button onClick={() => setCreating(true)}>Create map</Button>
+            <Button onClick={() => onCreatingChange(true)}>Create map</Button>
           )}
           <Button variant="outline" onClick={onDashboard}>
             Back to dashboard

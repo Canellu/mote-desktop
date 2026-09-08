@@ -117,6 +117,14 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Creation shell checkpoint: **160 Home Map Bun tests (876 assertions)
+  passed**; this pass changed presentation and routing, not map behaviour.
+  Frontend typecheck, production build, targeted ESLint/Prettier passed.
+  Browser checks opened creation from the example map, measured the work area
+  filling a 1400x900 window with a 320px floating panel, switched shape from
+  the top-right toolbar and watched the cut-out fields appear and the preview
+  refit around a 14 m by 6 m L-shape, created the map, and checked the light
+  theme at 1200x850.
 - Full-bleed checkpoint: **160 Home Map Bun tests (876 assertions) passed**.
   Frontend typecheck, production build, targeted ESLint/Prettier passed.
   Browser checks measured the editor filling a 1400x900 window with a 320px

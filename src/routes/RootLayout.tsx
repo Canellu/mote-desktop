@@ -473,8 +473,13 @@ export const RootLayout: React.FC = () => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const mapEditorOpen = useRouterState({
-    select: (state) =>
-      (state.location.search as { mapEdit?: boolean }).mapEdit === true,
+    select: (state) => {
+      const search = state.location.search as {
+        mapEdit?: boolean;
+        mapCreate?: boolean;
+      };
+      return search.mapEdit === true || search.mapCreate === true;
+    },
   });
   const routeOwnsScroll =
     pathname === "/settings" ||
