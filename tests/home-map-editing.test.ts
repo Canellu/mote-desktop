@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
+import { convertLength } from "../src/features/home-map/measurements";
 import {
   DEFAULT_SNAP_SETTINGS,
+  incrementsFor,
+  nearestIncrement,
   parseSnapSettings,
   snapWorldPoint,
   type SnapSettings,
@@ -16,6 +19,7 @@ import {
   zoomViewportAt,
   MAX_MAP_SCALE,
   MIN_MAP_SCALE,
+  niceStep,
 } from "../src/features/home-map/viewport";
 import { listWalls, moveCorner } from "../src/features/home-map/walls";
 
@@ -229,4 +233,31 @@ test("corner drags reject unknown corners and impossible positions", () => {
       (wall) => wall.orientation === "vertical" && wall.vertexIds.includes("b"),
     ),
   ).toHaveLength(1);
+});
+
+test("grid and ruler steps are round in the unit on screen", () => {
+  // At 40 px per metre a metric map steps in metres.
+  expect(niceStep(40, 64, "metric")).toBe(2);
+  expect(niceStep(200, 16, "metric")).toBe(0.1);
+  // The same zoom on a foot map steps in feet, never 6.56 or 13.12.
+  const feet = (meters: number) =>
+    Math.round(convertLength(meters, "m", "ft") * 100) / 100;
+  // 5 ft would be 61 px at this zoom, just under the 64 px floor.
+  expect(feet(niceStep(40, 64, "imperial"))).toBe(10);
+  // 3 in is 15 px at this zoom, so the grid steps at 6 in.
+  expect(feet(niceStep(200, 16, "imperial"))).toBe(0.5);
+  // Zoomed far out, the ladder reaches 50 ft rather than an odd metre value.
+  expect(feet(niceStep(8, 64, "imperial"))).toBe(50);
+});
+
+test("snap increments are offered in the unit on screen", () => {
+  const feet = (meters: number) =>
+    Math.round(convertLength(meters, "m", "in") * 10) / 10;
+  expect([...incrementsFor("metric")]).toEqual([0.05, 0.1, 0.25, 0.5, 1]);
+  // 1 in, 3 in, 6 in, 1 ft, 2 ft.
+  expect(incrementsFor("imperial").map(feet)).toEqual([1, 3, 6, 12, 24]);
+  // Switching units restates the increment as the nearest offered one.
+  expect(nearestIncrement(0.1, "imperial")).toBeCloseTo(0.0762, 6);
+  expect(nearestIncrement(0.0762, "metric")).toBe(0.1);
+  expect(nearestIncrement(0.5, "metric")).toBe(0.5);
 });

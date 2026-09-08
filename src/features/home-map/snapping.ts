@@ -1,7 +1,32 @@
 import type { MapPoint, MapVertex } from "./types";
 
-export const SNAP_INCREMENTS = [0.05, 0.1, 0.25, 0.5, 1] as const;
+/** Stored in metres; offered as round values in the unit on screen. */
+export const METRIC_INCREMENTS = [0.05, 0.1, 0.25, 0.5, 1] as const;
+/** 1 in, 3 in, 6 in, 1 ft, 2 ft. */
+export const IMPERIAL_INCREMENTS = [
+  0.0254, 0.0762, 0.1524, 0.3048, 0.6096,
+] as const;
+export const SNAP_INCREMENTS = [
+  ...METRIC_INCREMENTS,
+  ...IMPERIAL_INCREMENTS,
+] as const;
 export type SnapIncrement = (typeof SNAP_INCREMENTS)[number];
+
+export const incrementsFor = (
+  units: "metric" | "imperial",
+): readonly SnapIncrement[] =>
+  units === "metric" ? METRIC_INCREMENTS : IMPERIAL_INCREMENTS;
+
+/** The closest offered increment, used when the unit changes. */
+export function nearestIncrement(
+  meters: number,
+  units: "metric" | "imperial",
+): SnapIncrement {
+  const options = incrementsFor(units);
+  return options.reduce((best, option) =>
+    Math.abs(option - meters) < Math.abs(best - meters) ? option : best,
+  );
+}
 
 export const ANGLE_SNAPS = [0, 15, 45, 90] as const;
 export type AngleSnap = (typeof ANGLE_SNAPS)[number];

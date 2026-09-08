@@ -9,7 +9,7 @@ import {
   Ruler,
   X,
 } from "lucide-react";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -45,6 +45,7 @@ import {
   setWallLengthForWall,
 } from "./measurements";
 import {
+  nearestIncrement,
   readSnapSettings,
   writeSnapSettings,
   type SnapSettings,
@@ -159,6 +160,16 @@ export function HomeMapScreen({
   const [wallStep, setWallStep] = useState<WallStep>(0.5);
   const [wallError, setWallError] = useState<string | null>(null);
   const [snap, setSnap] = useState<SnapSettings>(() => readSnapSettings());
+  useEffect(() => {
+    // Snapping in metres on a foot map would offer no round increments.
+    setSnap((current) => {
+      const increment = nearestIncrement(current.incrementMeters, map.units);
+      if (increment === current.incrementMeters) return current;
+      const next = { ...current, incrementMeters: increment };
+      writeSnapSettings(next);
+      return next;
+    });
+  }, [map.units]);
   const [tool, setTool] = useState<EditorTool>("select");
   const [combineIds, setCombineIds] = useState<string[]>([]);
   const [selectedVertexId, setSelectedVertexId] = useState<string | null>(null);

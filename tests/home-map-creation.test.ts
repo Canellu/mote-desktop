@@ -4,7 +4,6 @@ import {
   createHomeMapDocument,
   MIN_FLOOR_SIDE_METERS,
   type CreateHomeMapInput,
-  type NotchCorner,
 } from "../src/features/home-map/creation";
 import { signedArea, validateRing } from "../src/features/home-map/geometry";
 import { validateHomeMap } from "../src/features/home-map/validation";
@@ -41,34 +40,53 @@ test("rectangle outline is a valid orthogonal ring of the entered size", () => {
   expect(Math.abs(signedArea(ring.value))).toBeCloseTo(24, 6);
 });
 
-test("every L-shape corner keeps the outline valid and removes the cut-out", () => {
-  const corners: NotchCorner[] = [
-    "top-left",
-    "top-right",
-    "bottom-left",
-    "bottom-right",
+test("a drawn outline becomes the floor exactly as drawn", () => {
+  const ring = [
+    { x: 0, y: 0 },
+    { x: 5, y: 0 },
+    { x: 5, y: 2 },
+    { x: 8, y: 2 },
+    { x: 8, y: 6 },
+    { x: 0, y: 6 },
   ];
-  const seen = new Set<string>();
-  for (const corner of corners) {
-    const ring = buildFloorRing({
-      kind: "l-shape",
-      widthMeters: 8,
-      depthMeters: 6,
-      notchWidthMeters: 3,
-      notchDepthMeters: 2,
-      corner,
-    });
-    expect(ring.ok).toBe(true);
-    if (!ring.ok) return;
-    expect(ring.value).toHaveLength(6);
-    expect(validateRing(ring.value)).toBeNull();
-    expect(Math.abs(signedArea(ring.value))).toBeCloseTo(8 * 6 - 3 * 2, 6);
-    seen.add(JSON.stringify(ring.value));
-  }
-  expect(seen.size).toBe(4);
+  const built = buildFloorRing({ kind: "drawn", ring });
+  expect(built).toEqual({ ok: true, value: ring });
+
+  const result = createHomeMapDocument(
+    input({ shape: { kind: "drawn", ring } }),
+  );
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(validateHomeMap(result.value)).toEqual([]);
+  expect(result.value.floors[0].vertices).toHaveLength(6);
+  // A drawn floor carries no typed sides, so it starts unmeasured.
+  expect(result.value.floors[0].dimensions).toEqual([]);
 });
 
-test("outlines reject sizes and cut-outs that leave an unusable floor", () => {
+test("a drawn outline that is not a room is refused", () => {
+  expect(
+    buildFloorRing({
+      kind: "drawn",
+      ring: [
+        { x: 0, y: 0 },
+        { x: 4, y: 0 },
+      ],
+    }).ok,
+  ).toBe(false);
+  expect(
+    buildFloorRing({
+      kind: "drawn",
+      ring: [
+        { x: 0, y: 0 },
+        { x: 4, y: 4 },
+        { x: 4, y: 0 },
+        { x: 0, y: 4 },
+      ],
+    }).ok,
+  ).toBe(false);
+});
+
+test("outlines reject sizes that leave an unusable floor", () => {
   expect(
     buildFloorRing({ kind: "rectangle", widthMeters: 0.2, depthMeters: 4 }),
   ).toEqual({
@@ -85,18 +103,6 @@ test("outlines reject sizes and cut-outs that leave an unusable floor", () => {
       depthMeters: 4,
     }).ok,
   ).toBe(false);
-  const notch = buildFloorRing({
-    kind: "l-shape",
-    widthMeters: 6,
-    depthMeters: 4,
-    notchWidthMeters: 5.8,
-    notchDepthMeters: 2,
-    corner: "top-right",
-  });
-  expect(notch).toEqual({
-    ok: false,
-    error: `The cut-out must leave at least ${MIN_FLOOR_SIDE_METERS} m of width.`,
-  });
 });
 
 test("a created map is a valid single-floor, single-room document", () => {
@@ -133,38 +139,6 @@ test("measured maps lock the entered width and depth; sketches do not", () => {
       (dimension) => !dimension.locked && !dimension.verified,
     ),
   ).toBe(true);
-});
-
-test("an L-shape measures its full-length walls, not the notched sides", () => {
-  const result = createHomeMapDocument(
-    input({
-      shape: {
-        kind: "l-shape",
-        widthMeters: 8,
-        depthMeters: 6,
-        notchWidthMeters: 3,
-        notchDepthMeters: 2,
-        corner: "top-right",
-      },
-    }),
-  );
-  expect(result.ok).toBe(true);
-  if (!result.ok) return;
-  const floor = result.value.floors[0];
-  expect(validateHomeMap(result.value)).toEqual([]);
-  const vertices = new Map(floor.vertices.map((v) => [v.id, v]));
-  const spans = floor.dimensions.map((dimension) => ({
-    length: dimension.lengthMeters,
-    start: vertices.get(dimension.startVertexId)!,
-    end: vertices.get(dimension.endVertexId)!,
-  }));
-  expect(spans.map((span) => span.length).sort((a, b) => a - b)).toEqual([
-    6, 8,
-  ]);
-  // The notch sits along y = 0, so the width must be measured on the far wall.
-  const width = spans.find((span) => span.length === 8)!;
-  expect(width.start.y).toBeCloseTo(6, 6);
-  expect(width.end.y).toBeCloseTo(6, 6);
 });
 
 test("creation rejects a missing bridge or blank names", () => {

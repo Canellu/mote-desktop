@@ -1,4 +1,4 @@
-import { almostEqual, distance } from "./geometry";
+import { almostEqual, distance, validateRing } from "./geometry";
 import { floorFromRing } from "./outline";
 import {
   HOME_MAP_SCHEMA_VERSION,
@@ -22,6 +22,8 @@ export type NotchCorner =
   | "bottom-right";
 
 export type FloorShape =
+  /** An outline drawn on the plan, corner by corner. */
+  | { kind: "drawn"; ring: readonly MapPoint[] }
   | { kind: "rectangle"; widthMeters: number; depthMeters: number }
   | {
       kind: "l-shape";
@@ -55,56 +57,23 @@ const side = (value: number, label: string): string | null => {
 
 /** Corners of the outline, before vertex identity is assigned. */
 export function buildFloorRing(shape: FloorShape): MapResult<MapPoint[]> {
+  if (shape.kind === "drawn") {
+    const error = validateRing([...shape.ring]);
+    return error ? { ok: false, error } : { ok: true, value: [...shape.ring] };
+  }
   const width = shape.widthMeters;
   const depth = shape.depthMeters;
   const error =
     side(width, "Width") ?? side(depth, "Depth") ?? (null as string | null);
   if (error) return { ok: false, error };
-  if (shape.kind === "rectangle")
-    return {
-      ok: true,
-      value: [
-        { x: 0, y: 0 },
-        { x: width, y: 0 },
-        { x: width, y: depth },
-        { x: 0, y: depth },
-      ],
-    };
-
-  const notchWidth = shape.notchWidthMeters;
-  const notchDepth = shape.notchDepthMeters;
-  const notchError =
-    side(notchWidth, "Cut-out width") ?? side(notchDepth, "Cut-out depth");
-  if (notchError) return { ok: false, error: notchError };
-  if (notchWidth > width - MIN_FLOOR_SIDE_METERS)
-    return {
-      ok: false,
-      error: `The cut-out must leave at least ${MIN_FLOOR_SIDE_METERS} m of width.`,
-    };
-  if (notchDepth > depth - MIN_FLOOR_SIDE_METERS)
-    return {
-      ok: false,
-      error: `The cut-out must leave at least ${MIN_FLOOR_SIDE_METERS} m of depth.`,
-    };
-
-  // Built with the cut-out at the top right, then mirrored onto the chosen corner.
-  const ring: MapPoint[] = [
-    { x: 0, y: 0 },
-    { x: width - notchWidth, y: 0 },
-    { x: width - notchWidth, y: notchDepth },
-    { x: width, y: notchDepth },
-    { x: width, y: depth },
-    { x: 0, y: depth },
-  ];
-  const flipX = shape.corner === "top-left" || shape.corner === "bottom-left";
-  const flipY =
-    shape.corner === "bottom-left" || shape.corner === "bottom-right";
   return {
     ok: true,
-    value: ring.map((point) => ({
-      x: flipX ? width - point.x : point.x,
-      y: flipY ? depth - point.y : point.y,
-    })),
+    value: [
+      { x: 0, y: 0 },
+      { x: width, y: 0 },
+      { x: width, y: depth },
+      { x: 0, y: depth },
+    ],
   };
 }
 
@@ -172,19 +141,22 @@ export function createHomeMapDocument({
     floor.vertices.find(
       (vertex) => almostEqual(vertex.x, x) && almostEqual(vertex.y, y),
     );
-  const width = shape.widthMeters;
-  const depth = shape.depthMeters;
-  // The notched side has no full-length wall; use the opposite one.
-  const dimensions = [
-    spanningDimension(floor, createId(), [
-      [corner(0, 0), corner(width, 0)],
-      [corner(0, depth), corner(width, depth)],
-    ]),
-    spanningDimension(floor, createId(), [
-      [corner(0, 0), corner(0, depth)],
-      [corner(width, 0), corner(width, depth)],
-    ]),
-  ].filter((dimension): dimension is MapDimension => dimension !== null);
+  const width = shape.kind === "drawn" ? 0 : shape.widthMeters;
+  const depth = shape.kind === "drawn" ? 0 : shape.depthMeters;
+  // A drawn outline is measured in the editor, not from typed sides.
+  const dimensions =
+    shape.kind === "drawn"
+      ? []
+      : [
+          spanningDimension(floor, createId(), [
+            [corner(0, 0), corner(width, 0)],
+            [corner(0, depth), corner(width, depth)],
+          ]),
+          spanningDimension(floor, createId(), [
+            [corner(0, 0), corner(0, depth)],
+            [corner(width, 0), corner(width, depth)],
+          ]),
+        ].filter((dimension): dimension is MapDimension => dimension !== null);
   // Typed lengths are the user's own measurements, not derived estimates.
   floor.dimensions = dimensions.map((dimension) => ({
     ...dimension,

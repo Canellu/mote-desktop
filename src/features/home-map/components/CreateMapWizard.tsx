@@ -12,26 +12,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import {
-  createHomeMapDocument,
-  type FloorShape,
-  type NotchCorner,
-} from "../creation";
+import { createHomeMapDocument, type FloorShape } from "../creation";
 import { convertLength } from "../measurements";
-import { readSnapSettings, writeSnapSettings } from "../snapping";
-import type { HomeMapDocument } from "../types";
+import {
+  nearestIncrement,
+  readSnapSettings,
+  writeSnapSettings,
+} from "../snapping";
+import type { HomeMapDocument, MapPoint } from "../types";
+import { MapEditorCanvas } from "./MapEditorCanvas";
 import { MapPreviewCanvas } from "./MapPreviewCanvas";
 import { SnapSettingsMenu } from "./SnapSettingsMenu";
 
 type Mode = HomeMapDocument["drawingMode"];
 type Units = HomeMapDocument["units"];
-
-const CORNERS: { value: NotchCorner; label: string }[] = [
-  { value: "top-left", label: "Top left" },
-  { value: "top-right", label: "Top right" },
-  { value: "bottom-left", label: "Bottom left" },
-  { value: "bottom-right", label: "Bottom right" },
-];
 
 /** The floating panel's width plus its inset, mirrored by the work area. */
 const PANEL_INSET = 344;
@@ -129,12 +123,12 @@ export function CreateMapWizard({
   const [roomName, setRoomName] = useState("Whole floor");
   const [mode, setMode] = useState<Mode>("measured");
   const [units, setUnits] = useState<Units>("metric");
-  const [kind, setKind] = useState<FloorShape["kind"]>("rectangle");
-  const [corner, setCorner] = useState<NotchCorner>("top-right");
+  // Drawing is the starting point; a rectangle is the shortcut for the
+  // common case, and any shape can be reshaped afterwards in the editor.
+  const [source, setSource] = useState<"draw" | "rectangle">("draw");
+  const [drawnRing, setDrawnRing] = useState<MapPoint[] | null>(null);
   const [width, setWidth] = useState("8");
   const [depth, setDepth] = useState("6");
-  const [notchWidth, setNotchWidth] = useState("3");
-  const [notchDepth, setNotchDepth] = useState("2");
   const [snap, setSnapState] = useState(() => readSnapSettings());
   const setSnap = (next: typeof snap) => {
     setSnapState(next);
@@ -161,25 +155,20 @@ export function CreateMapWizard({
     };
     setWidth(restate(width));
     setDepth(restate(depth));
-    setNotchWidth(restate(notchWidth));
-    setNotchDepth(restate(notchDepth));
+    setSnap({
+      ...snap,
+      incrementMeters: nearestIncrement(snap.incrementMeters, next),
+    });
     setUnits(next);
   }
   const shape: FloorShape =
-    kind === "rectangle"
+    source === "rectangle"
       ? {
-          kind,
+          kind: "rectangle",
           widthMeters: toMeters(width),
           depthMeters: toMeters(depth),
         }
-      : {
-          kind,
-          widthMeters: toMeters(width),
-          depthMeters: toMeters(depth),
-          notchWidthMeters: toMeters(notchWidth),
-          notchDepthMeters: toMeters(notchDepth),
-          corner,
-        };
+      : { kind: "drawn", ring: drawnRing ?? [] };
 
   const preview = useMemo(
     () =>
@@ -202,15 +191,26 @@ export function CreateMapWizard({
       roomName,
       mode,
       units,
-      kind,
-      corner,
+      source,
+      drawnRing,
       width,
       depth,
-      notchWidth,
-      notchDepth,
     ],
   );
-  const problem = preview.ok ? null : preview.error;
+  const drawing = source === "draw" && !drawnRing;
+  // Nothing is wrong before an outline exists; that is an instruction.
+  const problem = drawing || preview.ok ? null : preview.error;
+  const blankFloor = useMemo(
+    () => ({
+      id: "new-floor",
+      name: floorName.trim() || "Ground floor",
+      vertices: [],
+      areas: [],
+      dimensions: [],
+      lights: [],
+    }),
+    [floorName],
+  );
 
   function submit() {
     const created = createHomeMapDocument({
@@ -232,7 +232,34 @@ export function CreateMapWizard({
     >
       {/* The outline runs behind the panel, so the work area is the page. */}
       <div className="absolute inset-0">
-        {preview.ok ? (
+        {drawing ? (
+          <MapEditorCanvas
+            floor={blankFloor}
+            tool="draw"
+            units={units}
+            snap={snap}
+            selectedAreaId={null}
+            selectedWallId={null}
+            selectedVertexId={null}
+            combineIds={[]}
+            placingLightId={null}
+            lightLabels={{}}
+            onSelectArea={() => {}}
+            onSelectWall={() => {}}
+            onSelectVertex={() => {}}
+            onToggleCombine={() => {}}
+            onPlaceLight={() => {}}
+            onDivideRoom={() => {}}
+            onMergeCorners={() => {}}
+            onCommit={() => {}}
+            onInsertCorner={() => null}
+            onDrawRoom={(ring) => setDrawnRing([...ring])}
+            onError={() => {}}
+            className="h-full w-full rounded-none border-0 bg-transparent"
+            insetRight={PANEL_INSET}
+            overlayInsetClassName="right-[calc(23rem+1.5rem)] 2xl:right-[calc(25rem+1.5rem)]"
+          />
+        ) : preview.ok ? (
           <MapPreviewCanvas
             floor={preview.value.floors[0]}
             units={units}
@@ -250,37 +277,32 @@ export function CreateMapWizard({
         )}
       </div>
 
-      {/* Left inset matches the app header, so the titles line up. */}
-      <div className="absolute top-6 left-12 z-10">
-        <h2 className="font-heading text-2xl font-semibold">Create your map</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          One floor to start · divide it and place lights afterwards
-        </p>
-      </div>
-
+      {/* The work area carries no titles; the panel says what this is. */}
       <div
         role="group"
-        aria-label="Floor shape"
-        // Below the title until the work area is wide enough for both.
-        className="absolute top-20 right-[23.5rem] z-20 flex items-center gap-1 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur min-[1200px]:top-6 2xl:right-[25.5rem]"
+        aria-label="Starting point"
+        className="absolute top-6 left-12 z-20 flex items-center gap-1 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur"
       >
         <Button
           size="sm"
-          variant={kind === "rectangle" ? "secondary" : "ghost"}
-          aria-pressed={kind === "rectangle"}
-          onClick={() => setKind("rectangle")}
+          variant={source === "draw" ? "secondary" : "ghost"}
+          aria-pressed={source === "draw"}
+          onClick={() => {
+            setSource("draw");
+            setDrawnRing(null);
+          }}
         >
-          <RectangleHorizontal />
-          Rectangle
+          <PenLine />
+          Draw outline
         </Button>
         <Button
           size="sm"
-          variant={kind === "l-shape" ? "secondary" : "ghost"}
-          aria-pressed={kind === "l-shape"}
-          onClick={() => setKind("l-shape")}
+          variant={source === "rectangle" ? "secondary" : "ghost"}
+          aria-pressed={source === "rectangle"}
+          onClick={() => setSource("rectangle")}
         >
-          <PenLine />
-          L-shape
+          <RectangleHorizontal />
+          Rectangle
         </Button>
         <div className="mx-1 h-5 w-px bg-border" />
         <SnapSettingsMenu settings={snap} units={units} onChange={setSnap} />
@@ -290,11 +312,19 @@ export function CreateMapWizard({
         aria-label="Map settings"
         className="absolute inset-y-6 right-6 z-10 flex w-80 flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-xl 2xl:w-88"
       >
+        <div className="shrink-0 space-y-1 p-5 pb-3">
+          <h2 className="font-heading text-lg font-semibold">
+            Create your map
+          </h2>
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            One floor to start · divide it and place lights afterwards
+          </p>
+        </div>
         <ScrollArea
           fade
           hideScrollbar
           className="min-h-0 flex-1"
-          viewportClassName="px-5 py-5"
+          viewportClassName="px-5 pt-1 pb-5"
           contentClassName="min-w-0!"
         >
           <div className="space-y-6 pb-1">
@@ -354,61 +384,40 @@ export function CreateMapWizard({
                   onChange={(event) => setFloorName(event.target.value)}
                 />
               </div>
-              <LengthField
-                id={`${fieldId}-width`}
-                label="Width"
-                unit={unitLabel}
-                value={width}
-                onChange={setWidth}
-              />
-              <LengthField
-                id={`${fieldId}-depth`}
-                label="Depth"
-                unit={unitLabel}
-                value={depth}
-                onChange={setDepth}
-              />
-              {kind === "l-shape" && (
+              {source === "rectangle" && (
                 <>
                   <LengthField
-                    id={`${fieldId}-notch-width`}
-                    label="Cut-out width"
+                    id={`${fieldId}-width`}
+                    label="Width"
                     unit={unitLabel}
-                    value={notchWidth}
-                    onChange={setNotchWidth}
+                    value={width}
+                    onChange={setWidth}
                   />
                   <LengthField
-                    id={`${fieldId}-notch-depth`}
-                    label="Cut-out depth"
+                    id={`${fieldId}-depth`}
+                    label="Depth"
                     unit={unitLabel}
-                    value={notchDepth}
-                    onChange={setNotchDepth}
+                    value={depth}
+                    onChange={setDepth}
                   />
-                  <div className="grid gap-1.5 sm:col-span-2">
-                    <Label htmlFor={`${fieldId}-corner`}>Cut-out corner</Label>
-                    <Select
-                      value={corner}
-                      onValueChange={(value) => setCorner(value as NotchCorner)}
-                    >
-                      <SelectTrigger
-                        id={`${fieldId}-corner`}
-                        className="w-full"
-                      >
-                        <SelectValue>
-                          {CORNERS.find((option) => option.value === corner)
-                            ?.label ?? "Top right"}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        {CORNERS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </>
+              )}
+              {source === "draw" && (
+                <p className="text-sm leading-relaxed text-muted-foreground sm:col-span-2">
+                  {drawnRing
+                    ? "Outline drawn. Create the map, then reshape it in the editor."
+                    : "Click corners on the plan to draw the outline, then click the first corner to close it."}
+                </p>
+              )}
+              {source === "draw" && drawnRing && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="sm:col-span-2"
+                  onClick={() => setDrawnRing(null)}
+                >
+                  Draw it again
+                </Button>
               )}
               <div className="grid gap-1.5 sm:col-span-2">
                 <Label htmlFor={`${fieldId}-room`}>Room name</Label>

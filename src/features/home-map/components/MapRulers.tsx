@@ -25,7 +25,7 @@ export function MapRulers({
   units: "metric" | "imperial";
 }) {
   const unit = units === "metric" ? "m" : "ft";
-  const step = niceStep(view.scale, 64);
+  const step = niceStep(view.scale, 64, units);
   const label = (value: number) => {
     const shown = convertLength(value, "m", unit);
     return Math.abs(shown) < 0.005

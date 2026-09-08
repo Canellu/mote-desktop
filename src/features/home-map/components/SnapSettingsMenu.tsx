@@ -14,7 +14,8 @@ import {
 import { convertLength } from "../measurements";
 import {
   ANGLE_SNAPS,
-  SNAP_INCREMENTS,
+  incrementsFor,
+  nearestIncrement,
   type AngleSnap,
   type SnapIncrement,
   type SnapSettings,
@@ -25,11 +26,11 @@ function incrementLabel(
   units: "metric" | "imperial",
 ) {
   if (units === "metric")
-    return increment >= 1 ? `${increment} m` : `${increment * 100} cm`;
-  const inches = convertLength(increment, "m", "in");
-  return inches >= 12
-    ? `${(inches / 12).toLocaleString(undefined, { maximumFractionDigits: 2 })} ft`
-    : `${inches.toLocaleString(undefined, { maximumFractionDigits: 1 })} in`;
+    return increment >= 1
+      ? `${increment} m`
+      : `${Math.round(increment * 100)} cm`;
+  const inches = Math.round(convertLength(increment, "m", "in"));
+  return inches >= 12 ? `${Math.round(inches / 12)} ft` : `${inches} in`;
 }
 
 export function SnapSettingsMenu({
@@ -41,6 +42,9 @@ export function SnapSettingsMenu({
   units: "metric" | "imperial";
   onChange: (settings: SnapSettings) => void;
 }) {
+  // A metric increment has no round label on a foot map; show the nearest.
+  const increment = nearestIncrement(settings.incrementMeters, units);
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -50,7 +54,7 @@ export function SnapSettingsMenu({
             variant={settings.enabled ? "secondary" : "ghost"}
             aria-label={`Snapping settings, currently ${
               settings.enabled
-                ? `on at ${incrementLabel(settings.incrementMeters, units)}`
+                ? `on at ${incrementLabel(increment, units)}`
                 : "off"
             }`}
           />
@@ -113,7 +117,7 @@ export function SnapSettingsMenu({
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuRadioGroup
-          value={String(settings.incrementMeters)}
+          value={String(increment)}
           onValueChange={(value) =>
             onChange({
               ...settings,
@@ -122,7 +126,7 @@ export function SnapSettingsMenu({
           }
         >
           <DropdownMenuLabel>Snap increment</DropdownMenuLabel>
-          {SNAP_INCREMENTS.map((increment) => (
+          {incrementsFor(units).map((increment) => (
             <DropdownMenuRadioItem
               key={increment}
               value={String(increment)}

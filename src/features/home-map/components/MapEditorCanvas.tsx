@@ -534,8 +534,8 @@ function EditorSurface({
   const gridStep = useMemo(
     () =>
       // Round steps only, so grid lines meet the rulers and whole-metre walls.
-      snap.showGrid ? niceStep(current.scale, 16) : 0,
-    [snap.showGrid, current.scale],
+      snap.showGrid ? niceStep(current.scale, 16, units) : 0,
+    [snap.showGrid, current.scale, units],
   );
 
   const gridLines = useMemo(() => {

@@ -11,16 +11,24 @@ export interface MapViewport {
 export const MIN_MAP_SCALE = 4;
 export const MAX_MAP_SCALE = 400;
 
-const STEPS = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100] as const;
+const METRIC_STEPS = [0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100] as const;
+/** Inches, then feet: 3 in, 6 in, 1 ft, 2 ft, 5 ft, and so on. */
+const IMPERIAL_STEPS = [
+  0.0762, 0.1524, 0.3048, 0.6096, 1.524, 3.048, 6.096, 15.24, 30.48, 60.96,
+] as const;
 
 /**
- * The smallest round step whose lines stay at least `minPixels` apart. Round
- * values keep the grid, the rulers, and geometry drawn at whole metres aligned
- * at every zoom level.
+ * The smallest round step whose lines stay at least `minPixels` apart. Steps
+ * are round in the unit on screen, so a foot map never reads 6.56 or 13.12.
  */
-export function niceStep(scale: number, minPixels: number): number {
+export function niceStep(
+  scale: number,
+  minPixels: number,
+  units: "metric" | "imperial" = "metric",
+): number {
+  const steps = units === "metric" ? METRIC_STEPS : IMPERIAL_STEPS;
   return (
-    STEPS.find((step) => step * scale >= minPixels) ?? STEPS[STEPS.length - 1]
+    steps.find((step) => step * scale >= minPixels) ?? steps[steps.length - 1]
   );
 }
 

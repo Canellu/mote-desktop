@@ -117,6 +117,16 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Units and drawing checkpoint: **162 Home Map Bun tests (870 assertions)
+  passed**, including a drawn outline becoming the floor exactly as drawn and
+  refusing outlines that are not rooms, round grid and ruler steps per unit,
+  and increments restated when the unit changes. Frontend typecheck, production
+  build, targeted ESLint/Prettier passed. Browser checks drew a six-corner
+  outline and created the map from it, and switched a map to feet: rulers then
+  read 5, 10, 15, 20 ft and snapping offered 1 in through 2 ft, with the stored
+  10 cm restated as 3 in. Three test expectations written from memory were
+  wrong about which step wins at a given zoom; the code was right and the
+  expectations were corrected.
 - Floating panel checkpoint: **160 Home Map Bun tests (876 assertions)
   passed**; presentation only. Frontend typecheck, production build, targeted
   ESLint/Prettier passed. Browser checks measured the canvas spanning the full
