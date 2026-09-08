@@ -56,8 +56,9 @@ list, separated by a fine divider.
 Editing takes over the window, like the entertainment placement editor. The
 plan fills the whole content area and runs behind a floating panel, so it can
 be panned across the full editor instead of being clipped. The panel is a
-320px card inset by 24px on the right (`2xl:w-88`), scrolling its own content
-with a pinned Done editing footer. A small floating bar at the top left holds
+320px card inset by 24px top, bottom and right (`2xl:w-88`), so it runs the
+height of the work area with equal gaps. It scrolls its own content with a
+pinned footer. A small floating bar at the top left holds
 the floor picker and the dimensions toggle, the tools sit in a floating pill
 centred at the bottom, and the zoom group keeps the lower right. Rulers run
 along the top and left edges in the map's units.
@@ -66,6 +67,9 @@ Creating a map uses the same shell: a full-bleed work area with the editor's
 grid and rulers, the title at the top left, shape and snapping at the top
 right, and a floating settings panel whose footer pins Create map and Cancel.
 The preview refits whenever the shape changes, so the outline is always framed.
+Drawing a new plan starts at the origin: the first corner snaps to the grid and
+becomes 0,0, with the view shifted so nothing appears to move, and each pending
+wall carries its length until the corner is placed.
 
 Grid and ruler steps come from one ladder of round values (5 cm to 100 m), so
 lines land on whole metres at every zoom instead of drifting with the snap

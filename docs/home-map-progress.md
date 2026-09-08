@@ -126,7 +126,9 @@ accessibility, theme, and narrow-window checks.
   read 5, 10, 15, 20 ft and snapping offered 1 in through 2 ft, with the stored
   10 cm restated as 3 in. Three test expectations written from memory were
   wrong about which step wins at a given zoom; the code was right and the
-  expectations were corrected.
+  expectations were corrected. A later browser check drew a plan from the
+  origin: the pending wall read 7.5 m, and the created map's corners were
+  exactly 0.00, 0.00 through 7.50, 5.50.
 - Floating panel checkpoint: **160 Home Map Bun tests (876 assertions)
   passed**; presentation only. Frontend typecheck, production build, targeted
   ESLint/Prettier passed. Browser checks measured the canvas spanning the full

@@ -363,6 +363,27 @@ function EditorSurface({
   }
 
   function placeCorner(event: React.PointerEvent) {
+    if (outline.length === 0 && floor.vertices.length === 0) {
+      // Start a new plan at 0,0: the view shifts so nothing appears to move.
+      const rect = surfaceRef.current!.getBoundingClientRect();
+      const screen = {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top,
+      };
+      const snappedScreen = toScreen(
+        snapped(toWorld(screen, current), []).point,
+        current,
+      );
+      setView({
+        scale: current.scale,
+        offsetX: snappedScreen.x,
+        offsetY: snappedScreen.y,
+      });
+      viewTouched.current = true;
+      onError(null);
+      setOutline([{ x: 0, y: 0 }]);
+      return;
+    }
     const { point } = draftCorner(event);
     const first = outline[0];
     const closeTolerance = SNAP_TOLERANCE_PX / current.scale;
@@ -908,6 +929,33 @@ function EditorSurface({
             </g>
           );
         })}
+
+        {outline.length > 0 && outlineHover && (
+          <g className="pointer-events-none">
+            {(() => {
+              const from = outline[outline.length - 1];
+              const length = distance(from, outlineHover);
+              if (length < 0.01) return null;
+              const middle = project({
+                x: (from.x + outlineHover.x) / 2,
+                y: (from.y + outlineHover.y) / 2,
+              });
+              return (
+                <text
+                  x={middle.x}
+                  y={middle.y - 10}
+                  textAnchor="middle"
+                  paintOrder="stroke"
+                  strokeWidth={4}
+                  strokeLinejoin="round"
+                  className="fill-foreground stroke-background text-[12px] font-medium tabular-nums"
+                >
+                  {lengthLabel(length)}
+                </text>
+              );
+            })()}
+          </g>
+        )}
 
         {outline.length > 0 && (
           <g className="pointer-events-none">
