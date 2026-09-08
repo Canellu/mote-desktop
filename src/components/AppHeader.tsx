@@ -106,9 +106,7 @@ const HomeTitle: React.FC<{
 
   // Single bridge (or none): a plain title, matching the original Home header.
   if (!bridges || bridges.length <= 1) {
-    return (
-      <span className="font-heading text-3xl font-semibold">{label}</span>
-    );
+    return <span className="font-heading text-3xl font-semibold">{label}</span>;
   }
 
   return (
@@ -132,9 +130,7 @@ const HomeTitle: React.FC<{
         {bridges.map((bridge) => (
           <DropdownMenuItem
             key={bridge.bridgeId}
-            onClick={() =>
-              !bridge.active && onSwitchBridge?.(bridge.bridgeId)
-            }
+            onClick={() => !bridge.active && onSwitchBridge?.(bridge.bridgeId)}
             className="gap-2 text-base [&_svg:not([class*='size-'])]:size-5"
           >
             <Router className="text-muted-foreground" />
@@ -226,12 +222,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   } as const;
 
   return (
-    <header className="flex h-20 shrink-0 items-center justify-between px-6">
+    <header className="flex h-20 shrink-0 items-center justify-between px-12">
       {onBack ? (
         <div className="flex min-w-0 items-center gap-3">
           <Button
             variant="ghost"
             size="icon-xl"
+            className="-ml-3"
             aria-label="Back"
             onClick={onBack}
           >
@@ -477,7 +474,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               )}
 
               {(showSync || showSettings) && (
-                <div className="flex items-center">
+                /* Ghost icon buttons carry their own inner padding, so pull the
+                  group past the gutter to sit the glyphs on it optically. */
+                <div className="-mr-3 flex items-center">
                   {showSync && (
                     <Button
                       variant="ghost"
