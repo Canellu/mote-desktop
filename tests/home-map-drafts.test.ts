@@ -3,6 +3,7 @@ import {
   applyHomeMapDraft,
   createHomeMapDraftState,
   discardHomeMapDraft,
+  replaceHomeMapDraft,
   publishHomeMapDraft,
   redoHomeMapDraft,
   undoHomeMapDraft,
@@ -164,4 +165,34 @@ test("invalid completed edits and identity changes leave state intact", () => {
   expect(createHomeMapDraftState("bridge-one", { historyLimit: 101 }).ok).toBe(
     false,
   );
+});
+
+test("creating a map replaces the one the bridge held", () => {
+  // Discarding a draft leaves the map ID behind, so the next creation would
+  // otherwise be refused as an edit that changes identity.
+  const state = value(
+    createHomeMapDraftState("bridge-one", { published: document() }),
+  );
+  const emptied = discardHomeMapDraft(
+    value(applyHomeMapDraft(state, document("Edited"))),
+  );
+  const fresh = { ...document("Second home"), id: "map-two" };
+
+  expect(applyHomeMapDraft(emptied, fresh).ok).toBe(false);
+
+  const replaced = value(replaceHomeMapDraft(emptied, fresh));
+  expect(replaced.mapId).toBe("map-two");
+  expect(replaced.draft?.name).toBe("Second home");
+  expect(replaced.published).toBeNull();
+  expect(replaced.past).toEqual([]);
+  expect(replaced.future).toEqual([]);
+});
+
+test("a created map still has to belong to this bridge", () => {
+  const state = value(createHomeMapDraftState("bridge-one"));
+  const other = { ...document(), bridgeId: "bridge-two" };
+  expect(replaceHomeMapDraft(state, other)).toEqual({
+    ok: false,
+    error: "The map belongs to another bridge.",
+  });
 });

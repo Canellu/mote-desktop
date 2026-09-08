@@ -83,6 +83,30 @@ export function createHomeMapDraftState(
   };
 }
 
+/**
+ * Starts a map from scratch. Creating is not an edit of the map that came
+ * before it, so the identity, the history and any half-finished draft go with
+ * it; the published map stays until the new one is published over it.
+ */
+export function replaceHomeMapDraft(
+  state: HomeMapDraftState,
+  document: HomeMapDocument,
+): MapResult<HomeMapDraftState> {
+  const error = documentError(document, state.bridgeId);
+  if (error) return { ok: false, error };
+  return {
+    ok: true,
+    value: snapshot({
+      ...state,
+      mapId: document.id,
+      published: null,
+      draft: document,
+      past: [],
+      future: [],
+    }),
+  };
+}
+
 export function applyHomeMapDraft(
   state: HomeMapDraftState,
   document: HomeMapDocument,

@@ -3,6 +3,7 @@ import {
   applyHomeMapDraft,
   createHomeMapDraftState,
   discardHomeMapDraft,
+  replaceHomeMapDraft,
   publishHomeMapDraft,
   redoHomeMapDraft,
   undoHomeMapDraft,
@@ -38,6 +39,8 @@ export interface HomeMapStoreState {
   /** Reload never replaces unsaved local changes. */
   retryLoad(bridgeId: string): Promise<ActionResult>;
   applyEdit(bridgeId: string, document: HomeMapDocument): Promise<ActionResult>;
+  /** Replaces this bridge's map with a newly created one. */
+  createMap(bridgeId: string, document: HomeMapDocument): Promise<ActionResult>;
   undo(bridgeId: string): Promise<ActionResult>;
   redo(bridgeId: string): Promise<ActionResult>;
   publish(bridgeId: string): Promise<ActionResult>;
@@ -297,6 +300,8 @@ export function createHomeMapStore(
       },
       applyEdit: (bridgeId, document) =>
         edit(bridgeId, (state) => applyHomeMapDraft(state, document)),
+      createMap: (bridgeId, document) =>
+        edit(bridgeId, (state) => replaceHomeMapDraft(state, document)),
       undo: (bridgeId) =>
         edit(bridgeId, (state) => ({
           ok: true,

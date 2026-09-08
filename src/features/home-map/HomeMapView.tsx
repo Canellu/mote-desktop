@@ -70,7 +70,7 @@ export function HomeMapView({
     if (!bridgeId) return;
     setSaving(true);
     setCreateError(null);
-    const result = await homeMapStore.getState().applyEdit(bridgeId, document);
+    const result = await homeMapStore.getState().createMap(bridgeId, document);
     setSaving(false);
     if (result.ok) {
       onCreatingChange(false);

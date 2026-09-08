@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import { createHomeMapDocument, type FloorShape } from "../creation";
 import { convertLength } from "../measurements";
 import {
@@ -33,45 +32,6 @@ type Units = HomeMapDocument["units"];
 function previewIds() {
   let count = 0;
   return () => `preview-${(count += 1)}`;
-}
-
-function ChoiceGroup<T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: { value: T; label: string; hint?: string }[];
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div role="group" aria-label={label} className="grid gap-2 sm:grid-cols-2">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          aria-pressed={value === option.value}
-          onClick={() => onChange(option.value)}
-          className={cn(
-            "rounded-lg border px-3 py-2 text-left transition-colors",
-            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
-            value === option.value
-              ? "border-foreground/40 bg-primary/10"
-              : "border-border bg-card hover:bg-accent",
-          )}
-        >
-          <span className="block text-sm font-medium">{option.label}</span>
-          {option.hint && (
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              {option.hint}
-            </span>
-          )}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 function LengthField({
@@ -120,11 +80,13 @@ export function CreateMapWizard({
   const [name, setName] = useState("My home");
   const [floorName, setFloorName] = useState("Ground floor");
   const [roomName, setRoomName] = useState("Whole floor");
-  const [mode, setMode] = useState<Mode>("measured");
   const [units, setUnits] = useState<Units>("metric");
   // Drawing is the starting point; a rectangle is the shortcut for the
   // common case, and any shape can be reshaped afterwards in the editor.
   const [source, setSource] = useState<"draw" | "rectangle">("draw");
+  // Typed sides are measurements; a drawn outline stays a sketch until a wall
+  // is measured in the editor, which promotes the map on its own.
+  const mode: Mode = source === "rectangle" ? "measured" : "sketch";
   const [drawnRing, setDrawnRing] = useState<MapPoint[] | null>(null);
   const [width, setWidth] = useState("8");
   const [depth, setDepth] = useState("6");
@@ -358,27 +320,6 @@ export function CreateMapWizard({
               />
             </div>
 
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">Drawing mode</h3>
-              <ChoiceGroup<Mode>
-                label="Drawing mode"
-                value={mode}
-                onChange={setMode}
-                options={[
-                  {
-                    value: "sketch",
-                    label: "Quick sketch",
-                    hint: "Approximate sizes, no measurements shown.",
-                  },
-                  {
-                    value: "measured",
-                    label: "Measured plan",
-                    hint: "Keeps the lengths you enter.",
-                  },
-                ]}
-              />
-            </div>
-
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-1.5">
                 <Label htmlFor={`${fieldId}-units`}>Units</Label>
@@ -453,16 +394,6 @@ export function CreateMapWizard({
                 </p>
               </div>
             </div>
-
-            {/* The reason stays with the fields that fix it. */}
-            {(error || problem) && (
-              <p
-                role="alert"
-                className="text-sm wrap-anywhere text-destructive"
-              >
-                {error ?? problem}
-              </p>
-            )}
           </div>
         </ScrollArea>
         <div className="shrink-0 space-y-2 border-t border-border p-5">
