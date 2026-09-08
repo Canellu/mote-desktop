@@ -1,6 +1,6 @@
 import type { MapFloor } from "../types";
 import type { SnapSettings } from "../snapping";
-import { MapEditorCanvas } from "./MapEditorCanvas";
+import { MapEditorCanvas, type MapViewportControls } from "./MapEditorCanvas";
 
 const noop = () => {};
 
@@ -14,14 +14,14 @@ export function MapPreviewCanvas({
   snap,
   className,
   insetRight,
-  overlayInsetClassName,
+  onViewportControls,
 }: {
   floor: MapFloor;
   units: "metric" | "imperial";
   snap: SnapSettings;
   className?: string;
   insetRight?: number;
-  overlayInsetClassName?: string;
+  onViewportControls?: (controls: MapViewportControls) => void;
 }) {
   return (
     <MapEditorCanvas
@@ -48,7 +48,7 @@ export function MapPreviewCanvas({
       onError={noop}
       className={className}
       insetRight={insetRight}
-      overlayInsetClassName={overlayInsetClassName}
+      onViewportControls={onViewportControls}
     />
   );
 }

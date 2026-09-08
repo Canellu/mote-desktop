@@ -20,10 +20,11 @@ import {
   writeSnapSettings,
 } from "../snapping";
 import type { HomeMapDocument, MapPoint } from "../types";
-import { PANEL_INSET, ZOOM_ALLOWANCE } from "../layout";
-import { MapEditorCanvas } from "./MapEditorCanvas";
+import { PANEL_INSET } from "../layout";
+import { MapEditorCanvas, type MapViewportControls } from "./MapEditorCanvas";
 import { MapPreviewCanvas } from "./MapPreviewCanvas";
 import { SnapSettingsMenu } from "./SnapSettingsMenu";
+import { ZoomMenu } from "./ZoomMenu";
 
 type Mode = HomeMapDocument["drawingMode"];
 type Units = HomeMapDocument["units"];
@@ -127,6 +128,9 @@ export function CreateMapWizard({
   const [drawnRing, setDrawnRing] = useState<MapPoint[] | null>(null);
   const [width, setWidth] = useState("8");
   const [depth, setDepth] = useState("6");
+  const [zoomControls, setZoomControls] = useState<MapViewportControls | null>(
+    null,
+  );
   const [snap, setSnapState] = useState(() => readSnapSettings());
   const setSnap = (next: typeof snap) => {
     setSnapState(next);
@@ -255,7 +259,7 @@ export function CreateMapWizard({
             onError={() => {}}
             className="h-full w-full rounded-none border-0 bg-transparent"
             insetRight={PANEL_INSET}
-            overlayInsetClassName="right-[calc(23rem+1.5rem)] 2xl:right-[calc(25rem+1.5rem)]"
+            onViewportControls={setZoomControls}
           />
         ) : preview.ok ? (
           <MapPreviewCanvas
@@ -264,7 +268,7 @@ export function CreateMapWizard({
             snap={snap}
             className="h-full w-full rounded-none border-0 bg-transparent"
             insetRight={PANEL_INSET}
-            overlayInsetClassName="right-[calc(23rem+1.5rem)] 2xl:right-[calc(25rem+1.5rem)]"
+            onViewportControls={setZoomControls}
           />
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center">
@@ -278,7 +282,7 @@ export function CreateMapWizard({
       {/* One bottom bar, on the feedback button's baseline. */}
       <div
         className="pointer-events-none absolute bottom-6 left-0 flex justify-center"
-        style={{ right: PANEL_INSET + ZOOM_ALLOWANCE }}
+        style={{ right: PANEL_INSET }}
       >
         <div
           role="group"
@@ -316,13 +320,16 @@ export function CreateMapWizard({
         // The ruler strip fills the top inset, so the panel starts below it.
         className="absolute top-[2.875rem] right-6 bottom-6 z-10 flex w-80 flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-xl 2xl:w-88"
       >
-        <div className="shrink-0 space-y-1 p-5 pb-3">
-          <h2 className="font-heading text-lg font-semibold">
-            Create your map
-          </h2>
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            One floor to start · divide it and place lights afterwards
-          </p>
+        <div className="flex shrink-0 items-start justify-between gap-2 p-5 pr-2 pb-3">
+          <div className="min-w-0 space-y-1">
+            <h2 className="font-heading text-lg font-semibold">
+              Create your map
+            </h2>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              One floor to start · divide it and place lights afterwards
+            </p>
+          </div>
+          <ZoomMenu controls={zoomControls} />
         </div>
         <ScrollArea
           fade

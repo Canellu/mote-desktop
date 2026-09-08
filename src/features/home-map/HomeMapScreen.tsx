@@ -28,7 +28,12 @@ import {
 } from "@/components/ui/sheet";
 import type { HueRoomZone } from "@/types/hue";
 import { MapCanvas } from "./components/MapCanvas";
-import { MapEditorCanvas, type EditorTool } from "./components/MapEditorCanvas";
+import {
+  MapEditorCanvas,
+  type EditorTool,
+  type MapViewportControls,
+} from "./components/MapEditorCanvas";
+import { ZoomMenu } from "./components/ZoomMenu";
 import { FloorEditor } from "./components/FloorEditor";
 import { EditorToolbar } from "./components/EditorToolbar";
 import { PointEditor } from "./components/PointEditor";
@@ -83,7 +88,7 @@ import {
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
 import { getFloorControlScope } from "./floorScope";
-import { PANEL_INSET, ZOOM_ALLOWANCE } from "./layout";
+import { PANEL_INSET } from "./layout";
 import {
   lightsInArea,
   type MapHueOperation,
@@ -172,6 +177,9 @@ export function HomeMapScreen({
   const [tool, setTool] = useState<EditorTool>("select");
   const [combineIds, setCombineIds] = useState<string[]>([]);
   const [selectedVertexId, setSelectedVertexId] = useState<string | null>(null);
+  const [zoomControls, setZoomControls] = useState<MapViewportControls | null>(
+    null,
+  );
   const [placingLightId, setPlacingLightId] = useState<string | null>(null);
   const { blinkingKeys, blink } = useBlinkLights();
   const floor =
@@ -697,7 +705,7 @@ export function HomeMapScreen({
       onError={setWallError}
       className={className}
       insetRight={PANEL_INSET}
-      overlayInsetClassName="right-[calc(23rem+1.5rem)] 2xl:right-[calc(25rem+1.5rem)]"
+      onViewportControls={setZoomControls}
     />
   );
   const editorLeading = (
@@ -735,7 +743,7 @@ export function HomeMapScreen({
   const editorToolbar = (
     <EditorToolbar
       leading={editorLeading}
-      rightInset={PANEL_INSET + ZOOM_ALLOWANCE}
+      rightInset={PANEL_INSET}
       tool={tool}
       snap={snap}
       units={map.units}
@@ -778,6 +786,12 @@ export function HomeMapScreen({
           // The ruler strip fills the top inset, so the panel starts below it.
           className="absolute top-[2.875rem] right-6 bottom-6 z-10 flex w-80 flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-xl 2xl:w-88"
         >
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border py-2 pr-2 pl-5">
+            <p className="truncate font-heading text-xs font-medium text-muted-foreground">
+              {floor.name}
+            </p>
+            <ZoomMenu controls={zoomControls} />
+          </div>
           <ScrollArea
             fade
             hideScrollbar

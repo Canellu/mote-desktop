@@ -55,10 +55,11 @@ list, separated by a fine divider.
 
 Editing takes over the window, like the entertainment placement editor. The
 plan fills the whole content area and runs behind a floating panel, so it can
-be panned across the full editor instead of being clipped. Everything that floats sits on one bottom row, 24px from the bottom like the
-feedback button: the floor and layer controls, the tools, snapping and undo in
-one bar centred on the strip the panel and zoom group leave free, with the zoom
-group at the right of that strip. Guidance appears at the top, centred on the
+be panned across the full editor instead of being clipped. Everything that floats sits in one bar, 24px from the bottom like the feedback
+button and centred on the workspace the panel leaves visible: floor and layer
+controls, the tools, snapping, and undo. Zoom lives at the top right of the
+panel as a readout that opens its own menu — zoom in, out, to fit, and to 50,
+100 or 200 per cent — as drawing tools usually place it. Guidance appears at the top, centred on the
 same strip rather than on the window. The panel is a 320px card inset by 24px
 right and bottom (`2xl:w-88`), starting below the ruler strip so its clear space
 above matches the space below. It scrolls its own content with a pinned footer. A small floating bar at the top left holds

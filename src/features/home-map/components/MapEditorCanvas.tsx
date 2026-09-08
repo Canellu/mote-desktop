@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Maximize, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -99,8 +99,22 @@ export interface MapEditorCanvasProps {
   className?: string;
   /** Screen pixels hidden by a floating panel, so framing stays centred. */
   insetRight?: number;
-  /** Moves the zoom group clear of that panel. */
+  /** Moves the zoom group clear of that panel, when it is shown here. */
   overlayInsetClassName?: string;
+  /**
+   * Publishes the zoom readout and its actions, so a shared toolbar can own
+   * them. The canvas keeps its own group when this is not given.
+   */
+  onViewportControls?: (controls: MapViewportControls) => void;
+}
+
+export interface MapViewportControls {
+  percent: number;
+  zoomIn: () => void;
+  zoomOut: () => void;
+  /** Sets an exact zoom, keeping the middle of the workspace in place. */
+  zoomTo: (percent: number) => void;
+  fit: () => void;
 }
 
 export function MapEditorCanvas(props: MapEditorCanvasProps) {
@@ -132,6 +146,7 @@ function EditorSurface({
   className,
   insetRight = 0,
   overlayInsetClassName,
+  onViewportControls,
 }: MapEditorCanvasProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 520 });
@@ -246,6 +261,47 @@ function EditorSurface({
   }, [tool, previewKey, size.width, size.height, insetRight]);
 
   const current: MapViewport = view ?? { scale: 40, offsetX: 40, offsetY: 40 };
+  const liveRef = useRef({ view: current, size, bounds, floor });
+  liveRef.current = { view: current, size, bounds, floor };
+
+  const zoomBy = useCallback((factor: number) => {
+    const { view: value, size: box } = liveRef.current;
+    viewTouched.current = true;
+    setView(
+      zoomViewportAt(value, { x: box.width / 2, y: box.height / 2 }, factor),
+    );
+  }, []);
+  const fitFloor = useCallback(() => {
+    const { size: box, bounds: extent, floor: shape } = liveRef.current;
+    viewTouched.current = false;
+    const framedBox = {
+      width: Math.max(1, box.width - insetRight),
+      height: box.height,
+    };
+    setView(
+      shape.vertices.length === 0
+        ? emptyViewport(framedBox)
+        : fitViewport(extent, framedBox, 48 + RULER_SIZE),
+    );
+  }, [insetRight]);
+
+  const percent = Math.round((current.scale / 40) * 100);
+  const zoomTo = useCallback(
+    (target: number) => {
+      const { view: value } = liveRef.current;
+      zoomBy(((target / 100) * 40) / value.scale);
+    },
+    [zoomBy],
+  );
+  useEffect(() => {
+    onViewportControls?.({
+      percent,
+      zoomIn: () => zoomBy(1.25),
+      zoomOut: () => zoomBy(1 / 1.25),
+      zoomTo,
+      fit: fitFloor,
+    });
+  }, [percent, zoomBy, zoomTo, fitFloor, onViewportControls]);
   const project = (point: MapPoint) => toScreen(point, current);
 
   useEffect(() => {
@@ -1138,68 +1194,45 @@ function EditorSurface({
 
       <MapRulers view={current} size={size} units={units} />
 
-      <div
-        className={cn(
-          "absolute right-3 bottom-6 flex items-center gap-0.5 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur",
-          overlayInsetClassName,
-        )}
-        role="group"
-        aria-label="Map zoom"
-      >
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Zoom out"
-          onClick={() => {
-            viewTouched.current = true;
-            setView((value) =>
-              zoomViewportAt(
-                value ?? current,
-                { x: size.width / 2, y: size.height / 2 },
-                1 / 1.25,
-              ),
-            );
-          }}
+      {!onViewportControls && (
+        <div
+          className={cn(
+            "absolute right-3 bottom-6 flex items-center gap-0.5 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur",
+            overlayInsetClassName,
+          )}
+          role="group"
+          aria-label="Map zoom"
         >
-          <Minus />
-        </Button>
-        <span className="w-12 text-center text-xs text-muted-foreground tabular-nums">
-          {Math.round((current.scale / 40) * 100)}%
-        </span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Zoom in"
-          onClick={() => {
-            viewTouched.current = true;
-            setView((value) =>
-              zoomViewportAt(
-                value ?? current,
-                { x: size.width / 2, y: size.height / 2 },
-                1.25,
-              ),
-            );
-          }}
-        >
-          <Plus />
-        </Button>
-        <div className="mx-1 h-4 w-px bg-border" />
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Fit floor"
-          onClick={() => {
-            viewTouched.current = false;
-            setView(
-              shown.vertices.length === 0
-                ? emptyViewport(framed)
-                : fitViewport(bounds, framed, 48 + RULER_SIZE),
-            );
-          }}
-        >
-          <Maximize />
-        </Button>
-      </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Zoom out"
+            onClick={() => zoomBy(1 / 1.25)}
+          >
+            <Minus />
+          </Button>
+          <span className="w-12 text-center text-xs text-muted-foreground tabular-nums">
+            {percent}%
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Zoom in"
+            onClick={() => zoomBy(1.25)}
+          >
+            <Plus />
+          </Button>
+          <div className="mx-1 h-4 w-px bg-border" />
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Fit floor"
+            onClick={fitFloor}
+          >
+            <Maximize />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
