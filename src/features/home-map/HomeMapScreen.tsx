@@ -727,7 +727,7 @@ export function HomeMapScreen({
           {editorCanvas("h-full w-full rounded-none border-0 bg-transparent")}
         </div>
 
-        <div className="absolute top-6 left-6 z-10 flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur">
+        <div className="absolute top-6 left-12 z-10 flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur">
           <Select
             value={floor.id}
             onValueChange={(value) => {
@@ -767,12 +767,12 @@ export function HomeMapScreen({
             fade
             hideScrollbar
             className="min-h-0 flex-1"
-            viewportClassName="p-5"
+            viewportClassName="px-5 py-5"
             contentClassName="min-w-0!"
           >
             {panelContent}
           </ScrollArea>
-          <div className="shrink-0 space-y-3 border-t border-border p-4">
+          <div className="shrink-0 space-y-2 border-t border-border p-5">
             {wallError && (
               <p
                 role="alert"

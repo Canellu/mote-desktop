@@ -250,9 +250,10 @@ export function CreateMapWizard({
         )}
       </div>
 
-      <div className="absolute top-6 left-6 z-10">
-        <h2 className="font-heading text-xl font-semibold">Create your map</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">
+      {/* Left inset matches the app header, so the titles line up. */}
+      <div className="absolute top-6 left-12 z-10">
+        <h2 className="font-heading text-2xl font-semibold">Create your map</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
           One floor to start · divide it and place lights afterwards
         </p>
       </div>
@@ -293,10 +294,10 @@ export function CreateMapWizard({
           fade
           hideScrollbar
           className="min-h-0 flex-1"
-          viewportClassName="p-5"
+          viewportClassName="px-5 py-5"
           contentClassName="min-w-0!"
         >
-          <div className="space-y-6">
+          <div className="space-y-6 pb-1">
             <div className="grid gap-1.5">
               <Label htmlFor={`${fieldId}-name`}>Map name</Label>
               <Input
@@ -434,7 +435,7 @@ export function CreateMapWizard({
             )}
           </div>
         </ScrollArea>
-        <div className="shrink-0 space-y-3 border-t border-border p-4">
+        <div className="shrink-0 space-y-2 border-t border-border p-5">
           {(error || problem) && (
             <p role="alert" className="text-sm wrap-anywhere text-destructive">
               {error ?? problem}
