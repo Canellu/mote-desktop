@@ -90,6 +90,8 @@ import {
 import { MapRoomControls } from "./components/MapRoomControls";
 
 const wideQuery = "(min-width: 1000px)";
+/** Panel width plus its inset, so the plan is framed in what stays visible. */
+const PANEL_INSET = 344;
 function subscribeToWidth(notify: () => void) {
   const query = window.matchMedia(wideQuery);
   query.addEventListener("change", notify);
@@ -684,6 +686,8 @@ export function HomeMapScreen({
       }}
       onError={setWallError}
       className={className}
+      insetRight={PANEL_INSET}
+      overlayInsetClassName="right-[calc(23rem+1.5rem)] 2xl:right-[calc(25rem+1.5rem)]"
     />
   );
   const editorToolbar = (
@@ -719,7 +723,7 @@ export function HomeMapScreen({
         className="relative h-full min-h-0 w-full overflow-hidden"
       >
         {/* The plan runs behind the floating panel so it can be panned freely. */}
-        <div className="absolute inset-y-0 left-0 right-0 min-[1000px]:right-92">
+        <div className="absolute inset-0">
           {editorCanvas("h-full w-full rounded-none border-0 bg-transparent")}
         </div>
 

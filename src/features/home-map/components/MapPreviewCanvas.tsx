@@ -13,11 +13,15 @@ export function MapPreviewCanvas({
   units,
   snap,
   className,
+  insetRight,
+  overlayInsetClassName,
 }: {
   floor: MapFloor;
   units: "metric" | "imperial";
   snap: SnapSettings;
   className?: string;
+  insetRight?: number;
+  overlayInsetClassName?: string;
 }) {
   return (
     <MapEditorCanvas
@@ -43,6 +47,8 @@ export function MapPreviewCanvas({
       onInsertCorner={() => null}
       onError={noop}
       className={className}
+      insetRight={insetRight}
+      overlayInsetClassName={overlayInsetClassName}
     />
   );
 }

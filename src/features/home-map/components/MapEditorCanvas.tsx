@@ -97,6 +97,10 @@ export interface MapEditorCanvasProps {
   onMergeCorners: (fromVertexId: string, intoVertexId: string) => void;
   onError: (message: string | null) => void;
   className?: string;
+  /** Screen pixels hidden by a floating panel, so framing stays centred. */
+  insetRight?: number;
+  /** Moves the zoom group clear of that panel. */
+  overlayInsetClassName?: string;
 }
 
 export function MapEditorCanvas(props: MapEditorCanvasProps) {
@@ -126,6 +130,8 @@ function EditorSurface({
   onMergeCorners,
   onError,
   className,
+  insetRight = 0,
+  overlayInsetClassName,
 }: MapEditorCanvasProps) {
   const surfaceRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 800, height: 520 });
@@ -140,6 +146,8 @@ function EditorSurface({
   const [hoverWallId, setHoverWallId] = useState<string | null>(null);
   const [outline, setOutline] = useState<MapPoint[]>([]);
   const [outlineHover, setOutlineHover] = useState<MapPoint | null>(null);
+  // Framing follows the container until the view is moved by hand.
+  const viewTouched = useRef(false);
   const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
   const [lightPreview, setLightPreview] = useState<{
     lightId: string;
@@ -175,26 +183,43 @@ function EditorSurface({
     [shown],
   );
 
+  // Content is framed inside the part of the canvas the panel does not cover.
+  const framed = {
+    width: Math.max(1, size.width - insetRight),
+    height: size.height,
+  };
+
   useEffect(() => {
     const element = surfaceRef.current;
     if (!element) return;
-    const observer = new ResizeObserver(() => {
-      setSize({ width: element.clientWidth, height: element.clientHeight });
-    });
+    const measure = () =>
+      setSize((current) =>
+        current.width === element.clientWidth &&
+        current.height === element.clientHeight
+          ? current
+          : { width: element.clientWidth, height: element.clientHeight },
+      );
+    const observer = new ResizeObserver(measure);
     observer.observe(element);
-    setSize({ width: element.clientWidth, height: element.clientHeight });
-    return () => observer.disconnect();
+    // Some webviews resize the window without resizing the observed box.
+    window.addEventListener("resize", measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, []);
 
-  // The first usable size decides the starting view; later edits keep it.
   useEffect(() => {
-    if (view || size.width < 2) return;
+    if (viewTouched.current || size.width < 2) return;
     setView(
       floor.vertices.length === 0
-        ? emptyViewport(size)
-        : fitViewport(getMapBounds(floor.vertices), size, 48 + RULER_SIZE),
+        ? emptyViewport(framed)
+        : fitViewport(getMapBounds(floor.vertices), framed, 48 + RULER_SIZE),
     );
-  }, [view, size, floor.vertices]);
+    // framed is derived from size and insetRight, which are both listed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, size, insetRight, floor.vertices]);
 
   useEffect(() => {
     if (tool !== "draw" && tool !== "divide") {
@@ -214,11 +239,11 @@ function EditorSurface({
     if (tool !== "view" || size.width < 2) return;
     setView(
       floor.vertices.length === 0
-        ? emptyViewport(size)
-        : fitViewport(getMapBounds(floor.vertices), size, 48 + RULER_SIZE),
+        ? emptyViewport(framed)
+        : fitViewport(getMapBounds(floor.vertices), framed, 48 + RULER_SIZE),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tool, previewKey, size.width, size.height]);
+  }, [tool, previewKey, size.width, size.height, insetRight]);
 
   const current: MapViewport = view ?? { scale: 40, offsetX: 40, offsetY: 40 };
   const project = (point: MapPoint) => toScreen(point, current);
@@ -234,6 +259,7 @@ function EditorSurface({
         x: event.clientX - rect.left,
         y: event.clientY - rect.top,
       };
+      viewTouched.current = true;
       setView((value) =>
         zoomViewportAt(
           value ?? current,
@@ -394,6 +420,7 @@ function EditorSurface({
         lastY: event.clientY,
         moved: drag.moved || Math.abs(dx) > 2 || Math.abs(dy) > 2,
       };
+      viewTouched.current = true;
       setView((value) => panViewport(value ?? current, dx, dy));
       return;
     }
@@ -1058,7 +1085,10 @@ function EditorSurface({
       <MapRulers view={current} size={size} units={units} />
 
       <div
-        className="absolute right-3 bottom-3 flex items-center gap-0.5 rounded-full border border-border bg-background p-1 shadow-sm"
+        className={cn(
+          "absolute right-3 bottom-3 flex items-center gap-0.5 rounded-full border border-border bg-background p-1 shadow-sm",
+          overlayInsetClassName,
+        )}
         role="group"
         aria-label="Map zoom"
       >
@@ -1066,15 +1096,16 @@ function EditorSurface({
           variant="ghost"
           size="icon-sm"
           aria-label="Zoom out"
-          onClick={() =>
+          onClick={() => {
+            viewTouched.current = true;
             setView((value) =>
               zoomViewportAt(
                 value ?? current,
                 { x: size.width / 2, y: size.height / 2 },
                 1 / 1.25,
               ),
-            )
-          }
+            );
+          }}
         >
           <Minus />
         </Button>
@@ -1085,15 +1116,16 @@ function EditorSurface({
           variant="ghost"
           size="icon-sm"
           aria-label="Zoom in"
-          onClick={() =>
+          onClick={() => {
+            viewTouched.current = true;
             setView((value) =>
               zoomViewportAt(
                 value ?? current,
                 { x: size.width / 2, y: size.height / 2 },
                 1.25,
               ),
-            )
-          }
+            );
+          }}
         >
           <Plus />
         </Button>
@@ -1102,13 +1134,14 @@ function EditorSurface({
           variant="ghost"
           size="icon-sm"
           aria-label="Fit floor"
-          onClick={() =>
+          onClick={() => {
+            viewTouched.current = false;
             setView(
               shown.vertices.length === 0
-                ? emptyViewport(size)
-                : fitViewport(bounds, size, 48 + RULER_SIZE),
-            )
-          }
+                ? emptyViewport(framed)
+                : fitViewport(bounds, framed, 48 + RULER_SIZE),
+            );
+          }}
         >
           <Maximize />
         </Button>

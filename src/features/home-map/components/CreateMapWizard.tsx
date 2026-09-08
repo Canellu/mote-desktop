@@ -33,6 +33,9 @@ const CORNERS: { value: NotchCorner; label: string }[] = [
   { value: "bottom-right", label: "Bottom right" },
 ];
 
+/** The floating panel's width plus its inset, mirrored by the work area. */
+const PANEL_INSET = 344;
+
 /** Preview identities stay stable so the canvas keeps its zoom while typing. */
 function previewIds() {
   let count = 0;
@@ -228,13 +231,15 @@ export function CreateMapWizard({
       className="relative h-full min-h-0 w-full overflow-hidden"
     >
       {/* The outline runs behind the panel, so the work area is the page. */}
-      <div className="absolute inset-y-0 right-0 left-0 min-[1000px]:right-92">
+      <div className="absolute inset-0">
         {preview.ok ? (
           <MapPreviewCanvas
             floor={preview.value.floors[0]}
             units={units}
             snap={snap}
             className="h-full w-full rounded-none border-0 bg-transparent"
+            insetRight={PANEL_INSET}
+            overlayInsetClassName="right-[calc(23rem+1.5rem)] 2xl:right-[calc(25rem+1.5rem)]"
           />
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center">
@@ -255,7 +260,8 @@ export function CreateMapWizard({
       <div
         role="group"
         aria-label="Floor shape"
-        className="absolute top-6 right-6 z-20 flex items-center gap-1 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur min-[1000px]:right-[23.5rem] 2xl:right-[25.5rem]"
+        // Below the title until the work area is wide enough for both.
+        className="absolute top-20 right-[23.5rem] z-20 flex items-center gap-1 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur min-[1200px]:top-6 2xl:right-[25.5rem]"
       >
         <Button
           size="sm"

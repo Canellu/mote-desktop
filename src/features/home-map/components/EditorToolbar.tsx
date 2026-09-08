@@ -47,43 +47,50 @@ export function EditorToolbar({
   onUndo: () => void;
 }) {
   return (
-    <div
-      role="toolbar"
-      aria-label="Map editor tools"
-      aria-orientation="horizontal"
-      className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur"
-    >
-      {TOOLS.map((entry) => {
-        const Icon = entry.icon;
-        const active = tool === entry.value;
-        return (
-          <Button
-            key={entry.value}
-            size="icon-sm"
-            variant={active ? "secondary" : "ghost"}
-            aria-pressed={active}
-            aria-label={entry.label}
-            title={entry.label}
-            disabled={busy}
-            className={cn(active && "text-foreground")}
-            onClick={() => onToolChange(entry.value)}
-          >
-            <Icon />
-          </Button>
-        );
-      })}
-      <div className="mx-1 h-5 w-px bg-border" />
-      <SnapSettingsMenu settings={snap} units={units} onChange={onSnapChange} />
-      <Button
-        size="icon-sm"
-        variant="ghost"
-        aria-label="Undo"
-        title="Undo"
-        disabled={!canUndo || busy}
-        onClick={onUndo}
+    // Centred on the part of the canvas the panel does not cover.
+    <div className="pointer-events-none absolute right-92 bottom-4 left-0 flex justify-center">
+      <div
+        role="toolbar"
+        aria-label="Map editor tools"
+        aria-orientation="horizontal"
+        className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur"
       >
-        <Undo2 />
-      </Button>
+        {TOOLS.map((entry) => {
+          const Icon = entry.icon;
+          const active = tool === entry.value;
+          return (
+            <Button
+              key={entry.value}
+              size="icon-sm"
+              variant={active ? "secondary" : "ghost"}
+              aria-pressed={active}
+              aria-label={entry.label}
+              title={entry.label}
+              disabled={busy}
+              className={cn(active && "text-foreground")}
+              onClick={() => onToolChange(entry.value)}
+            >
+              <Icon />
+            </Button>
+          );
+        })}
+        <div className="mx-1 h-5 w-px bg-border" />
+        <SnapSettingsMenu
+          settings={snap}
+          units={units}
+          onChange={onSnapChange}
+        />
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          aria-label="Undo"
+          title="Undo"
+          disabled={!canUndo || busy}
+          onClick={onUndo}
+        >
+          <Undo2 />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -117,6 +117,15 @@ accessibility, theme, and narrow-window checks.
 
 ## Verification
 
+- Floating panel checkpoint: **160 Home Map Bun tests (876 assertions)
+  passed**; presentation only. Frontend typecheck, production build, targeted
+  ESLint/Prettier passed. Browser checks measured the canvas spanning the full
+  window in both the editor and creation, the plan centred in the visible
+  strip beside the panel, and the tool pill, zoom group, and shape bar clear of
+  it, at 1400 px and 860 px. **Resizing was not verified**: ResizeObserver
+  never fires in that browser pane, including a fresh observer created by hand,
+  so only the mount-time measurement could be exercised. A window resize
+  listener was added alongside the observer for that path.
 - Creation shell checkpoint: **160 Home Map Bun tests (876 assertions)
   passed**; this pass changed presentation and routing, not map behaviour.
   Frontend typecheck, production build, targeted ESLint/Prettier passed.
