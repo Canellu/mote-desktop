@@ -20,15 +20,13 @@ import {
   writeSnapSettings,
 } from "../snapping";
 import type { HomeMapDocument, MapPoint } from "../types";
+import { PANEL_INSET, ZOOM_ALLOWANCE } from "../layout";
 import { MapEditorCanvas } from "./MapEditorCanvas";
 import { MapPreviewCanvas } from "./MapPreviewCanvas";
 import { SnapSettingsMenu } from "./SnapSettingsMenu";
 
 type Mode = HomeMapDocument["drawingMode"];
 type Units = HomeMapDocument["units"];
-
-/** The floating panel's width plus its inset, mirrored by the work area. */
-const PANEL_INSET = 344;
 
 /** Preview identities stay stable so the canvas keeps its zoom while typing. */
 function previewIds() {
@@ -277,40 +275,46 @@ export function CreateMapWizard({
         )}
       </div>
 
-      {/* The work area carries no titles; the panel says what this is. */}
+      {/* One bottom bar, on the feedback button's baseline. */}
       <div
-        role="group"
-        aria-label="Starting point"
-        className="absolute top-6 left-12 z-20 flex items-center gap-1 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur"
+        className="pointer-events-none absolute bottom-6 left-0 flex justify-center"
+        style={{ right: PANEL_INSET + ZOOM_ALLOWANCE }}
       >
-        <Button
-          size="sm"
-          variant={source === "draw" ? "secondary" : "ghost"}
-          aria-pressed={source === "draw"}
-          onClick={() => {
-            setSource("draw");
-            setDrawnRing(null);
-          }}
+        <div
+          role="group"
+          aria-label="Starting point"
+          className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur"
         >
-          <PenLine />
-          Draw outline
-        </Button>
-        <Button
-          size="sm"
-          variant={source === "rectangle" ? "secondary" : "ghost"}
-          aria-pressed={source === "rectangle"}
-          onClick={() => setSource("rectangle")}
-        >
-          <RectangleHorizontal />
-          Rectangle
-        </Button>
-        <div className="mx-1 h-5 w-px bg-border" />
-        <SnapSettingsMenu settings={snap} units={units} onChange={setSnap} />
+          <Button
+            size="sm"
+            variant={source === "draw" ? "secondary" : "ghost"}
+            aria-pressed={source === "draw"}
+            onClick={() => {
+              setSource("draw");
+              setDrawnRing(null);
+            }}
+          >
+            <PenLine />
+            Draw outline
+          </Button>
+          <Button
+            size="sm"
+            variant={source === "rectangle" ? "secondary" : "ghost"}
+            aria-pressed={source === "rectangle"}
+            onClick={() => setSource("rectangle")}
+          >
+            <RectangleHorizontal />
+            Rectangle
+          </Button>
+          <div className="mx-1 h-5 w-px bg-border" />
+          <SnapSettingsMenu settings={snap} units={units} onChange={setSnap} />
+        </div>
       </div>
 
       <aside
         aria-label="Map settings"
-        className="absolute inset-y-6 right-6 z-10 flex w-80 flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-xl 2xl:w-88"
+        // The ruler strip fills the top inset, so the panel starts below it.
+        className="absolute top-[2.875rem] right-6 bottom-6 z-10 flex w-80 flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-xl 2xl:w-88"
       >
         <div className="shrink-0 space-y-1 p-5 pb-3">
           <h2 className="font-heading text-lg font-semibold">

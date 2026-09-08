@@ -128,7 +128,10 @@ accessibility, theme, and narrow-window checks.
   wrong about which step wins at a given zoom; the code was right and the
   expectations were corrected. A later browser check drew a plan from the
   origin: the pending wall read 7.5 m, and the created map's corners were
-  exactly 0.00, 0.00 through 7.50, 5.50.
+  exactly 0.00, 0.00 through 7.50, 5.50. A layout pass then measured the bottom
+  row: bar, zoom group and panel all sit 24 px from the bottom, the bar and
+  zoom group no longer overlap, and the panel's clear space above equals the
+  24 px below once the ruler strip is allowed for.
 - Floating panel checkpoint: **160 Home Map Bun tests (876 assertions)
   passed**; presentation only. Frontend typecheck, production build, targeted
   ESLint/Prettier passed. Browser checks measured the canvas spanning the full

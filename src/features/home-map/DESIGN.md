@@ -55,10 +55,13 @@ list, separated by a fine divider.
 
 Editing takes over the window, like the entertainment placement editor. The
 plan fills the whole content area and runs behind a floating panel, so it can
-be panned across the full editor instead of being clipped. The panel is a
-320px card inset by 24px top, bottom and right (`2xl:w-88`), so it runs the
-height of the work area with equal gaps. It scrolls its own content with a
-pinned footer. A small floating bar at the top left holds
+be panned across the full editor instead of being clipped. Everything that floats sits on one bottom row, 24px from the bottom like the
+feedback button: the floor and layer controls, the tools, snapping and undo in
+one bar centred on the strip the panel and zoom group leave free, with the zoom
+group at the right of that strip. Guidance appears at the top, centred on the
+same strip rather than on the window. The panel is a 320px card inset by 24px
+right and bottom (`2xl:w-88`), starting below the ruler strip so its clear space
+above matches the space below. It scrolls its own content with a pinned footer. A small floating bar at the top left holds
 the floor picker and the dimensions toggle, the tools sit in a floating pill
 centred at the bottom, and the zoom group keeps the lower right. Rulers run
 along the top and left edges in the map's units.

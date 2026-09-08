@@ -33,6 +33,8 @@ export function EditorToolbar({
   units,
   canUndo,
   busy,
+  leading,
+  rightInset,
   onToolChange,
   onSnapChange,
   onUndo,
@@ -42,19 +44,28 @@ export function EditorToolbar({
   units: "metric" | "imperial";
   canUndo: boolean;
   busy: boolean;
+  /** Floor and layer controls, kept in the same bar as the tools. */
+  leading?: React.ReactNode;
+  /** Width taken by the panel and the zoom group, so the bar centres clear. */
+  rightInset: number;
   onToolChange: (tool: EditorTool) => void;
   onSnapChange: (settings: SnapSettings) => void;
   onUndo: () => void;
 }) {
   return (
-    // Centred on the part of the canvas the panel does not cover.
-    <div className="pointer-events-none absolute right-92 bottom-4 left-0 flex justify-center">
+    // Centred on the strip the panel and the zoom group leave free.
+    <div
+      className="pointer-events-none absolute bottom-6 left-0 flex justify-center"
+      style={{ right: rightInset }}
+    >
       <div
         role="toolbar"
         aria-label="Map editor tools"
         aria-orientation="horizontal"
         className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur"
       >
+        {leading}
+        {leading && <div className="mx-1 h-5 w-px bg-border" />}
         {TOOLS.map((entry) => {
           const Icon = entry.icon;
           const active = tool === entry.value;

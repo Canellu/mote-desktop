@@ -83,6 +83,7 @@ import {
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
 import { getFloorControlScope } from "./floorScope";
+import { PANEL_INSET, ZOOM_ALLOWANCE } from "./layout";
 import {
   lightsInArea,
   type MapHueOperation,
@@ -91,8 +92,6 @@ import {
 import { MapRoomControls } from "./components/MapRoomControls";
 
 const wideQuery = "(min-width: 1000px)";
-/** Panel width plus its inset, so the plan is framed in what stays visible. */
-const PANEL_INSET = 344;
 function subscribeToWidth(notify: () => void) {
   const query = window.matchMedia(wideQuery);
   query.addEventListener("change", notify);
@@ -701,8 +700,42 @@ export function HomeMapScreen({
       overlayInsetClassName="right-[calc(23rem+1.5rem)] 2xl:right-[calc(25rem+1.5rem)]"
     />
   );
+  const editorLeading = (
+    <>
+      <Select
+        value={floor.id}
+        onValueChange={(value) => {
+          if (value) onSelect(value, null);
+        }}
+      >
+        <SelectTrigger size="sm" aria-label="Floor" className="max-w-44">
+          <Layers />
+          <SelectValue>{floor.name}</SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {map.floors.map((entry) => (
+            <SelectItem key={entry.id} value={entry.id}>
+              {entry.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button
+        size="icon-sm"
+        variant={showDimensions ? "secondary" : "ghost"}
+        aria-pressed={showDimensions}
+        aria-label="Dimensions"
+        title="Dimensions"
+        onClick={() => setShowDimensions(!showDimensions)}
+      >
+        <Ruler />
+      </Button>
+    </>
+  );
   const editorToolbar = (
     <EditorToolbar
+      leading={editorLeading}
+      rightInset={PANEL_INSET + ZOOM_ALLOWANCE}
       tool={tool}
       snap={snap}
       units={map.units}
@@ -738,41 +771,12 @@ export function HomeMapScreen({
           {editorCanvas("h-full w-full rounded-none border-0 bg-transparent")}
         </div>
 
-        <div className="absolute top-6 left-12 z-10 flex flex-wrap items-center gap-1 rounded-2xl border border-border bg-background/90 p-1.5 shadow-lg backdrop-blur">
-          <Select
-            value={floor.id}
-            onValueChange={(value) => {
-              if (value) onSelect(value, null);
-            }}
-          >
-            <SelectTrigger size="sm" aria-label="Floor" className="max-w-56">
-              <Layers />
-              <SelectValue>{floor.name}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {map.floors.map((entry) => (
-                <SelectItem key={entry.id} value={entry.id}>
-                  {entry.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            size="sm"
-            variant={showDimensions ? "secondary" : "ghost"}
-            aria-pressed={showDimensions}
-            onClick={() => setShowDimensions(!showDimensions)}
-          >
-            <Ruler />
-            Dimensions
-          </Button>
-        </div>
-
         {editorToolbar}
 
         <aside
           aria-label="Map editor panel"
-          className="absolute inset-y-6 right-6 z-10 flex w-80 flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-xl 2xl:w-88"
+          // The ruler strip fills the top inset, so the panel starts below it.
+          className="absolute top-[2.875rem] right-6 bottom-6 z-10 flex w-80 flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-xl 2xl:w-88"
         >
           <ScrollArea
             fade

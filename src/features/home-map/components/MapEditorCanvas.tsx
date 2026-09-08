@@ -1087,54 +1087,60 @@ function EditorSurface({
           })}
       </svg>
 
-      {tool === "lights" && (
-        <p
-          role="status"
-          className="pointer-events-none absolute top-8 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
-        >
-          {placingLightId
-            ? "Click where this light is in the room."
-            : "Drag a light marker to move it, or choose a light in the list."}
-        </p>
-      )}
-      {tool === "points" && (
-        <p
-          role="status"
-          className="pointer-events-none absolute top-8 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
-        >
-          Drag a square corner to move it. Dashed circles add a corner. Drop a
-          corner on another to merge them.
-        </p>
-      )}
-      {tool === "divide" && (
-        <p
-          role="status"
-          className="pointer-events-none absolute top-8 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
-        >
-          {!selectedRing
-            ? "Select a room in the list, then draw the dividing wall."
-            : outline.length === 0
-              ? "Click a wall of the selected room to start the divider."
-              : "Click the opposite wall to finish the divider."}
-        </p>
-      )}
-      {tool === "draw" && (
-        <p
-          role="status"
-          className="pointer-events-none absolute top-8 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
-        >
-          {outline.length === 0
-            ? "Click to place the first corner of a room."
-            : outline.length < 3
-              ? "Keep clicking corners. Walls stay horizontal or vertical."
-              : "Click the first corner to finish. Backspace removes the last one."}
-        </p>
-      )}
+      <div
+        className="pointer-events-none absolute top-8 left-0 flex justify-center"
+        style={{ right: insetRight }}
+      >
+        {tool === "lights" && (
+          <p
+            role="status"
+            className="rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+          >
+            {placingLightId
+              ? "Click where this light is in the room."
+              : "Drag a light marker to move it, or choose a light in the list."}
+          </p>
+        )}
+        {tool === "points" && (
+          <p
+            role="status"
+            className="rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+          >
+            Drag a square corner to move it. Dashed circles add a corner. Drop a
+            corner on another to merge them.
+          </p>
+        )}
+        {tool === "divide" && (
+          <p
+            role="status"
+            className="rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+          >
+            {!selectedRing
+              ? "Select a room in the list, then draw the dividing wall."
+              : outline.length === 0
+                ? "Click a wall of the selected room to start the divider."
+                : "Click the opposite wall to finish the divider."}
+          </p>
+        )}
+        {tool === "draw" && (
+          <p
+            role="status"
+            className="rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm"
+          >
+            {outline.length === 0
+              ? "Click to place the first corner of a room."
+              : outline.length < 3
+                ? "Keep clicking corners. Walls stay horizontal or vertical."
+                : "Click the first corner to finish. Backspace removes the last one."}
+          </p>
+        )}
+      </div>
+
       <MapRulers view={current} size={size} units={units} />
 
       <div
         className={cn(
-          "absolute right-3 bottom-3 flex items-center gap-0.5 rounded-full border border-border bg-background p-1 shadow-sm",
+          "absolute right-3 bottom-6 flex items-center gap-0.5 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur",
           overlayInsetClassName,
         )}
         role="group"
