@@ -6,7 +6,7 @@ import {
   pointOnSegment,
   samePoint,
 } from "./geometry";
-import type { MapFloor, MapPoint, MapResult } from "./types";
+import type { MapDimension, MapFloor, MapPoint, MapResult } from "./types";
 import { validateMapFloor } from "./validation";
 
 export interface MapWall {
@@ -146,9 +146,205 @@ export function listWalls(floor: MapFloor): MapWall[] {
   return walls;
 }
 
+/** Every corner a wall carries: its own run, plus any sitting on its line. */
+export function wallVertexIds(floor: MapFloor, wall: MapWall): string[] {
+  const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
+  const start = vertices.get(wall.startVertexId);
+  const end = vertices.get(wall.endVertexId);
+  if (!start || !end) return [...wall.vertexIds];
+  return [
+    ...new Set([
+      ...wall.vertexIds,
+      ...floor.vertices
+        .filter((vertex) => pointOnSegment(vertex, start, end))
+        .map((vertex) => vertex.id),
+    ]),
+  ];
+}
+
 /**
- * Moves one wall perpendicular to itself. Rooms on both sides follow, because
- * a shared boundary is a single segment rather than two independent walls.
+ * Drops corners a moved wall ran past. The room's boundary reverses at such a
+ * corner, which is a point the room no longer reaches rather than a wall
+ * crossing itself, so the move continues instead of stopping there.
+ */
+function dropPassedCorners(floor: MapFloor, moving: Set<string>): MapFloor {
+  const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
+  const areas = floor.areas.map((area) => {
+    let vertexIds = [...area.vertexIds];
+    for (let guard = 0; guard < area.vertexIds.length; guard += 1) {
+      if (vertexIds.length <= 3) break;
+      const index = vertexIds.findIndex((id, position) => {
+        if (moving.has(id)) return false;
+        const point = vertices.get(id);
+        const before = vertices.get(
+          vertexIds[(position - 1 + vertexIds.length) % vertexIds.length],
+        );
+        const after = vertices.get(
+          vertexIds[(position + 1) % vertexIds.length],
+        );
+        if (!point || !before || !after) return false;
+        const back = { x: point.x - before.x, y: point.y - before.y };
+        const ahead = { x: after.x - point.x, y: after.y - point.y };
+        const scale = Math.max(
+          1,
+          Math.hypot(back.x, back.y),
+          Math.hypot(ahead.x, ahead.y),
+        );
+        // Collinear and reversed: the wall swept over this corner.
+        return (
+          Math.abs(back.x * ahead.y - back.y * ahead.x) <=
+            MAP_EPSILON * scale && back.x * ahead.x + back.y * ahead.y < 0
+        );
+      });
+      if (index < 0) break;
+      vertexIds = vertexIds.filter((_, position) => position !== index);
+    }
+    return { ...area, vertexIds };
+  });
+  return { ...floor, areas };
+}
+
+/** Forgets corners no room uses any more, once every ring is settled. */
+function dropUnusedCorners(floor: MapFloor): MapFloor {
+  const used = new Set(floor.areas.flatMap((area) => area.vertexIds));
+  return {
+    ...floor,
+    vertices: floor.vertices.filter((vertex) => used.has(vertex.id)),
+  };
+}
+
+/**
+ * Adds every corner that now lies along a room's wall to that room's ring, so
+ * a boundary a move swept over keeps matching on both of its sides.
+ */
+function absorbBoundaryCorners(floor: MapFloor): MapFloor {
+  const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
+  return {
+    ...floor,
+    areas: floor.areas.map((area) => {
+      const vertexIds: string[] = [];
+      for (let index = 0; index < area.vertexIds.length; index += 1) {
+        const startId = area.vertexIds[index];
+        const endId = area.vertexIds[(index + 1) % area.vertexIds.length];
+        vertexIds.push(startId);
+        const start = vertices.get(startId);
+        const end = vertices.get(endId);
+        if (!start || !end) continue;
+        const along = floor.vertices
+          .filter(
+            (vertex) =>
+              !area.vertexIds.includes(vertex.id) &&
+              !samePoint(vertex, start) &&
+              !samePoint(vertex, end) &&
+              pointOnSegment(vertex, start, end),
+          )
+          .sort((a, b) => distance(start, a) - distance(start, b));
+        for (const vertex of along) vertexIds.push(vertex.id);
+      }
+      return { ...area, vertexIds };
+    }),
+  };
+}
+
+/**
+ * Drags a wall by a free vector, so it can leave its own axis. A corner it
+ * lands on is welded into it, and a corner it moves past leaves the room whose
+ * boundary no longer reaches that far: a point is not a wall, so meeting one
+ * must not end the move. Rooms on both sides follow, because a shared boundary
+ * is a single segment rather than two independent walls.
+ */
+export function translateWall(
+  floor: MapFloor,
+  wallKey: string,
+  delta: MapPoint,
+): MapResult<MapFloor> {
+  const initial = validateMapFloor(floor)[0];
+  if (initial) return failure(initial.message);
+  if (!Number.isFinite(delta.x) || !Number.isFinite(delta.y))
+    return failure("Enter how far to move this wall.");
+  const wall = listWalls(floor).find((candidate) => candidate.id === wallKey);
+  if (!wall) return failure("Select a wall on this floor.");
+  if (Math.hypot(delta.x, delta.y) <= MAP_EPSILON)
+    return { ok: true, value: floor };
+
+  const moving = new Set(wallVertexIds(floor, wall));
+  let result: MapFloor = {
+    ...floor,
+    vertices: floor.vertices.map((vertex) =>
+      moving.has(vertex.id)
+        ? { ...vertex, x: vertex.x + delta.x, y: vertex.y + delta.y }
+        : { ...vertex },
+    ),
+    areas: floor.areas.map((area) => ({
+      ...area,
+      vertexIds: [...area.vertexIds],
+      target: area.target ? { ...area.target } : null,
+    })),
+    dimensions: floor.dimensions.map((dimension) => ({ ...dimension })),
+    lights: floor.lights.map((light) => ({ ...light })),
+  };
+
+  // A corner the wall landed on becomes one shared corner, not two in a heap.
+  const welds = new Map<string, string>();
+  for (const vertex of result.vertices) {
+    if (!moving.has(vertex.id)) continue;
+    const onto = result.vertices.find(
+      (other) => !moving.has(other.id) && samePoint(other, vertex),
+    );
+    if (onto) welds.set(vertex.id, onto.id);
+  }
+  if (welds.size > 0) {
+    const kept = result.vertices.filter((vertex) => !welds.has(vertex.id));
+    result = rebuildRings(result, (ids) =>
+      ids.map((id) => welds.get(id) ?? id),
+    );
+    result.vertices = kept;
+    result.dimensions = result.dimensions
+      .map((dimension) => ({
+        ...dimension,
+        startVertexId:
+          welds.get(dimension.startVertexId) ?? dimension.startVertexId,
+        endVertexId: welds.get(dimension.endVertexId) ?? dimension.endVertexId,
+      }))
+      .filter((dimension) => dimension.startVertexId !== dimension.endVertexId);
+    // Welding a whole room away is a wall passing a wall, not a merge.
+    if (result.areas.some((area) => area.vertexIds.length < 3))
+      return failure("This wall cannot pass another wall.");
+  }
+  result = dropPassedCorners(result, moving);
+  result = absorbBoundaryCorners(result);
+  result = dropUnusedCorners(result);
+
+  const moved = new Map(result.vertices.map((vertex) => [vertex.id, vertex]));
+  const dimensions: MapDimension[] = [];
+  for (const dimension of result.dimensions) {
+    const release = `Release the ${dimension.lengthMeters.toFixed(2)} m wall length before moving this wall.`;
+    const start = moved.get(dimension.startVertexId);
+    const end = moved.get(dimension.endVertexId);
+    // A corner the wall swept past takes its unlocked lengths with it.
+    if (!start || !end) {
+      if (dimension.locked) return failure(release);
+      continue;
+    }
+    const length = distance(start, end);
+    if (almostEqual(length, dimension.lengthMeters)) {
+      dimensions.push(dimension);
+      continue;
+    }
+    if (dimension.locked) return failure(release);
+    dimensions.push({ ...dimension, lengthMeters: length, verified: false });
+  }
+  result.dimensions = dimensions;
+
+  const issue = validateMapFloor(result)[0];
+  if (issue) return failure(issue.message);
+  // Placements stay where the physical lamp is; the editor flags strays.
+  return { ok: true, value: result };
+}
+
+/**
+ * Moves one wall straight out from itself, for the arrow keys and the panel's
+ * exact steps. Dragging goes through `translateWall`, which moves any way.
  */
 export function moveWall(
   floor: MapFloor,
@@ -161,67 +357,10 @@ export function moveWall(
     return failure("Enter how far to move this wall.");
   const wall = listWalls(floor).find((candidate) => candidate.id === wallKey);
   if (!wall) return failure("Select a wall on this floor.");
-  if (Math.abs(deltaMeters) <= MAP_EPSILON) return { ok: true, value: floor };
-
-  const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
-  const start = vertices.get(wall.startVertexId)!;
-  const end = vertices.get(wall.endVertexId)!;
-  // Every corner on the run moves, including corners shared with other rooms.
-  const moving = new Set([
-    ...wall.vertexIds,
-    ...floor.vertices
-      .filter((vertex) => pointOnSegment(vertex, start, end))
-      .map((vertex) => vertex.id),
-  ]);
-
-  const result: MapFloor = {
-    ...floor,
-    vertices: floor.vertices.map((vertex) =>
-      moving.has(vertex.id)
-        ? {
-            ...vertex,
-            x: vertex.x + wall.normal.x * deltaMeters,
-            y: vertex.y + wall.normal.y * deltaMeters,
-          }
-        : { ...vertex },
-    ),
-    areas: floor.areas.map((area) => ({
-      ...area,
-      vertexIds: [...area.vertexIds],
-      target: area.target ? { ...area.target } : null,
-    })),
-    dimensions: floor.dimensions.map((dimension) => ({ ...dimension })),
-    lights: floor.lights.map((light) => ({ ...light })),
-  };
-
-  const moved = new Map(result.vertices.map((vertex) => [vertex.id, vertex]));
-  for (const vertex of result.vertices) {
-    if (!moving.has(vertex.id)) continue;
-    if (
-      result.vertices.some(
-        (other) => other.id !== vertex.id && samePoint(other, vertex),
-      )
-    )
-      return failure("This wall cannot pass another wall.");
-  }
-  for (const dimension of result.dimensions) {
-    const length = distance(
-      moved.get(dimension.startVertexId)!,
-      moved.get(dimension.endVertexId)!,
-    );
-    if (almostEqual(length, dimension.lengthMeters)) continue;
-    if (dimension.locked)
-      return failure(
-        `Release the ${dimension.lengthMeters.toFixed(2)} m wall length before moving this wall.`,
-      );
-    dimension.lengthMeters = length;
-    dimension.verified = false;
-  }
-
-  const issue = validateMapFloor(result)[0];
-  if (issue) return failure(issue.message);
-  // Placements stay where the physical lamp is; the editor flags strays.
-  return { ok: true, value: result };
+  return translateWall(floor, wallKey, {
+    x: wall.normal.x * deltaMeters,
+    y: wall.normal.y * deltaMeters,
+  });
 }
 
 /**
@@ -478,4 +617,81 @@ export function nearestCorner(
       best = { vertexId: other.id, distanceMeters: gap };
   }
   return best;
+}
+
+/**
+ * The middle of the longest straight boundary two areas share, in world
+ * meters, or null when they only meet at a corner or do not touch at all.
+ * The dot that combines two rooms sits here.
+ */
+export function sharedWallPoint(
+  floor: MapFloor,
+  areaAId: string,
+  areaBId: string,
+): MapPoint | null {
+  if (areaAId === areaBId) return null;
+  const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
+  const edgesOf = (areaId: string) => {
+    const entries = new Map<string, [string, string]>();
+    const area = floor.areas.find((candidate) => candidate.id === areaId);
+    if (!area) return entries;
+    for (let index = 0; index < area.vertexIds.length; index++) {
+      const start = area.vertexIds[index];
+      const end = area.vertexIds[(index + 1) % area.vertexIds.length];
+      if (!vertices.has(start) || !vertices.has(end)) continue;
+      entries.set(wallId(start, end), [start, end]);
+    }
+    return entries;
+  };
+  const other = edgesOf(areaBId);
+  const shared = [...edgesOf(areaAId)]
+    .filter(([key]) => other.has(key))
+    .map(([, pair]) => pair);
+
+  let best: { span: number; point: MapPoint } | null = null;
+  const used = new Set<number>();
+  for (let index = 0; index < shared.length; index++) {
+    if (used.has(index)) continue;
+    used.add(index);
+    const from = vertices.get(shared[index][0])!;
+    const to = vertices.get(shared[index][1])!;
+    const runIds = new Set(shared[index]);
+    // Segments split by a corner from a third room are one straight boundary.
+    let extended = true;
+    while (extended) {
+      extended = false;
+      for (let candidate = 0; candidate < shared.length; candidate++) {
+        if (used.has(candidate)) continue;
+        const [startId, endId] = shared[candidate];
+        if (!runIds.has(startId) && !runIds.has(endId)) continue;
+        if (
+          !areCollinear(from, to, vertices.get(startId)!, vertices.get(endId)!)
+        )
+          continue;
+        runIds.add(startId);
+        runIds.add(endId);
+        used.add(candidate);
+        extended = true;
+      }
+    }
+    const points = [...runIds].map((id) => vertices.get(id)!);
+    let ends: [MapPoint, MapPoint] = [points[0], points[0]];
+    let span = 0;
+    for (const one of points)
+      for (const another of points) {
+        const gap = distance(one, another);
+        if (gap <= span) continue;
+        span = gap;
+        ends = [one, another];
+      }
+    if (span <= MAP_EPSILON || (best && span <= best.span)) continue;
+    best = {
+      span,
+      point: {
+        x: (ends[0].x + ends[1].x) / 2,
+        y: (ends[0].y + ends[1].y) / 2,
+      },
+    };
+  }
+  return best?.point ?? null;
 }

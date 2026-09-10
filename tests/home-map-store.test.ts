@@ -328,6 +328,33 @@ test("discard retains draft and undo history on failure, then clears them after 
   expect(entry().draftState?.future).toHaveLength(0);
 });
 
+test("delete clears the published map and draft only after a durable save", async () => {
+  const { store, hooks, disk, entry } = harness();
+  disk.set("bridge-one", saved(document("Published"), document("Draft")));
+  await store.getState().activateBridge("bridge-one");
+  hooks.beforeWrite = async () => {
+    throw new Error("Cannot delete");
+  };
+  expect((await store.getState().deleteMap("bridge-one")).ok).toBe(false);
+  expect(entry().draftState?.published?.name).toBe("Published");
+  expect(entry().draftState?.draft?.name).toBe("Draft");
+  expect(entry()).toMatchObject({
+    pendingAction: null,
+    error: "Cannot delete",
+  });
+
+  hooks.beforeWrite = async () => {};
+  expect((await store.getState().deleteMap("bridge-one")).ok).toBe(true);
+  expect(entry().draftState?.published).toBeNull();
+  expect(entry().draftState?.draft).toBeNull();
+  expect(entry().draftState?.past).toHaveLength(0);
+  expect(entry().draftState?.future).toHaveLength(0);
+  expect(JSON.parse(disk.get("bridge-one")!)).toMatchObject({
+    published: null,
+    draft: null,
+  });
+});
+
 test("invalid or unavailable initial storage blocks every write and needs an explicit reload", async () => {
   for (const mode of ["invalid", "unavailable"] as const) {
     const { store, disk, hooks, writes, reads, entry } = harness();

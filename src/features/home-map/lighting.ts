@@ -17,4 +17,9 @@ export interface HomeMapLighting {
   ) => void;
   onScene: (scene: HueScene) => Promise<void>;
   onRefresh?: () => void;
+  onFixtureState?: (
+    lightIds: string[],
+    on: boolean,
+    brightness?: number,
+  ) => void;
 }

@@ -37,8 +37,8 @@ export function PointEditor({
       <div className="space-y-2">
         <h3 className="text-base font-medium">Points</h3>
         <p className="text-sm leading-relaxed text-muted-foreground">
-          Square handles are corners; dashed circles between them add a corner.
-          Select a corner to remove it or merge it with another.
+          Square handles are corners. Hover a wall for the dashed circle that
+          adds one. Select a corner to remove it or merge it with another.
         </p>
       </div>
     );

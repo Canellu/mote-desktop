@@ -75,8 +75,10 @@ export type HueRoomZone = HueRoom | HueZone;
 
 export interface HueLight {
   id: string;
-  /** Owning v2 device UUID. */
+  /** Owning v2 device UUID. Lights sharing one are heads of one fixture. */
   deviceId: string | null;
+  /** Name of the owning device, which names the fixture a head belongs to. */
+  deviceName: string | null;
   name: string;
   isOn: boolean;
   brightness: number | null;

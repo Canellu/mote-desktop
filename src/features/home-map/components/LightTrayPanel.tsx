@@ -1,47 +1,56 @@
 import { Crosshair, GripVertical, MapPin, Loader2, X } from "lucide-react";
+import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { HueLight } from "@/types/hue";
 import type { MapFloor } from "../types";
-import type { TrayLight } from "../placement";
+import type { MapFixture } from "../fixtures";
+import type { TrayFixture } from "../placement";
 
 export function LightTrayPanel({
   entries,
   floor,
-  placingLightId,
+  placingFixtureId,
+  liftedFixtureId,
   blinkingKeys,
   busy,
   onChoose,
+  onLift,
   onIdentify,
   onRemove,
   onPlaceInArea,
 }: {
-  entries: TrayLight[];
+  entries: TrayFixture[];
   floor: MapFloor;
-  placingLightId: string | null;
+  placingFixtureId: string | null;
+  /** The fixture being dragged out of the tray right now. */
+  liftedFixtureId: string | null;
   blinkingKeys: ReadonlySet<string>;
   busy: boolean;
-  onChoose: (lightId: string | null) => void;
-  onIdentify: (light: HueLight) => void;
-  onRemove: (lightId: string) => void;
-  /** Places without aiming, so a mouse click on the canvas is never required. */
-  onPlaceInArea: (entry: TrayLight) => void;
+  onChoose: (fixtureId: string | null) => void;
+  /** Starts a drag onto the map; the canvas follows the pointer from here. */
+  onLift: (fixture: MapFixture) => void;
+  onIdentify: (fixture: MapFixture) => void;
+  onRemove: (fixture: MapFixture) => void;
+  /** Places without aiming, so a mouse drag is never required. */
+  onPlaceInArea: (entry: TrayFixture) => void;
 }) {
   const onThisFloor = entries.filter((entry) => entry.floorId === floor.id);
   const elsewhere = entries.filter(
     (entry) => entry.floorId !== null && entry.floorId !== floor.id,
   );
   const unplaced = entries.filter((entry) => entry.floorId === null);
+  const pointer = useRef<{ x: number; y: number; dragged: boolean } | null>(
+    null,
+  );
 
   return (
     <div className="space-y-4">
       <div>
-        <h3 className="text-base font-medium">Place lights</h3>
+        <h3 className="text-base font-medium">Place fixtures</h3>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
           {`${onThisFloor.length} of ${entries.length} placed on ${floor.name}.`}{" "}
-          Drag a light onto the map, or select it and click its position.
-          Markers show where a lamp is; its room membership still decides what a
-          control affects.
+          Drag a fixture onto the map, or select it and click its position. A
+          fixture with several bulbs is placed as one marker.
         </p>
       </div>
 
@@ -64,13 +73,16 @@ export function LightTrayPanel({
             </h4>
             <ul className="space-y-1">
               {group.rows.map((entry) => {
-                const choosing = placingLightId === entry.light.id;
+                const fixture = entry.fixture;
+                const choosing = placingFixtureId === fixture.id;
+                const lifted = liftedFixtureId === fixture.id;
+                const heads = fixture.lights.length;
                 return (
                   <li
-                    key={entry.light.id}
+                    key={fixture.id}
                     className={cn(
                       "rounded-lg px-2 py-1.5",
-                      choosing && "bg-accent",
+                      (choosing || lifted) && "bg-accent",
                     )}
                   >
                     <div className="flex items-center gap-1">
@@ -82,25 +94,46 @@ export function LightTrayPanel({
                         type="button"
                         aria-pressed={choosing}
                         disabled={busy}
-                        draggable={!busy}
-                        onDragStart={(event) => {
-                          event.dataTransfer.setData(
-                            "text/plain",
-                            entry.light.id,
+                        onPointerDown={(event) => {
+                          if (busy || event.button !== 0) return;
+                          pointer.current = {
+                            x: event.clientX,
+                            y: event.clientY,
+                            dragged: false,
+                          };
+                          event.currentTarget.setPointerCapture(
+                            event.pointerId,
                           );
-                          event.dataTransfer.effectAllowed = "move";
-                          onChoose(entry.light.id);
                         }}
-                        onDragEnd={() => onChoose(null)}
-                        onClick={() =>
-                          onChoose(choosing ? null : entry.light.id)
-                        }
-                        className="min-w-0 flex-1 cursor-grab rounded text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:cursor-grabbing"
+                        onPointerMove={(event) => {
+                          const start = pointer.current;
+                          if (
+                            !start ||
+                            start.dragged ||
+                            Math.hypot(
+                              event.clientX - start.x,
+                              event.clientY - start.y,
+                            ) < 6
+                          )
+                            return;
+                          start.dragged = true;
+                          onLift(fixture);
+                        }}
+                        onPointerCancel={() => {
+                          pointer.current = null;
+                        }}
+                        onClick={() => {
+                          if (!pointer.current?.dragged)
+                            onChoose(choosing ? null : fixture.id);
+                          pointer.current = null;
+                        }}
+                        className="min-w-0 flex-1 cursor-grab touch-none select-none rounded text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring active:cursor-grabbing"
                       >
                         <span className="block truncate text-sm">
-                          {entry.light.name}
+                          {fixture.name}
                         </span>
                         <span className="block truncate text-xs text-muted-foreground">
+                          {heads > 1 ? `${heads} bulbs · ` : ""}
                           {entry.target
                             ? `Controlled by ${entry.target.name}`
                             : "Not in a Hue room or zone"}
@@ -112,12 +145,12 @@ export function LightTrayPanel({
                       <Button
                         size="icon-sm"
                         variant="ghost"
-                        aria-label={`Identify ${entry.light.name}`}
+                        aria-label={`Identify ${fixture.name}`}
                         title="Identify"
                         disabled={busy}
-                        onClick={() => onIdentify(entry.light)}
+                        onClick={() => onIdentify(fixture)}
                       >
-                        {blinkingKeys.has(entry.light.id) ? (
+                        {blinkingKeys.has(fixture.id) ? (
                           <Loader2 className="animate-spin motion-reduce:animate-none" />
                         ) : (
                           <Crosshair />
@@ -127,10 +160,10 @@ export function LightTrayPanel({
                         <Button
                           size="icon-sm"
                           variant="ghost"
-                          aria-label={`Remove ${entry.light.name} from the map`}
+                          aria-label={`Remove ${fixture.name} from the map`}
                           title="Remove marker"
                           disabled={busy}
-                          onClick={() => onRemove(entry.light.id)}
+                          onClick={() => onRemove(fixture)}
                         >
                           <X />
                         </Button>
@@ -138,7 +171,7 @@ export function LightTrayPanel({
                         <Button
                           size="icon-sm"
                           variant="ghost"
-                          aria-label={`Place ${entry.light.name} in ${entry.suggestedAreaName}`}
+                          aria-label={`Place ${fixture.name} in ${entry.suggestedAreaName}`}
                           title={`Place in ${entry.suggestedAreaName}`}
                           disabled={busy}
                           onClick={() => onPlaceInArea(entry)}
@@ -152,6 +185,18 @@ export function LightTrayPanel({
                         />
                       )}
                     </div>
+
+                    {heads > 1 && (
+                      <p className="mt-1 truncate pl-5 text-xs text-muted-foreground/80">
+                        {fixture.lights.map((light) => light.name).join(", ")}
+                      </p>
+                    )}
+
+                    {entry.splitTarget && (
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Its bulbs answer to different Hue rooms or zones.
+                      </p>
+                    )}
 
                     {entry.outsideTarget && (
                       <p className="mt-1 text-xs text-muted-foreground">

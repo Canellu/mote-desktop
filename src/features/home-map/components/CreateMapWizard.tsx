@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
-import { Loader2, PenLine, RectangleHorizontal } from "lucide-react";
+import { Combine, Loader2, MousePointer2, PenLine, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,28 +22,39 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { blinkableLightIds, useBlinkLights } from "@/hooks/useBlinkLights";
+import { useBlinkLights } from "@/hooks/useBlinkLights";
+import { useGlobalKeyboardShortcut } from "@/hooks/useGlobalKeyboardShortcut";
 import type { HueLight, HueRoomZone } from "@/types/hue";
-import { createHomeMapDocument, type FloorShape } from "../creation";
-import { convertLength } from "../measurements";
-import { renameMapArea, splitMapArea } from "../operations";
-import { buildTray, placeLight, unplaceLight } from "../placement";
+import { groupFixtures, indexFixtures } from "../fixtures";
+import { createHomeMapDocument } from "../creation";
+import {
+  combineMapAreas,
+  removeMapArea,
+  renameMapArea,
+  splitMapArea,
+} from "../operations";
+import { buildTray, placeFixture, unplaceFixture } from "../placement";
 import {
   nearestIncrement,
   readSnapSettings,
   writeSnapSettings,
 } from "../snapping";
 import type { HomeMapDocument, MapFloor, MapPoint, MapResult } from "../types";
+import { insertCorner, listWalls, mergeCorners } from "../walls";
 import { PANEL_INSET } from "../layout";
+import {
+  readMeasurementDisplay,
+  writeMeasurementDisplay,
+} from "../measurementDisplay";
 import { MapEditorCanvas, type MapViewportControls } from "./MapEditorCanvas";
-import { MapPreviewCanvas } from "./MapPreviewCanvas";
+import { MeasurementDisplayMenu } from "./MeasurementDisplayMenu";
 import { LightTrayPanel } from "./LightTrayPanel";
 import { SnapSettingsMenu } from "./SnapSettingsMenu";
 import { ZoomMenu } from "./ZoomMenu";
 
-type Mode = HomeMapDocument["drawingMode"];
 type Units = HomeMapDocument["units"];
 type Step = "outline" | "rooms" | "lights";
+type RoomTool = "move" | "divide" | "combine";
 
 /** The whole map is made here, one decision at a time, in this order. */
 const STEPS: { id: Step; title: string; hint: string }[] = [
@@ -64,35 +75,6 @@ const STEPS: { id: Step; title: string; hint: string }[] = [
 function previewIds() {
   let count = 0;
   return () => `preview-${(count += 1)}`;
-}
-
-function LengthField({
-  id,
-  label,
-  unit,
-  value,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  unit: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id}>
-        {label} ({unit})
-      </Label>
-      <Input
-        id={id}
-        inputMode="decimal"
-        className="tabular-nums"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-    </div>
-  );
 }
 
 export function CreateMapWizard({
@@ -120,15 +102,7 @@ export function CreateMapWizard({
   const [name, setName] = useState("My home");
   const [floorName, setFloorName] = useState("Ground floor");
   const [units, setUnits] = useState<Units>("metric");
-  // Drawing is the starting point; a rectangle is the shortcut for the
-  // common case, and any shape can be reshaped afterwards in the editor.
-  const [source, setSource] = useState<"draw" | "rectangle">("draw");
-  // Typed sides are measurements; a drawn outline stays a sketch until a wall
-  // is measured in the editor, which promotes the map on its own.
-  const mode: Mode = source === "rectangle" ? "measured" : "sketch";
   const [drawnRing, setDrawnRing] = useState<MapPoint[] | null>(null);
-  const [width, setWidth] = useState("8");
-  const [depth, setDepth] = useState("6");
   const [zoomControls, setZoomControls] = useState<MapViewportControls | null>(
     null,
   );
@@ -137,37 +111,34 @@ export function CreateMapWizard({
     setSnapState(next);
     writeSnapSettings(next);
   };
+  const [measurementDisplay, setMeasurementDisplayState] = useState(() =>
+    readMeasurementDisplay(),
+  );
+  const setMeasurementDisplay = (next: typeof measurementDisplay) => {
+    setMeasurementDisplayState(next);
+    writeMeasurementDisplay(next);
+  };
 
   // Steps two and three work on a real document that is saved only at the end.
   const [document, setDocument] = useState<HomeMapDocument | null>(null);
   const [builtFrom, setBuiltFrom] = useState<string | null>(null);
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
-  const [placingLightId, setPlacingLightId] = useState<string | null>(null);
+  const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
+  const [selectedVertexId, setSelectedVertexId] = useState<string | null>(null);
+  const [roomTool, setRoomTool] = useState<RoomTool>("move");
+  const [placingFixtureId, setPlacingFixtureId] = useState<string | null>(null);
+  const [liftedFixtureId, setLiftedFixtureId] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [confirmingExit, setConfirmingExit] = useState(false);
+  const [confirmingAreaDelete, setConfirmingAreaDelete] = useState<
+    string | null
+  >(null);
   const { blinkingKeys, blink } = useBlinkLights();
-
-  const unitLabel = units === "metric" ? "m" : "ft";
-  const parse = (value: string) => Number.parseFloat(value.replace(",", "."));
-  const toMeters = (value: string) => {
-    const parsed = parse(value);
-    if (!Number.isFinite(parsed)) return Number.NaN;
-    return units === "metric" ? parsed : convertLength(parsed, "ft", "m");
-  };
 
   /** Changing units restates the same floor; it never resizes it. */
   function changeUnits(next: Units) {
     if (next === units) return;
-    const from = units === "metric" ? "m" : "ft";
-    const to = next === "metric" ? "m" : "ft";
-    const restate = (value: string) => {
-      const parsed = parse(value);
-      if (!Number.isFinite(parsed)) return value;
-      return String(Math.round(convertLength(parsed, from, to) * 100) / 100);
-    };
-    setWidth(restate(width));
-    setDepth(restate(depth));
     setSnap({
       ...snap,
       incrementMeters: nearestIncrement(snap.incrementMeters, next),
@@ -175,25 +146,18 @@ export function CreateMapWizard({
     setUnits(next);
   }
 
-  const shape: FloorShape =
-    source === "rectangle"
-      ? {
-          kind: "rectangle",
-          widthMeters: toMeters(width),
-          depthMeters: toMeters(depth),
-        }
-      : { kind: "drawn", ring: drawnRing ?? [] };
-  const outlineInput = JSON.stringify({ name, floorName, units, mode, shape });
+  const shape = { kind: "drawn" as const, ring: drawnRing ?? [] };
+  const outlineInput = JSON.stringify({ name, floorName, units, shape });
 
   const preview = useMemo(
     () =>
       createHomeMapDocument({
         bridgeId,
         name,
-        drawingMode: mode,
+        drawingMode: "sketch",
         units,
         floorName,
-        roomName: "Whole floor",
+        roomName: "Room 1",
         shape,
         createId: previewIds(),
       }),
@@ -201,7 +165,7 @@ export function CreateMapWizard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [bridgeId, outlineInput],
   );
-  const drawing = source === "draw" && !drawnRing;
+  const drawing = !drawnRing;
   // Nothing is wrong before an outline exists; that is an instruction.
   const problem = drawing || preview.ok ? null : preview.error;
   const blankFloor = useMemo(
@@ -220,6 +184,11 @@ export function CreateMapWizard({
   const tray = useMemo(
     () => (document ? buildTray(document, lights, roomZones) : []),
     [document, lights, roomZones],
+  );
+  // Markers, labels and placement all work on whole products, not single bulbs.
+  const fixtures = useMemo(
+    () => indexFixtures(groupFixtures(lights)),
+    [lights],
   );
 
   function editFloor(result: MapResult<MapFloor>) {
@@ -255,10 +224,10 @@ export function CreateMapWizard({
     const built = createHomeMapDocument({
       bridgeId,
       name,
-      drawingMode: mode,
+      drawingMode: "sketch",
       units,
       floorName,
-      roomName: "Whole floor",
+      roomName: "Room 1",
       shape,
     });
     if (!built.ok) {
@@ -271,20 +240,100 @@ export function CreateMapWizard({
     setStep("rooms");
   }
 
-  function divideRoom(divider: MapPoint[]) {
-    if (!floor || !selectedAreaId) return;
-    const area = floor.areas.find((entry) => entry.id === selectedAreaId);
+  function divideRoom(areaId: string, divider: MapPoint[]) {
+    if (!floor) return;
+    const area = floor.areas.find((entry) => entry.id === areaId);
     if (!area) return;
-    editFloor(
-      splitMapArea(
-        floor,
-        area.id,
-        divider,
-        { id: crypto.randomUUID(), name: `${area.name} 2` },
-        () => crypto.randomUUID(),
-      ),
+    const usedNames = new Set(floor.areas.map((entry) => entry.name));
+    let roomNumber = floor.areas.length + 1;
+    while (usedNames.has(`Room ${roomNumber}`)) roomNumber += 1;
+    const newAreaId = crypto.randomUUID();
+    const result = splitMapArea(
+      floor,
+      area.id,
+      divider,
+      { id: newAreaId, name: `Room ${roomNumber}` },
+      () => crypto.randomUUID(),
     );
+    editFloor(result);
+    if (result.ok) {
+      setSelectedAreaId(newAreaId);
+      setSelectedWallId(null);
+      setRoomTool("move");
+    }
   }
+
+  function combineRooms(areaIds: string[]) {
+    if (!floor || areaIds.length < 2) return;
+    const areas = areaIds.flatMap((id) => {
+      const area = floor.areas.find((entry) => entry.id === id);
+      return area ? [area] : [];
+    });
+    if (areas.length < 2) return;
+    const target = areas.every(
+      (area) => JSON.stringify(area.target) === JSON.stringify(areas[0].target),
+    )
+      ? areas[0].target
+      : null;
+    const result = combineMapAreas(floor, areaIds, {
+      id: areas[0].id,
+      name: areas[0].name,
+      target,
+    });
+    editFloor(result);
+    if (result.ok) {
+      setSelectedAreaId(areas[0].id);
+      setSelectedWallId(null);
+      setRoomTool("move");
+    }
+  }
+
+  function deleteRoom(areaId: string) {
+    if (!floor) return;
+    const result = removeMapArea(floor, areaId);
+    editFloor(result);
+    if (!result.ok) return;
+    setSelectedAreaId(result.value.areas[0]?.id ?? null);
+    setSelectedWallId(null);
+    setConfirmingAreaDelete(null);
+  }
+
+  const selectedWall =
+    floor && selectedWallId
+      ? (listWalls(floor).find((wall) => wall.id === selectedWallId) ?? null)
+      : null;
+  const selectedArea =
+    floor && selectedAreaId
+      ? (floor.areas.find((area) => area.id === selectedAreaId) ?? null)
+      : null;
+  const areaPendingDeletion =
+    floor && confirmingAreaDelete
+      ? (floor.areas.find((area) => area.id === confirmingAreaDelete) ?? null)
+      : null;
+
+  function deleteSelection() {
+    if (step === "outline" && drawnRing) {
+      setDrawnRing(null);
+      return;
+    }
+    if (step !== "rooms" || !floor) return;
+    if (selectedWall?.dividing && selectedWall.areaIds.length >= 2) {
+      combineRooms(selectedWall.areaIds);
+      return;
+    }
+    if (selectedArea && floor.areas.length > 1) {
+      setConfirmingAreaDelete(selectedArea.id);
+    }
+  }
+
+  useGlobalKeyboardShortcut(
+    { key: "Delete", enabled: step !== "lights" },
+    deleteSelection,
+  );
+  useGlobalKeyboardShortcut(
+    { key: "Backspace", enabled: step !== "lights" },
+    deleteSelection,
+  );
 
   // Nothing here is saved until the last step, so any progress is at risk.
   const dirty = drafting || drawnRing !== null || document !== null;
@@ -310,14 +359,14 @@ export function CreateMapWizard({
           selectedAreaId={null}
           selectedWallId={null}
           selectedVertexId={null}
-          combineIds={[]}
-          placingLightId={null}
-          lightLabels={{}}
+          placingFixtureId={null}
+          fixtureLabels={{}}
+          fixtureOf={{}}
           onSelectArea={() => {}}
           onSelectWall={() => {}}
           onSelectVertex={() => {}}
-          onToggleCombine={() => {}}
-          onPlaceLight={() => {}}
+          onCombineRooms={() => {}}
+          onPlaceFixture={() => {}}
           onDivideRoom={() => {}}
           onMergeCorners={() => {}}
           onCommit={() => {}}
@@ -340,10 +389,29 @@ export function CreateMapWizard({
           onViewportControls={setZoomControls}
         />
       ) : preview.ok ? (
-        <MapPreviewCanvas
+        <MapEditorCanvas
           floor={preview.value.floors[0]}
+          tool="view"
           units={units}
           snap={snap}
+          measurementDisplay={{ ...measurementDisplay, wallLengths: "all" }}
+          selectedAreaId={null}
+          selectedWallId={null}
+          selectedVertexId={null}
+          placingFixtureId={null}
+          fixtureLabels={{}}
+          fixtureOf={{}}
+          onSelectArea={() => {}}
+          onSelectWall={() => {}}
+          onSelectVertex={() => {}}
+          onCombineRooms={() => {}}
+          onPlaceFixture={() => {}}
+          onDrawRoom={() => {}}
+          onDivideRoom={() => {}}
+          onMergeCorners={() => {}}
+          onCommit={() => {}}
+          onInsertCorner={() => null}
+          onError={() => {}}
           className="h-full w-full rounded-none border-0 bg-transparent"
           insetRight={PANEL_INSET}
           onViewportControls={setZoomControls}
@@ -358,29 +426,45 @@ export function CreateMapWizard({
     ) : floor && document ? (
       <MapEditorCanvas
         floor={floor}
-        tool={step === "rooms" ? "divide" : "lights"}
+        tool={step === "rooms" ? roomTool : "lights"}
         units={units}
         snap={snap}
+        measurementDisplay={measurementDisplay}
         selectedAreaId={selectedAreaId}
-        selectedWallId={null}
-        selectedVertexId={null}
-        combineIds={[]}
-        placingLightId={placingLightId}
-        lightLabels={Object.fromEntries(
-          lights.map((light) => [light.id, light.name]),
+        selectedWallId={selectedWallId}
+        selectedVertexId={selectedVertexId}
+        placingFixtureId={placingFixtureId}
+        liftedFixtureId={liftedFixtureId}
+        onLiftEnd={() => setLiftedFixtureId(null)}
+        fixtureLabels={Object.fromEntries(
+          [...fixtures.byId].map(([id, fixture]) => [id, fixture.name]),
         )}
+        fixtureOf={Object.fromEntries(fixtures.ofLight)}
         onSelectArea={setSelectedAreaId}
-        onSelectWall={() => {}}
-        onSelectVertex={() => {}}
-        onToggleCombine={() => {}}
-        onPlaceLight={(lightId, point) => {
-          editMap(placeLight(document, floor.id, lightId, point));
-          setPlacingLightId(null);
+        onSelectWall={setSelectedWallId}
+        onSelectVertex={setSelectedVertexId}
+        onCombineRooms={combineRooms}
+        onPlaceFixture={(fixtureId, point) => {
+          const fixture = fixtures.byId.get(fixtureId);
+          if (!fixture) return;
+          editMap(placeFixture(document, floor.id, fixture.lightIds, point));
+          setPlacingFixtureId(null);
         }}
         onDivideRoom={divideRoom}
-        onMergeCorners={() => {}}
+        onMergeCorners={(fromId, intoId) =>
+          editFloor(mergeCorners(floor, fromId, intoId))
+        }
         onCommit={(next) => editFloor({ ok: true, value: next })}
-        onInsertCorner={() => null}
+        onInsertCorner={(point) => {
+          const result = insertCorner(floor, point, () => crypto.randomUUID());
+          if (!result.ok) {
+            setStepError(result.error);
+            return null;
+          }
+          setStepError(null);
+          editFloor({ ok: true, value: result.value.floor });
+          return result.value;
+        }}
         onDrawRoom={() => {}}
         onError={setStepError}
         className="h-full w-full rounded-none border-0 bg-transparent"
@@ -397,7 +481,7 @@ export function CreateMapWizard({
       {/* The plan runs behind the panel, so the work area is the page. */}
       <div className="absolute inset-0">{canvas}</div>
 
-      {/* One bottom bar, on the feedback button's baseline. */}
+      {/* One bottom bar, 24px up, matching the editor's tool pill. */}
       {step !== "lights" && (
         <div
           className="pointer-events-none absolute bottom-6 left-0 flex justify-center"
@@ -406,31 +490,92 @@ export function CreateMapWizard({
           <div
             role="group"
             aria-label={step === "outline" ? "Starting point" : "Drawing"}
-            className="pointer-events-auto flex items-center gap-1 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur"
+            // Wraps instead of running off a narrow window.
+            className="pointer-events-auto flex max-w-[calc(100%-1.5rem)] flex-wrap items-center justify-center gap-1 rounded-2xl border border-border bg-background/95 p-1.5 shadow-lg backdrop-blur"
           >
-            {step === "outline" && (
+            {step === "outline" && drawnRing && (
               <>
                 <Button
                   size="sm"
-                  variant={source === "draw" ? "secondary" : "ghost"}
-                  aria-pressed={source === "draw"}
-                  onClick={() => {
-                    setSource("draw");
-                    setDrawnRing(null);
-                  }}
+                  variant="ghost"
+                  title="Clear outline (Delete)"
+                  onClick={() => setDrawnRing(null)}
                 >
-                  <PenLine />
-                  Draw outline
+                  <Trash2 />
+                  Clear outline
+                </Button>
+                <div className="mx-1 h-5 w-px bg-border" />
+              </>
+            )}
+            {step === "rooms" && (
+              <>
+                <Button
+                  size="sm"
+                  variant={roomTool === "move" ? "secondary" : "ghost"}
+                  aria-pressed={roomTool === "move"}
+                  title="Move walls and points"
+                  onClick={() => setRoomTool("move")}
+                >
+                  <MousePointer2 />
+                  Move
                 </Button>
                 <Button
                   size="sm"
-                  variant={source === "rectangle" ? "secondary" : "ghost"}
-                  aria-pressed={source === "rectangle"}
-                  onClick={() => setSource("rectangle")}
+                  variant={roomTool === "divide" ? "secondary" : "ghost"}
+                  aria-pressed={roomTool === "divide"}
+                  title="Draw divider"
+                  onClick={() => {
+                    setRoomTool("divide");
+                    setSelectedWallId(null);
+                  }}
                 >
-                  <RectangleHorizontal />
-                  Rectangle
+                  <PenLine />
+                  Pen
                 </Button>
+                {selectedArea && floor && floor.areas.length > 1 && (
+                  <Button
+                    size="sm"
+                    variant={roomTool === "combine" ? "secondary" : "ghost"}
+                    aria-pressed={roomTool === "combine"}
+                    title="Combine the selected room with an adjoining room"
+                    onClick={() => {
+                      if (roomTool === "combine") setRoomTool("move");
+                      else {
+                        setRoomTool("combine");
+                        setSelectedWallId(null);
+                      }
+                    }}
+                  >
+                    <Combine />
+                    {roomTool === "combine" ? "Cancel combine" : "Combine"}
+                  </Button>
+                )}
+                {selectedWall?.dividing && selectedWall.areaIds.length >= 2 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    title="Remove selected divider (Delete)"
+                    onClick={() => combineRooms(selectedWall.areaIds)}
+                  >
+                    <Trash2 />
+                    Remove divider
+                  </Button>
+                )}
+                {selectedArea &&
+                  !selectedWall &&
+                  roomTool === "move" &&
+                  floor &&
+                  floor.areas.length > 1 && (
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      aria-label={`Delete ${selectedArea.name}`}
+                      title="Delete selected room (Delete)"
+                      onClick={() => setConfirmingAreaDelete(selectedArea.id)}
+                    >
+                      <Trash2 />
+                    </Button>
+                  )}
                 <div className="mx-1 h-5 w-px bg-border" />
               </>
             )}
@@ -439,6 +584,12 @@ export function CreateMapWizard({
               units={units}
               onChange={setSnap}
             />
+            {step === "rooms" && (
+              <MeasurementDisplayMenu
+                settings={measurementDisplay}
+                onChange={setMeasurementDisplay}
+              />
+            )}
           </div>
         </div>
       )}
@@ -523,91 +674,54 @@ export function CreateMapWizard({
                       onChange={(event) => setFloorName(event.target.value)}
                     />
                   </div>
-                  {source === "rectangle" && (
-                    <>
-                      <LengthField
-                        id={`${fieldId}-width`}
-                        label="Width"
-                        unit={unitLabel}
-                        value={width}
-                        onChange={setWidth}
-                      />
-                      <LengthField
-                        id={`${fieldId}-depth`}
-                        label="Depth"
-                        unit={unitLabel}
-                        value={depth}
-                        onChange={setDepth}
-                      />
-                    </>
-                  )}
                 </div>
-                {source === "draw" && (
-                  <p className="text-sm leading-relaxed text-muted-foreground">
-                    {drawnRing
-                      ? "Outline drawn. Continue to split it into rooms."
-                      : "Click corners on the plan to draw the outline. Close it by clicking the first corner, pressing Enter, or double-clicking. Backspace removes the last corner and Esc starts over."}
-                  </p>
-                )}
-                {source === "draw" && drawnRing && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => setDrawnRing(null)}
-                  >
-                    Draw it again
-                  </Button>
-                )}
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  {drawnRing
+                    ? "Outline complete. Continue when its shape looks right."
+                    : "Click each corner of the floor, then click the first corner or press Enter to close it. Backspace removes the last point; Esc clears the current line."}
+                </p>
               </>
             )}
 
             {step === "rooms" && floor && (
               <div className="space-y-4">
                 <p className="text-sm leading-relaxed text-muted-foreground">
-                  Select a room, then click one of its walls and the wall
-                  opposite to draw the divider. Esc cancels a half-drawn wall.
-                  Leaving the floor as one room is fine; it can be divided
-                  later.
+                  {roomTool === "combine"
+                    ? "Drag one room onto another, or click two rooms that touch and then the dot on the wall between them."
+                    : roomTool === "divide"
+                      ? "Start on one wall and finish on another to divide the room under the pointer."
+                      : "Click a room, wall, or corner on the map to select it. Drag walls and corners to reshape the floor."}
                 </p>
-                <div className="space-y-2">
-                  {floor.areas.map((area) => (
-                    <div
-                      key={area.id}
-                      className={cn(
-                        "space-y-1 rounded-xl border p-2",
-                        area.id === selectedAreaId
-                          ? "border-foreground/40 bg-primary/10"
-                          : "border-border",
-                      )}
-                    >
-                      <Input
-                        aria-label={`Name of ${area.name}`}
-                        value={area.name}
-                        onFocus={() => setSelectedAreaId(area.id)}
-                        onChange={(event) =>
-                          editFloor(
-                            renameMapArea(floor, area.id, event.target.value),
-                          )
-                        }
-                      />
-                      {area.id === selectedAreaId ? (
-                        <p className="text-xs text-muted-foreground">
-                          Draw the divider across this room.
-                        </p>
-                      ) : (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="w-full"
-                          onClick={() => setSelectedAreaId(area.id)}
-                        >
-                          Divide this room
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <p className="text-xs text-muted-foreground">
+                  {floor.areas.length}{" "}
+                  {floor.areas.length === 1 ? "room" : "rooms"}
+                  {selectedWall?.dividing
+                    ? " · Divider selected — press Delete to remove it"
+                    : selectedArea
+                      ? ` · ${selectedArea.name} selected`
+                      : " · Nothing selected"}
+                </p>
+                {selectedArea && roomTool !== "combine" && (
+                  <div className="grid gap-1.5">
+                    <Label htmlFor={`${fieldId}-room-name`}>
+                      Selected room
+                    </Label>
+                    <Input
+                      id={`${fieldId}-room-name`}
+                      aria-label={`Name of ${selectedArea.name}`}
+                      value={selectedArea.name}
+                      onChange={(event) =>
+                        editFloor(
+                          renameMapArea(
+                            floor,
+                            selectedArea.id,
+                            event.target.value,
+                          ),
+                        )
+                      }
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -615,25 +729,29 @@ export function CreateMapWizard({
               <LightTrayPanel
                 entries={tray}
                 floor={floor}
-                placingLightId={placingLightId}
+                placingFixtureId={placingFixtureId}
+                liftedFixtureId={liftedFixtureId}
                 blinkingKeys={blinkingKeys}
                 busy={busy}
-                onChoose={setPlacingLightId}
-                onIdentify={(light) =>
-                  void blink(light.id, blinkableLightIds(light, lights))
+                onChoose={setPlacingFixtureId}
+                onLift={(fixture) => setLiftedFixtureId(fixture.id)}
+                onIdentify={(fixture) =>
+                  void blink(fixture.id, fixture.lightIds)
                 }
-                onRemove={(lightId) => editMap(unplaceLight(document, lightId))}
+                onRemove={(fixture) =>
+                  editMap(unplaceFixture(document, fixture.lightIds))
+                }
                 onPlaceInArea={(entry) => {
                   if (!entry.suggestedFloorId || !entry.suggestedPoint) return;
                   editMap(
-                    placeLight(
+                    placeFixture(
                       document,
                       entry.suggestedFloorId,
-                      entry.light.id,
+                      entry.fixture.lightIds,
                       entry.suggestedPoint,
                     ),
                   );
-                  setPlacingLightId(null);
+                  setPlacingFixtureId(null);
                 }}
               />
             )}
@@ -676,6 +794,36 @@ export function CreateMapWizard({
           </Button>
         </div>
       </aside>
+
+      <AlertDialog
+        open={areaPendingDeletion !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmingAreaDelete(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {areaPendingDeletion?.name ?? "this room"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the room from the map only. Your Hue room and lights
+              are not deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                if (areaPendingDeletion) deleteRoom(areaPendingDeletion.id);
+              }}
+            >
+              Delete room
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={confirmingExit} onOpenChange={setConfirmingExit}>
         <AlertDialogContent>

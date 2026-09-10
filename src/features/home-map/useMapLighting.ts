@@ -74,6 +74,26 @@ export function useMapLighting(bridgeId: string | null): HomeMapLighting {
       resources.isLoading || session.isLoading || session.bridgeId !== bridgeId,
     hueEventRevision: resources.hueEventRevision,
     error: commandError ?? resources.error,
+    onFixtureState: (lightIds, on, brightness) => {
+      const state = useHueResourcesStore.getState();
+      if (
+        !bridgeId ||
+        gate.current.bridgeId !== bridgeId ||
+        gate.current.loading ||
+        state.isLoading ||
+        !state.bridgeConnected
+      )
+        return;
+      const synced = new Set(useEntertainmentStore.getState().syncedLightIds);
+      for (const light of state.lights) {
+        if (
+          lightIds.includes(light.id) &&
+          light.reachable &&
+          !synced.has(light.id)
+        )
+          state.setLightState(light, on, brightness ?? null);
+      }
+    },
     onToggle: (requested, on) => {
       const target = currentTarget(requested);
       if (target)

@@ -1,4 +1,5 @@
 import type { HueLight, HueRoomZone } from "@/types/hue";
+import { groupFixtures, type MapFixture } from "./fixtures";
 import { locatePoint } from "./geometry";
 import { getAreaLabelPoint } from "./viewGeometry";
 import type {
@@ -78,6 +79,75 @@ export function findPlacement(
   return null;
 }
 
+export interface FixturePlacement extends LightPlacement {
+  /** Heads of this fixture already on the map, which may be some of them. */
+  placedCount: number;
+}
+
+/**
+ * Where a whole product sits. Heads placed one by one before fixtures existed
+ * can be a little apart, so the floor holding most of them wins and their
+ * centre stands for the fixture.
+ */
+export function findFixturePlacement(
+  document: HomeMapDocument,
+  lightIds: readonly string[],
+): FixturePlacement | null {
+  const wanted = new Set(lightIds);
+  let best: { floorId: string; points: MapPoint[] } | null = null;
+  for (const floor of document.floors) {
+    const points = floor.lights
+      .filter((light) => wanted.has(light.lightId))
+      .map((light) => ({ x: light.x, y: light.y }));
+    if (points.length > 0 && (!best || points.length > best.points.length))
+      best = { floorId: floor.id, points };
+  }
+  if (!best) return null;
+  return {
+    floorId: best.floorId,
+    point: {
+      x: best.points.reduce((sum, point) => sum + point.x, 0) / best.points.length,
+      y: best.points.reduce((sum, point) => sum + point.y, 0) / best.points.length,
+    },
+    placedCount: best.points.length,
+  };
+}
+
+/** A fixture is one marker, so every head it carries lands on that spot. */
+export function placeFixture(
+  document: HomeMapDocument,
+  floorId: string,
+  lightIds: readonly string[],
+  point: MapPoint,
+): MapResult<HomeMapDocument> {
+  if (lightIds.length === 0)
+    return { ok: false, error: "This fixture has no lights to place." };
+  return lightIds.reduce<MapResult<HomeMapDocument>>(
+    (carried, lightId) =>
+      carried.ok ? placeLight(carried.value, floorId, lightId, point) : carried,
+    { ok: true, value: document },
+  );
+}
+
+/** Removes the whole product's marker; its Hue membership is untouched. */
+export function unplaceFixture(
+  document: HomeMapDocument,
+  lightIds: readonly string[],
+): MapResult<HomeMapDocument> {
+  const placed = lightIds.filter((lightId) =>
+    document.floors.some((floor) =>
+      floor.lights.some((light) => light.lightId === lightId),
+    ),
+  );
+  if (placed.length === 0)
+    return { ok: false, error: "This light is not on the map." };
+  return placed.reduce<MapResult<HomeMapDocument>>(
+    (carried, lightId) =>
+      carried.ok ? unplaceLight(carried.value, lightId) : carried,
+    { ok: true, value: document },
+  );
+}
+
 /** The area a marker sits in, which describes it but never decides its scope. */
 export function areaAtPoint(floor: MapFloor, point: MapPoint): MapArea | null {
   const vertices = new Map(floor.vertices.map((vertex) => [vertex.id, vertex]));
@@ -91,15 +161,17 @@ export function areaAtPoint(floor: MapFloor, point: MapPoint): MapArea | null {
   return null;
 }
 
-export interface TrayLight {
-  /** A mapped area linked to this light's target, for placing without aiming. */
+export interface TrayFixture {
+  /** A mapped area linked to this fixture's target, for placing without aiming. */
   suggestedAreaId: string | null;
   suggestedAreaName: string | null;
   suggestedFloorId: string | null;
   suggestedPoint: MapPoint | null;
-  light: HueLight;
-  /** The Hue room or zone whose membership actually controls this light. */
+  fixture: MapFixture;
+  /** The Hue room or zone whose membership actually controls this fixture. */
   target: HueRoomZone | null;
+  /** True when the heads of one product answer to different rooms or zones. */
+  splitTarget: boolean;
   floorId: string | null;
   floorName: string | null;
   /** The mapped area the marker sits in, which may differ from its target. */
@@ -107,14 +179,14 @@ export interface TrayLight {
   outsideTarget: boolean;
 }
 
-/** Describes every bridge light against the map, for the placement tray. */
+/** Describes every bridge fixture against the map, for the placement tray. */
 export function buildTray(
   map: HomeMapDocument,
   lights: HueLight[],
   roomZones: HueRoomZone[],
-): TrayLight[] {
-  return lights.map((light) => {
-    const placement = findPlacement(map, light.id);
+): TrayFixture[] {
+  return groupFixtures(lights).map((fixture) => {
+    const placement = findFixturePlacement(map, fixture.lightIds);
     const placedFloor = placement
       ? (map.floors.find((entry) => entry.id === placement.floorId) ?? null)
       : null;
@@ -122,9 +194,12 @@ export function buildTray(
       placement && placedFloor
         ? areaAtPoint(placedFloor, placement.point)
         : null;
-    const target =
-      roomZones.find((candidate) => candidate.lightIds.includes(light.id)) ??
-      null;
+    const targets = fixture.lightIds.map(
+      (lightId) =>
+        roomZones.find((candidate) => candidate.lightIds.includes(lightId)) ??
+        null,
+    );
+    const target = targets.find((entry) => entry !== null) ?? null;
     const suggested = target
       ? (map.floors.flatMap((entry) =>
           entry.areas
@@ -147,8 +222,9 @@ export function buildTray(
         )
       : null;
     return {
-      light,
+      fixture,
       target,
+      splitTarget: targets.some((entry) => entry?.id !== target?.id),
       suggestedAreaId: suggested?.area.id ?? null,
       suggestedAreaName: suggested?.area.name ?? null,
       suggestedFloorId: suggested?.floor.id ?? null,
@@ -156,7 +232,7 @@ export function buildTray(
       floorId: placement?.floorId ?? null,
       floorName: placedFloor?.name ?? null,
       areaName: area?.name ?? null,
-      // A marker describes where the lamp is; only membership decides scope.
+      // A marker describes where the fixture is; only membership decides scope.
       outsideTarget: Boolean(
         area &&
         target &&

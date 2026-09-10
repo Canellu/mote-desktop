@@ -76,19 +76,17 @@ export const HomeRoute: React.FC = () => {
     navigateHome({ ...scopedSearch, view: next, mapPreview: undefined });
   }
 
-  const mapEditing =
-    view === "map" &&
-    (scopedSearch.mapEdit === true || scopedSearch.mapCreate === true);
-
   return (
-    <div className={mapEditing ? "h-full" : "space-y-6"}>
-      {!mapEditing && (
+    <div
+      className={view === "map" ? "flex h-full min-h-0 flex-col" : "space-y-6"}
+    >
+      <div className={view === "map" ? "shrink-0 px-6 py-2" : undefined}>
         <HomeViewSwitch
           value={view}
           onChange={changeView}
           disabled={isEditLayoutMode}
         />
-      )}
+      </div>
       {view === "map" ? (
         <HomeMapView
           key={bridgeId ?? "no-bridge"}
@@ -117,6 +115,17 @@ export const HomeRoute: React.FC = () => {
               );
             openSpace(id);
           }}
+          onStartOver={() =>
+            navigateHome({
+              ...scopedSearch,
+              view: "map",
+              floorId: undefined,
+              areaId: undefined,
+              mapPreview: undefined,
+              mapEdit: undefined,
+              mapCreate: true,
+            })
+          }
           creating={scopedSearch.mapCreate === true}
           onCreatingChange={(next) =>
             navigateHome({

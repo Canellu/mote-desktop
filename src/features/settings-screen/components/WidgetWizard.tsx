@@ -130,6 +130,7 @@ const makeDummyLight = (
 ): HueLight => ({
   id,
   deviceId: null,
+  deviceName: null,
   name,
   isOn: false,
   brightness: 70,

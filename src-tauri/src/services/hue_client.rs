@@ -301,8 +301,10 @@ impl HueEntertainmentArea {
 pub struct HueLight {
     /// v2 resource UUID.
     pub id: String,
-    /// Owning v2 device UUID.
+    /// Owning v2 device UUID. Lights sharing one are heads of one fixture.
     pub device_id: Option<String>,
+    /// Name of the owning device, which names the fixture a head belongs to.
+    pub device_name: Option<String>,
     pub name: String,
     pub is_on: bool,
     /// Dimming percentage, 0–100.
@@ -1802,6 +1804,9 @@ impl HueClient {
                 HueLight {
                     id: light.id,
                     device_id: Some(light.owner.rid),
+                    device_name: device
+                        .and_then(|entry| entry.metadata.as_ref())
+                        .map(|metadata| metadata.name.clone()),
                     name: light.metadata.name,
                     is_on: light.on.on,
                     brightness: light.dimming.as_ref().map(|d| d.brightness),

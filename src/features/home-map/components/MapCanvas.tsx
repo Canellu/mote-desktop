@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { convertLength } from "../measurements";
 import type { MapFloor, MapPoint } from "../types";
+import { groupFixtureMarkers } from "../fixtures";
 import {
   getAreaLabelPoint,
   getAreaLabelWidth,
@@ -16,6 +17,8 @@ interface MapCanvasProps {
   controlledAreaIds?: string[];
   onSelectArea: (id: string | null) => void;
   showLights?: boolean;
+  /** Light id to the fixture it is a head of, so one product draws once. */
+  fixtureOf?: Record<string, string>;
   showDimensions?: boolean;
   units: "metric" | "imperial";
   className?: string;
@@ -31,6 +34,7 @@ function FloorCanvas({
   controlledAreaIds = [],
   onSelectArea,
   showLights = true,
+  fixtureOf = {},
   showDimensions = false,
   units,
   className,
@@ -209,17 +213,27 @@ function FloorCanvas({
               );
             })}
             {showLights &&
-              floor.lights.map((light) => {
-                const position = project(light);
+              groupFixtureMarkers(floor.lights, fixtureOf).map((marker) => {
+                const position = project(marker.point);
                 return (
-                  <circle
-                    key={light.lightId}
-                    cx={position.x}
-                    cy={position.y}
-                    r={5}
-                    className="fill-background stroke-foreground/70"
-                    strokeWidth={2}
-                  />
+                  <g key={marker.id}>
+                    <circle
+                      cx={position.x}
+                      cy={position.y}
+                      r={5}
+                      className="fill-background stroke-foreground/70"
+                      strokeWidth={2}
+                    />
+                    {/* A second bulb inside says one fixture, many heads. */}
+                    {marker.heads > 1 && (
+                      <circle
+                        cx={position.x}
+                        cy={position.y}
+                        r={2}
+                        className="fill-foreground/70"
+                      />
+                    )}
+                  </g>
                 );
               })}
             {showDimensions &&

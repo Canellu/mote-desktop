@@ -472,13 +472,21 @@ const ShellHeader: React.FC = () => {
 export const RootLayout: React.FC = () => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const mapBridgeId = useHue().bridgeId;
   const mapEditorOpen = useRouterState({
     select: (state) => {
       const search = state.location.search as {
         mapEdit?: boolean;
         mapCreate?: boolean;
       };
-      return search.mapEdit === true || search.mapCreate === true;
+      return (
+        search.mapEdit === true ||
+        search.mapCreate === true ||
+        resolveHomeView(
+          state.location.search as HomeViewSearch,
+          mapBridgeId,
+        ) === "map"
+      );
     },
   });
   const routeOwnsScroll =
@@ -731,7 +739,7 @@ export const RootLayout: React.FC = () => {
             className="min-h-0 min-w-0 flex-1"
             viewportClassName={cn(
               !routeIsFullBleed && [
-                "py-6 pl-12 transition-[padding] duration-300 ease-out motion-reduce:transition-none",
+                "py-6 pl-12",
                 inspectorPaneOpen ? "pr-2" : "pr-12",
               ],
             )}

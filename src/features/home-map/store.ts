@@ -28,7 +28,7 @@ export interface HomeMapBridgeEntry {
   readonly saving: boolean;
   readonly dirty: boolean;
   readonly error: string | null;
-  readonly pendingAction: "publish" | "discard" | "reload" | null;
+  readonly pendingAction: "publish" | "discard" | "delete" | "reload" | null;
   readonly loadResult: HomeMapLoadResult | null;
 }
 
@@ -45,6 +45,8 @@ export interface HomeMapStoreState {
   redo(bridgeId: string): Promise<ActionResult>;
   publish(bridgeId: string): Promise<ActionResult>;
   discard(bridgeId: string): Promise<ActionResult>;
+  /** Permanently clears both the published map and any saved draft. */
+  deleteMap(bridgeId: string): Promise<ActionResult>;
   retrySave(bridgeId: string): Promise<ActionResult>;
   /** Explicitly abandon local changes only after a successful storage read. */
   discardLocalAndReload(bridgeId: string): Promise<ActionResult>;
@@ -314,6 +316,43 @@ export function createHomeMapStore(
         })),
       publish: (bridgeId) => commit(bridgeId, "publish"),
       discard: (bridgeId) => commit(bridgeId, "discard"),
+      deleteMap(bridgeId) {
+        const current = editable(bridgeId);
+        if (!current.ok) return Promise.resolve(current);
+        const empty = createHomeMapDraftState(bridgeId);
+        if (!empty.ok) return Promise.resolve(empty);
+        const target = JSON.stringify(envelope(empty.value));
+        update(bridgeId, { pendingAction: "delete" });
+        return enqueue(bridgeId, async () => {
+          try {
+            const state = runtime(bridgeId);
+            if (state.needsBaselineCheck) {
+              const loaded = await repository.load(bridgeId);
+              if (
+                loaded.status === "invalid" ||
+                loaded.status === "unavailable"
+              ) {
+                update(bridgeId, { error: loaded.error });
+                return failure(loaded.error);
+              }
+              const saved =
+                loaded.status === "ready" ? JSON.stringify(loaded.value) : null;
+              if (saved !== state.lastKnownSaved && saved !== target) {
+                const error =
+                  "Map storage changed elsewhere. Reload it before deleting.";
+                update(bridgeId, { error });
+                return failure(error);
+              }
+              state.lastKnownSaved = saved;
+              state.needsBaselineCheck = false;
+              state.failedAutosave = null;
+            }
+            return await save(bridgeId, empty.value, true);
+          } finally {
+            update(bridgeId, { pendingAction: null });
+          }
+        });
+      },
       retrySave(bridgeId) {
         const current = editable(bridgeId);
         if (!current.ok) return Promise.resolve(current);

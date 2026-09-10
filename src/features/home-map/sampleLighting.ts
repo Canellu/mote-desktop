@@ -22,6 +22,7 @@ function exampleLight(id: string, name: string, index: number): HueLight {
   return {
     id,
     deviceId: exampleId(20, index),
+    deviceName: name,
     name,
     isOn: index % 4 !== 0,
     brightness: index % 2 === 0 ? 65 : 45,

@@ -61,6 +61,13 @@ export interface SnapGuide {
 export interface SnapResult {
   point: MapPoint;
   guides: SnapGuide[];
+  /** True when an existing wall, rather than the grid, caught the pointer. */
+  snappedToSegment?: boolean;
+}
+
+export interface SnapSegment {
+  start: MapPoint;
+  end: MapPoint;
 }
 
 const roundTo = (value: number, step: number) =>
@@ -75,12 +82,110 @@ export function snapWorldPoint(
   options: {
     settings: SnapSettings;
     corners?: readonly (MapVertex | MapPoint)[];
+    /** Wall spans that may catch the pointer before grid snapping. */
+    segments?: readonly SnapSegment[];
     /** Screen tolerance converted to meters by the caller. */
     toleranceMeters?: number;
   },
 ): SnapResult {
-  const { settings, corners = [], toleranceMeters = 0 } = options;
+  const {
+    settings,
+    corners = [],
+    segments = [],
+    toleranceMeters = 0,
+  } = options;
   if (!settings.enabled) return { point, guides: [] };
+
+  // A nearby physical wall is the strongest target. Prefer a point on that
+  // wall which also lines up with an existing corner, so a divider can finish
+  // on the boundary without losing its horizontal or vertical guide.
+  let nearestSegment: { point: MapPoint; distance: number } | null = null;
+  const alignedSegments: {
+    point: MapPoint;
+    distance: number;
+    guide: SnapGuide;
+  }[] = [];
+  if (toleranceMeters > 0) {
+    for (const segment of segments) {
+      const dx = segment.end.x - segment.start.x;
+      const dy = segment.end.y - segment.start.y;
+      const lengthSquared = dx * dx + dy * dy;
+      if (lengthSquared <= 0) continue;
+      const ratio = Math.max(
+        0,
+        Math.min(
+          1,
+          ((point.x - segment.start.x) * dx +
+            (point.y - segment.start.y) * dy) /
+            lengthSquared,
+        ),
+      );
+      const projected = {
+        x: segment.start.x + dx * ratio,
+        y: segment.start.y + dy * ratio,
+      };
+      const gap = Math.hypot(point.x - projected.x, point.y - projected.y);
+      if (
+        gap <= toleranceMeters &&
+        (!nearestSegment || gap < nearestSegment.distance)
+      )
+        nearestSegment = { point: projected, distance: gap };
+
+      if (!settings.snapToCorners) continue;
+      const considerAlignment = (
+        candidate: MapPoint,
+        guide: SnapGuide,
+      ) => {
+        const candidateGap = Math.hypot(
+          point.x - candidate.x,
+          point.y - candidate.y,
+        );
+        if (candidateGap <= toleranceMeters)
+          alignedSegments.push({
+            point: candidate,
+            distance: candidateGap,
+            guide,
+          });
+      };
+      for (const corner of corners) {
+        if (dx !== 0) {
+          const ratio = (corner.x - segment.start.x) / dx;
+          if (ratio >= 0 && ratio <= 1)
+            considerAlignment(
+              { x: corner.x, y: segment.start.y + dy * ratio },
+              { axis: "x", value: corner.x, through: corner },
+            );
+        }
+        if (dy !== 0) {
+          const ratio = (corner.y - segment.start.y) / dy;
+          if (ratio >= 0 && ratio <= 1)
+            considerAlignment(
+              { x: segment.start.x + dx * ratio, y: corner.y },
+              { axis: "y", value: corner.y, through: corner },
+            );
+        }
+      }
+    }
+  }
+  const nearestAlignedSegment = alignedSegments.reduce<
+    (typeof alignedSegments)[number] | null
+  >(
+    (nearest, candidate) =>
+      !nearest || candidate.distance < nearest.distance ? candidate : nearest,
+    null,
+  );
+  if (nearestAlignedSegment)
+    return {
+      point: nearestAlignedSegment.point,
+      guides: [nearestAlignedSegment.guide],
+      snappedToSegment: true,
+    };
+  if (nearestSegment)
+    return {
+      point: nearestSegment.point,
+      guides: [],
+      snappedToSegment: true,
+    };
 
   const guides: SnapGuide[] = [];
   let x = point.x;

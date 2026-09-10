@@ -1,5 +1,9 @@
 import type { MapFloor } from "../types";
 import type { SnapSettings } from "../snapping";
+import {
+  DEFAULT_MEASUREMENT_DISPLAY,
+  type MeasurementDisplaySettings,
+} from "../measurementDisplay";
 import { MapEditorCanvas, type MapViewportControls } from "./MapEditorCanvas";
 
 const noop = () => {};
@@ -12,6 +16,7 @@ export function MapPreviewCanvas({
   floor,
   units,
   snap,
+  measurementDisplay = DEFAULT_MEASUREMENT_DISPLAY,
   className,
   insetRight,
   onViewportControls,
@@ -19,6 +24,7 @@ export function MapPreviewCanvas({
   floor: MapFloor;
   units: "metric" | "imperial";
   snap: SnapSettings;
+  measurementDisplay?: MeasurementDisplaySettings;
   className?: string;
   insetRight?: number;
   onViewportControls?: (controls: MapViewportControls) => void;
@@ -29,17 +35,18 @@ export function MapPreviewCanvas({
       tool="view"
       units={units}
       snap={snap}
+      measurementDisplay={measurementDisplay}
       selectedAreaId={null}
       selectedWallId={null}
       selectedVertexId={null}
-      combineIds={[]}
-      placingLightId={null}
-      lightLabels={{}}
+      placingFixtureId={null}
+      fixtureLabels={{}}
+      fixtureOf={{}}
       onSelectArea={noop}
       onSelectWall={noop}
       onSelectVertex={noop}
-      onToggleCombine={noop}
-      onPlaceLight={noop}
+      onCombineRooms={noop}
+      onPlaceFixture={noop}
       onDrawRoom={noop}
       onDivideRoom={noop}
       onMergeCorners={noop}

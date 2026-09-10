@@ -55,9 +55,11 @@ list, separated by a fine divider.
 
 Editing takes over the window, like the entertainment placement editor. The
 plan fills the whole content area and runs behind a floating panel, so it can
-be panned across the full editor instead of being clipped. Everything that floats sits in one bar, 24px from the bottom like the feedback
-button and centred on the workspace the panel leaves visible: floor and layer
-controls, the tools, snapping, and undo. Zoom lives at the top right of the
+be panned across the full editor instead of being clipped. Everything that floats sits in one bar, 24px from the bottom and centred on
+the workspace the panel leaves visible: floor and layer controls, the tools,
+snapping, and undo. Nothing else floats over the plan — app-wide controls such
+as feedback live in the title bar, so the work area stays clear at every window
+width. The chosen tool carries its name beside its icon; the rest stay icons. Zoom lives at the top right of the
 panel as a readout that opens its own menu — zoom in, out, to fit, and to 50,
 100 or 200 per cent — as drawing tools usually place it. Guidance appears at the top, centred on the
 same strip rather than on the window. The panel is a 320px card inset by 24px
@@ -77,8 +79,9 @@ carries its length until the corner is placed.
 
 Nothing is hidden: every tool states its keys in the hint above the plan — Esc
 cancels or clears, Enter finishes an outline, Backspace removes the last corner,
-arrow keys nudge a selected wall — and a quiet line at the bottom right of the
-work area says drag to pan and scroll to zoom.
+Shift keeps a dragged wall square, arrow keys nudge a selected wall — and a
+quiet line at the bottom right of the work area says drag to pan and scroll to
+zoom.
 
 Grid and ruler steps come from one ladder of round values (5 cm to 100 m), so
 lines land on whole metres at every zoom instead of drifting with the snap
@@ -100,20 +103,40 @@ have rounded line ends and shared segments render once. Light markers are
 fixed-size circles (5px radius) with a background fill and foreground outline
 (2px); they indicate placement and are not individual light controls.
 
+A marker stands for a fixture, not a bulb: every light service the bridge hangs
+off one device is one product in the room, so a three-head spot bar places,
+moves and removes as a single marker, drawn with a filled dot inside its ring
+to say it carries several bulbs. Membership still decides what a control
+affects; the marker only says where the product is.
+
 Editor handles are told apart by shape, not only by size: corners are small
-squares, the dashed circles between them add a corner, and lights stay circles.
-Corner and midpoint handles belong to their tools — Select shows corners and
-walls, Points adds the dashed midpoints, and Place lights shows markers alone —
-so the plan is never covered in dots that mean different things.
+squares, the dashed circle on a wall adds a corner, and lights stay circles.
+Handles belong to their tools — Move shows corners and walls, Place lights
+shows markers alone — so the plan is never covered in dots that mean different
+things. Move keeps one dashed circle for the wall under the pointer instead of
+one on every wall, so a dot always means "add a corner here" and the wall
+itself always means "drag this wall".
 
 ## Components
 
 - **Navigation:** Dashboard / Map and the last selected floor and room are
   remembered per bridge. Saved floor selection clears the current room.
+- **Move:** One tool covers reshaping. Dragging a wall carries it in any
+  direction, not only straight out from itself; Shift restores the square move,
+  and the arrow keys still nudge by the snap increment. A corner within reach
+  pulls the wall onto it, and releasing there welds the two into one shared
+  corner. A corner the wall passes leaves the room whose boundary no longer
+  reaches it and joins the room that grew over it: a point is not a wall, so
+  meeting one never ends a drag. Hovering a wall reveals the dashed circle that
+  adds a corner; the corner can be dragged straight out of that same press.
 - **Room selection:** Map polygons and list buttons expose the same pressed
   state. Enter or Space selects a focused polygon. Clicking blank canvas,
   pressing Escape within the canvas, or using Clear room selection clears it.
   Keep focus visibly distinct from selection.
+- **Entry points:** The map screen names both ways into the editor. Edit map
+  opens it on Move for walls and rooms; Place lights opens it on the light tray
+  and counts the fixtures still missing from the map ("Place lights · 3 left"),
+  so lights are never something the user has to find inside a wall editor.
 - **Layers:** Lights and Dimensions expose pressed states. Lights start visible;
   dimensions start visible for measured maps. Dimension labels show meters or
   feet with a background stroke for legibility and rotate along vertical walls.

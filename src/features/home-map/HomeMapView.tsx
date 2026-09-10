@@ -45,6 +45,7 @@ export function HomeMapView({
   onCreatingChange,
   onSelect,
   onOpenSpace,
+  onStartOver,
   onPreview,
   onDashboard,
 }: {
@@ -59,6 +60,7 @@ export function HomeMapView({
   onCreatingChange: (creating: boolean) => void;
   onSelect: (floorId: string, areaId: string | null) => void;
   onOpenSpace: (id: string) => void;
+  onStartOver: () => void;
   onPreview: () => void;
   onDashboard: () => void;
 }) {
@@ -124,7 +126,21 @@ export function HomeMapView({
       // Successful resources already exist in Hue and are kept either way.
       if (results.some(isUnresolved)) return;
     }
-    await homeMapStore.getState().publish(bridgeId);
+    if (homeMapStore.getState().entries[bridgeId]?.draftState?.draft) {
+      const result = await homeMapStore.getState().publish(bridgeId);
+      if (!result.ok) return;
+    }
+    setHueQueue([]);
+    onEditingChange(false);
+  }
+
+  async function deleteMap() {
+    if (!bridgeId) return;
+    const result = await homeMapStore.getState().deleteMap(bridgeId);
+    if (!result.ok) throw new Error(result.error);
+    setHueQueue([]);
+    createDirty.current = false;
+    onStartOver();
   }
 
   if (preview && Preview)
@@ -215,6 +231,15 @@ export function HomeMapView({
           map={map}
           editing={editing}
           onEditingChange={onEditingChange}
+          onSave={() => void saveMap()}
+          onRevert={async () => {
+            const result = await homeMapStore.getState().discard(bridgeId);
+            if (!result.ok) return;
+            setHueQueue([]);
+            onEditingChange(false);
+          }}
+          hasChanges={draft !== null || hueQueue.some(isUnresolved)}
+          saveError={entry.error}
           selectedFloorId={floorId}
           selectedAreaId={areaId}
           roomZones={roomZones}
@@ -226,6 +251,7 @@ export function HomeMapView({
             if (bridgeId)
               void homeMapStore.getState().applyEdit(bridgeId, next);
           }}
+          onDeleteMap={deleteMap}
           onUndo={() => void homeMapStore.getState().undo(bridgeId)}
           hueQueue={hueQueue}
           hueRunning={hueRunning}
@@ -239,7 +265,7 @@ export function HomeMapView({
             setHueQueue((current) => removeOperation(current, id))
           }
           canUndo={(entry?.draftState?.past.length ?? 0) > 0}
-          busy={entry?.saving ?? false}
+          busy={entry.saving || hueRunning}
         />
       </>
     );

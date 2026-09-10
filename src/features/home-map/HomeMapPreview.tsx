@@ -7,7 +7,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import type { HueLight, HueRoomZone } from "@/types/hue";
 import { CreateMapWizard } from "./components/CreateMapWizard";
 import { HomeMapScreen } from "./HomeMapScreen";
@@ -50,6 +49,7 @@ export default function HomeMapPreview({
   // The example queue is reviewed locally; nothing is ever sent to a bridge.
   const [queue, setQueue] = useState<QueuedHueOperation[]>([]);
   const [editing, setEditing] = useState(false);
+  const [savedMap, setSavedMap] = useState<HomeMapDocument | null>(null);
   const syncedLightIds = mode === "syncing" ? [example.lights[0].id] : [];
   const roomZones = summarizeSampleTargets(example.roomZones, example.lights);
 
@@ -100,6 +100,18 @@ export default function HomeMapPreview({
     resourcesLoading: false,
     hueEventRevision: example.revision,
     error: example.error,
+    onFixtureState: (ids, isOn, brightness) => {
+      if (mode === "offline") return;
+      setExample((current) => ({
+        ...current,
+        revision: current.revision + 1,
+        lights: current.lights.map((light) =>
+          ids.includes(light.id) && !syncedLightIds.includes(light.id)
+            ? { ...light, isOn, brightness: brightness ?? light.brightness }
+            : light,
+        ),
+      }));
+    },
     onRefresh: () => {
       setExample((current) => ({
         ...current,
@@ -208,14 +220,9 @@ export default function HomeMapPreview({
   }
 
   return (
-    <div className={editing ? "h-full min-h-0" : "space-y-4"}>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
       {/* The editor takes over the window, so the example controls step aside. */}
-      <div
-        className={cn(
-          "flex flex-wrap items-center gap-3 text-sm",
-          editing && "hidden",
-        )}
-      >
+      <div className="flex shrink-0 flex-wrap items-center gap-3 px-6 py-2 text-sm">
         <span id="example-connection-label" className="text-muted-foreground">
           Example connection
         </span>
@@ -272,7 +279,23 @@ export default function HomeMapPreview({
         lighting={lighting}
         preview
         editing={editing}
-        onEditingChange={setEditing}
+        onEditingChange={(next) => {
+          if (next) setSavedMap(shown);
+          setEditing(next);
+        }}
+        onSave={() => {
+          setSavedMap(shown);
+          setHistory([]);
+          setQueue([]);
+          setEditing(false);
+        }}
+        onRevert={() => {
+          if (savedMap) showMap(savedMap);
+          setHistory([]);
+          setQueue([]);
+          setEditing(false);
+        }}
+        hasChanges={history.length > 0 || queue.length > 0}
         onOpenSpace={() => {}}
         onEditFloor={editFloor}
         hueQueue={queue}

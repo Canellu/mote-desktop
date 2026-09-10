@@ -7,6 +7,8 @@ import {
   moveWall,
   nearestCorner,
   removeCorner,
+  sharedWallPoint,
+  translateWall,
 } from "../src/features/home-map/walls";
 import type { MapFloor } from "../src/features/home-map/types";
 import { validateMapFloor } from "../src/features/home-map/validation";
@@ -112,6 +114,59 @@ test("a wall cannot be pushed onto or past another wall", () => {
   expect(past.ok).toBe(false);
   const beyond = moveWall(floor(), shared.id, 7);
   expect(beyond.ok).toBe(false);
+});
+
+/** The two rooms above, with a loose corner partway along the left room's top. */
+function floorWithLooseCorner(): MapFloor {
+  const added = insertCorner(floor(), { x: 2, y: 0 }, () => "p");
+  if (!added.ok) throw new Error(added.error);
+  return added.value.floor;
+}
+
+test("a wall dragged onto a corner welds into it", () => {
+  const base = floorWithLooseCorner();
+  const shared = dividingWall(base);
+  // b lands exactly on p, which is what releasing a snapped drag does.
+  const result = translateWall(base, shared.id, { x: -2, y: 0 });
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(validateMapFloor(result.value)).toEqual([]);
+  expect(result.value.vertices.some((vertex) => vertex.id === "b")).toBe(false);
+  expect(at(result.value, "p")).toMatchObject({ x: 2, y: 0 });
+  // Both rooms now meet at the corner the wall was dropped on.
+  for (const area of result.value.areas) expect(area.vertexIds).toContain("p");
+});
+
+test("a wall moves past a corner instead of stopping at it", () => {
+  const base = floorWithLooseCorner();
+  const shared = dividingWall(base);
+  const result = translateWall(base, shared.id, { x: -3, y: 0 });
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(validateMapFloor(result.value)).toEqual([]);
+  expect(at(result.value, "b").x).toBeCloseTo(1, 6);
+  const left = result.value.areas.find((area) => area.id === "left")!;
+  const right = result.value.areas.find((area) => area.id === "right")!;
+  // The corner leaves the room the wall shrank and joins the one it grew.
+  expect(left.vertexIds).not.toContain("p");
+  expect(right.vertexIds).toContain("p");
+});
+
+test("a dragged wall can leave its own axis", () => {
+  const base = floor();
+  const shared = dividingWall(base);
+  const result = translateWall(base, shared.id, { x: 1, y: 0.5 });
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(validateMapFloor(result.value)).toEqual([]);
+  expect(at(result.value, "b")).toMatchObject({ x: 5, y: 0.5 });
+  expect(at(result.value, "c")).toMatchObject({ x: 5, y: 3.5 });
+  expect(at(result.value, "a")).toMatchObject({ x: 0, y: 0 });
+  // The walls that meet the dragged one follow it at an angle.
+  const angled = listWalls(result.value).filter(
+    (wall) => wall.orientation === "angled",
+  );
+  expect(angled.length).toBeGreaterThan(0);
 });
 
 test("moving a wall updates crossing dimensions and unverifies them", () => {
@@ -260,6 +315,42 @@ test("a corner can be added on a wall, on both of its rooms", () => {
   expect(base.vertices).toHaveLength(6);
 });
 
+test("an exact midpoint can be added on an angled shared wall", () => {
+  const base: MapFloor = {
+    id: "angled",
+    name: "Angled floor",
+    vertices: [
+      { id: "a", x: 0, y: 0 },
+      { id: "b", x: 6, y: 0 },
+      { id: "c", x: 4, y: 4 },
+      { id: "d", x: 0, y: 4 },
+      { id: "e", x: 8, y: 4 },
+    ],
+    areas: [
+      {
+        id: "left",
+        name: "Left",
+        vertexIds: ["a", "b", "c", "d"],
+        target: null,
+      },
+      {
+        id: "right",
+        name: "Right",
+        vertexIds: ["b", "e", "c"],
+        target: null,
+      },
+    ],
+    dimensions: [],
+    lights: [],
+  };
+  const result = insertCorner(base, { x: 5, y: 2 }, () => "new");
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  expect(
+    result.value.floor.areas.every((area) => area.vertexIds.includes("new")),
+  ).toBe(true);
+});
+
 test("adding a corner off a wall, or on an existing one, is refused", () => {
   const base = floor();
   expect(insertCorner(base, { x: 2, y: 1.5 }, () => "new")).toEqual({
@@ -394,4 +485,46 @@ test("the nearest corner is offered for merging without dragging", () => {
   expect(nearest?.vertexId).toBe("c");
   expect(nearest?.distanceMeters).toBeCloseTo(0.5, 6);
   expect(nearestCorner(added.value.floor, "missing")).toBeNull();
+});
+
+test("the combine dot sits in the middle of the boundary two rooms share", () => {
+  expect(sharedWallPoint(floor(), "left", "right")).toEqual({ x: 4, y: 1.5 });
+  // Order does not matter, and a room shares no boundary with itself.
+  expect(sharedWallPoint(floor(), "right", "left")).toEqual({ x: 4, y: 1.5 });
+  expect(sharedWallPoint(floor(), "left", "left")).toBeNull();
+  expect(sharedWallPoint(floor(), "left", "missing")).toBeNull();
+
+  // A corner dropped on the divider splits it into two shared segments; the
+  // dot stays on the middle of the whole run rather than one half of it.
+  const added = insertCorner(floor(), { x: 4, y: 2 }, () => "mid");
+  expect(added.ok).toBe(true);
+  if (!added.ok) return;
+  expect(sharedWallPoint(added.value.floor, "left", "right")).toEqual({
+    x: 4,
+    y: 1.5,
+  });
+});
+
+test("rooms that only meet at a corner have no wall to combine across", () => {
+  const base = floor();
+  const diagonal: MapFloor = {
+    ...base,
+    vertices: [
+      ...base.vertices,
+      { id: "g", x: 10, y: 6 },
+      { id: "h", x: 4, y: 6 },
+    ],
+    areas: [
+      ...base.areas,
+      {
+        id: "below",
+        name: "Study",
+        vertexIds: ["c", "f", "g", "h"],
+        target: null,
+      },
+    ],
+  };
+  // The study meets the living room at the single corner (4, 3).
+  expect(sharedWallPoint(diagonal, "left", "below")).toBeNull();
+  expect(sharedWallPoint(diagonal, "right", "below")).toEqual({ x: 7, y: 3 });
 });

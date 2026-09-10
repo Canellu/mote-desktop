@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Combine, FolderPlus, MoveRight, Scissors, Trash2 } from "lucide-react";
+import { FolderPlus, MoveRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,17 +21,10 @@ export function RoomEditorPanel({
   floor,
   area,
   roomZones,
-  combineIds,
-  dividing,
-  combining,
   busy,
   onRename,
   onLink,
   onRemove,
-  onStartDivide,
-  onStartCombine,
-  onCombine,
-  onCancelTool,
   zoneCandidateCount,
   moveCandidateCount,
   onCreateZone,
@@ -40,7 +33,6 @@ export function RoomEditorPanel({
   floor: MapFloor;
   area: MapArea | null;
   roomZones: HueRoomZone[];
-  combineIds: string[];
   dividing: boolean;
   combining: boolean;
   busy: boolean;
@@ -49,7 +41,6 @@ export function RoomEditorPanel({
   onRemove: () => void;
   onStartDivide: () => void;
   onStartCombine: () => void;
-  onCombine: () => void;
   onCancelTool: () => void;
   /** Lights whose markers sit in this room, offered as a new zone. */
   zoneCandidateCount: number;
@@ -63,54 +54,7 @@ export function RoomEditorPanel({
     setName(area?.name ?? "");
   }, [area?.id, area?.name]);
 
-  if (combining)
-    return (
-      <div className="space-y-3">
-        <h3 className="text-base font-medium">Combine rooms</h3>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Click the adjoining rooms to combine. They keep the first room&apos;s
-          name and its Hue link.
-        </p>
-        <ul className="space-y-1 text-sm">
-          {combineIds.map((id, index) => (
-            <li key={id} className="wrap-anywhere">
-              {index + 1}.{" "}
-              {floor.areas.find((entry) => entry.id === id)?.name ?? id}
-            </li>
-          ))}
-          {combineIds.length === 0 && (
-            <li className="text-muted-foreground">No rooms chosen yet.</li>
-          )}
-        </ul>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            disabled={combineIds.length < 2 || busy}
-            onClick={onCombine}
-          >
-            Combine {combineIds.length > 1 ? combineIds.length : ""} rooms
-          </Button>
-          <Button size="sm" variant="outline" onClick={onCancelTool}>
-            Cancel
-          </Button>
-        </div>
-      </div>
-    );
-
-  if (!area)
-    return (
-      <div className="space-y-3">
-        <h3 className="text-base font-medium">Rooms</h3>
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Select a room on the map to rename it, link it to a Hue room or zone,
-          or divide it.
-        </p>
-        <Button size="sm" variant="outline" onClick={onStartCombine}>
-          <Combine />
-          Combine rooms
-        </Button>
-      </div>
-    );
+  if (!area) return null;
 
   const linked = area.target
     ? roomZones.find(
@@ -180,25 +124,6 @@ export function RoomEditorPanel({
       </div>
 
       <div className="flex flex-wrap gap-2">
-        <Button
-          size="sm"
-          variant={dividing ? "secondary" : "outline"}
-          aria-pressed={dividing}
-          onClick={dividing ? onCancelTool : onStartDivide}
-          disabled={busy}
-        >
-          <Scissors />
-          {dividing ? "Cancel divide" : "Divide room"}
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={onStartCombine}
-          disabled={busy}
-        >
-          <Combine />
-          Combine
-        </Button>
         <Button
           size="sm"
           variant="ghost"
