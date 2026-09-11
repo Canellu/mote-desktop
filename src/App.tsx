@@ -25,7 +25,6 @@ import {
   ERROR_BOUNDARY_VIEW_ID,
   widgetWizardStepForViewId,
 } from "@/features/setup-wizard/hooks/useDevViews";
-import { WidgetWizard } from "@/features/settings-screen/components/WidgetWizard";
 import { RouterProvider } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { motion, useReducedMotion, type Variants } from "motion/react";
@@ -159,6 +158,7 @@ function App() {
   const initialResourcesLoadStartedRef = useRef(false);
   const resourcesHasLoaded = useHueResourcesStore((state) => state.hasLoaded);
   const loadHueResources = useHueResourcesStore((state) => state.loadAll);
+  const widgetWizardDevStep = widgetWizardStepForViewId(dev.viewId);
 
   useEffect(() => {
     if (dev.enabled || !configured || !connected || resourcesHasLoaded) return;
@@ -179,6 +179,16 @@ function App() {
       initialResourcesLoadStartedRef.current = false;
     }
   }, [configured, connected]);
+
+  useEffect(() => {
+    if (!dev.enabled || widgetWizardDevStep === null) return;
+
+    void router.navigate({
+      to: "/settings/widget-wizard",
+      search: { step: widgetWizardDevStep },
+      replace: true,
+    });
+  }, [dev.enabled, widgetWizardDevStep]);
 
   // Dev preview path: the wizard dev toolbar drives which mock view shows.
   const renderDevContent = (): RenderedAppContent => {
@@ -234,19 +244,12 @@ function App() {
       };
     }
 
-    const widgetWizardStep = widgetWizardStepForViewId(dev.viewId);
-    if (widgetWizardStep !== null) {
+    if (widgetWizardDevStep !== null) {
       return {
-        viewKey: "widget-wizard",
-        content: (
-          // Keyed by view id so picking another screen remounts the wizard at
-          // that step instead of keeping the previous step's internal state.
-          <WidgetWizard
-            key={dev.viewId}
-            initialStep={widgetWizardStep}
-            onCreate={() => dev.selectView("home-preview")}
-          />
-        ),
+        // Render the real routed shell so dev previews inherit the same header,
+        // viewport padding, scroll ownership, and footer constraints as the app.
+        viewKey: "home-preview",
+        content: <HomeApp />,
       };
     }
 
@@ -379,6 +382,7 @@ function App() {
             ? () => dev.selectView("success")
             : undefined
         }
+        actions={<FeedbackButton />}
       />
       {dev.enabled && (
         <WizardDevToolbar
@@ -395,7 +399,6 @@ function App() {
       <AppContentTransition viewKey={rendered.viewKey}>
         {rendered.content}
       </AppContentTransition>
-      <FeedbackButton />
       <DevUrlBar />
     </main>
   );

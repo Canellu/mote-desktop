@@ -4,6 +4,7 @@ import {
   Cable,
   CircleHelp,
   Home,
+  Keyboard,
   Monitor,
   MonitorPlay,
   Palette,
@@ -50,6 +51,13 @@ export const settingsTabs = [
     group: "app",
     description: "Set app appearance and desktop window behavior.",
     icon: Monitor,
+  },
+  {
+    value: "shortcuts",
+    label: "Shortcuts",
+    group: "app",
+    description: "Choose global keyboard shortcuts for lights and scenes.",
+    icon: Keyboard,
   },
   {
     value: "widget",

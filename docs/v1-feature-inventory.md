@@ -79,7 +79,7 @@ Per-bridge or multiple-Sync-Box association is not part of v1.
 
 ### Desktop widgets
 
-- Create and manage up to three desktop widget windows.
+- Create and manage any number of desktop widget windows.
 - Choose widget targets and controls.
 - Open, close, remove, pin, position, resize, and set always-on-top behavior.
 - Persist supported widget configuration and window placement locally.

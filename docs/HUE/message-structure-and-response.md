@@ -1,6 +1,17 @@
 ---
 title: "Hue API v1 Message Structure and Response"
-keywords: ["Hue API v1", "message structure", "HTTP methods", "GET", "PUT", "POST", "DELETE", "responses", "access types"]
+keywords:
+  [
+    "Hue API v1",
+    "message structure",
+    "HTTP methods",
+    "GET",
+    "PUT",
+    "POST",
+    "DELETE",
+    "responses",
+    "access types",
+  ]
 summary: "Explains Hue API v1 HTTP method usage, request and response structure, bridge access types, and how bridge responses are formatted."
 ---
 
@@ -67,14 +78,14 @@ Depending if the user has an original Hue Bridge or a Bridge v2 (HomeKit) a typi
 
 ```json
 {
-    "name": "Philips hue",
-    "apiversion": "1.10.0",
-    "swversion": "01028090",
-    "mac": "00:17:88:20:01:0a",
-    "bridgeid": "001788FFFE20010A",
-    "replacesbridgeid": null,
-    "factorynew": false,
-    "modelid": "BSB001"
+  "name": "Philips hue",
+  "apiversion": "1.10.0",
+  "swversion": "01028090",
+  "mac": "00:17:88:20:01:0a",
+  "bridgeid": "001788FFFE20010A",
+  "replacesbridgeid": null,
+  "factorynew": false,
+  "modelid": "BSB001"
 }
 ```
 
@@ -82,17 +93,17 @@ or on a Bridge 2 bridge that has had it’s data transferred from an old bridge:
 
 ```json
 {
-    "name": "My home bridge",
-    "apiversion": "1.10.0",
-    "swversion": "01028090",
-    "mac": "00:17:88:20:0a:bc",
-    "bridgeid": "001788FFFE200ABC",
-    "replacesbridgeid": "001788FFFE0ABCDE",
-    "factorynew": false,
-    "modelid": "BSB002"
+  "name": "My home bridge",
+  "apiversion": "1.10.0",
+  "swversion": "01028090",
+  "mac": "00:17:88:20:0a:bc",
+  "bridgeid": "001788FFFE200ABC",
+  "replacesbridgeid": "001788FFFE0ABCDE",
+  "factorynew": false,
+  "modelid": "BSB002"
 }
 ```
 
 **Note**: The response may differ slightly depending on the API Version number. For example: **replacesbridgeid**, **factorynew** and **modelid**
 
-[\[1\]](https://developers.meethue.com/documentation/message-structure-and-response-0#_ftnref1) [http://en.wikipedia.org/wiki/Representational\_state\_transfer](http://en.wikipedia.org/wiki/Representational_state_transfer)
+[\[1\]](https://developers.meethue.com/documentation/message-structure-and-response-0#_ftnref1) [http://en.wikipedia.org/wiki/Representational_state_transfer](http://en.wikipedia.org/wiki/Representational_state_transfer)

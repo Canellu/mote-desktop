@@ -1,6 +1,14 @@
 ---
 title: "Per-Bridge Sync Box Plan"
-keywords: ["sync box", "multi-bridge", "bridge switcher", "pairing", "per-bridge", "HDMI Sync Box"]
+keywords:
+  [
+    "sync box",
+    "multi-bridge",
+    "bridge switcher",
+    "pairing",
+    "per-bridge",
+    "HDMI Sync Box",
+  ]
 summary: "Scope the paired HDMI Sync Box to the active bridge so switching bridges switches the Sync view and its connected box. One box per bridge, keyed and validated by bridge id."
 ---
 
@@ -29,7 +37,7 @@ This mirrors the multi-bridge switcher that already exists for the rest of the a
 Effectively yes, with one nuance worth encoding in the design:
 
 - The Sync Box **access-token registration** is created on the **box** itself
-  (`POST /api/v1/registrations`), so the token authorizes *this app → that box*,
+  (`POST /api/v1/registrations`), so the token authorizes _this app → that box_,
   independent of any bridge.
 - But every box is bound to exactly **one** bridge and reports it: `hue.bridgeUniqueId`
   / `hue.bridgeIpAddress` in the box state
@@ -39,7 +47,7 @@ Effectively yes, with one nuance worth encoding in the design:
 
 So we **key the stored box + token by bridge id**, and **validate** each box against the
 active bridge by comparing `hue.bridgeUniqueId` to the active bridge's id. Re-pairing a
-box to a *different* bridge is done in the official Hue Sync app (or via `PUT /hue`, a
+box to a _different_ bridge is done in the official Hue Sync app (or via `PUT /hue`, a
 non-goal here) — our app only remembers which box belongs to which bridge and warns on
 mismatch.
 
@@ -49,23 +57,23 @@ mismatch.
 boxes syncing at the same time. This **works**, and it requires no extra streaming
 architecture, because of a fundamental difference between the app's two "sync" concepts:
 
-| | Who streams? | Concurrency |
-| --- | --- | --- |
-| **PC / host sync** ([engine.rs](../src-tauri/src/services/entertainment/engine.rs)) | **the app** holds the DTLS stream open | Single session; tied to the active bridge; **stopped on every bridge switch** ([switchBridge L119](../src/context/HueContext.tsx#L119)) |
-| **HDMI Sync Box** | **the box** (autonomous hardware) holds the stream; the app just fires `PUT /execution` and walks away | Each box streams to *its own* bridge → any number can run at once, one per bridge |
+|                                                                                     | Who streams?                                                                                           | Concurrency                                                                                                                             |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **PC / host sync** ([engine.rs](../src-tauri/src/services/entertainment/engine.rs)) | **the app** holds the DTLS stream open                                                                 | Single session; tied to the active bridge; **stopped on every bridge switch** ([switchBridge L119](../src/context/HueContext.tsx#L119)) |
+| **HDMI Sync Box**                                                                   | **the box** (autonomous hardware) holds the stream; the app just fires `PUT /execution` and walks away | Each box streams to _its own_ bridge → any number can run at once, one per bridge                                                       |
 
 Because the box is autonomous, telling Box A `{syncActive: true}` makes it sync on its
 own; the app switching its active bridge afterward does **not** stop Box A. Start Box B on
 Bridge B and both run simultaneously — the one-stream-per-bridge limit is satisfied because
-each box streams to a *different* bridge.
+each box streams to a _different_ bridge.
 
 **Design implication (must-hold invariant):** a bridge switch changes which box the app
-*displays and controls* — it must **never** send stop to a Sync Box. Only PC host-sync is
+_displays and controls_ — it must **never** send stop to a Sync Box. Only PC host-sync is
 torn down on switch (as it is today). A running box on the now-inactive bridge keeps
 syncing; the app simply isn't showing its controls until you switch back.
 
-**Boundary:** the app can *control/observe* only the active bridge's box at a time (both
-can be *running*). Seeing both boxes' live state side by side is a separate multi-box
+**Boundary:** the app can _control/observe_ only the active bridge's box at a time (both
+can be _running_). Seeing both boxes' live state side by side is a separate multi-box
 overview (`list-sync-boxes`, optional below), not required to run both simultaneously.
 
 ## Current state (single-box singleton)
@@ -78,11 +86,11 @@ Backend — [sync_box_client.rs](../src-tauri/src/services/sync_box_client.rs):
   [L669-L699](../src-tauri/src/services/sync_box_client.rs#L669-L699)).
 - One access token: keyring account `hue-sync-box-access-token`
   ([L16](../src-tauri/src/services/sync_box_client.rs#L16)).
-- One cached pinned client: *"the one configured box"*
+- One cached pinned client: _"the one configured box"_
   ([L184](../src-tauri/src/services/sync_box_client.rs#L184)). The cache key
   (`SecureTarget` = uniqueId/ip/port) already rebuilds on change, so it is
   correct for switching — it just holds one entry at a time.
-- Every command resolves *"the saved Sync Box"* with no bridge/box selector
+- Every command resolves _"the saved Sync Box"_ with no bridge/box selector
   ([sync_box.rs](../src-tauri/src/commands/sync_box.rs)).
 
 Frontend:
@@ -112,7 +120,7 @@ active bridge). Only the Sync **Box** is a global singleton — that is the whol
 - Bridge id normalized to uppercase to match `BridgeStore` normalization
   ([hue_client.rs L136-L142, L4488](../src-tauri/src/services/hue_client.rs#L136)).
 
-The "active box" is always *the box stored under the active bridge id*. There is no
+The "active box" is always _the box stored under the active bridge id_. There is no
 separate box-selector state — the bridge switcher is the selector.
 
 ### Where the active bridge is resolved
@@ -131,7 +139,7 @@ let bridge_id = bridge.bridge_id; // already uppercase-normalized
 commands already take `AppHandle`, so this is a light, existing coupling (discovery.rs
 already bridges the entertainment + hue_client modules).
 
-*Alternative:* pass `bridgeId` from the frontend on every command. Rejected as the
+_Alternative:_ pass `bridgeId` from the frontend on every command. Rejected as the
 default — it threads bridge id through more call sites and risks the frontend and backend
 disagreeing about "active."
 
@@ -151,16 +159,16 @@ disagreeing about "active."
 3. **Resolve active bridge** at the top of each saved-state method
    (`get_saved_state`, `update_saved_execution`, `update_saved_source_mode`,
    `restore_session`, `save_session`, `clear_session`) via `get_stored_bridge`, then load
-   the box/token for that bridge id. Error text when none: *"No Sync Box is paired for
-   this bridge."*
+   the box/token for that bridge id. Error text when none: _"No Sync Box is paired for
+   this bridge."_
 4. **Capture the box's bridge.** Extend `SyncBoxHue` to deserialize `bridgeUniqueId` and
    `bridgeIpAddress` (currently dropped). Add a `bridge_id: String` field to
    `StoredSyncBoxInfo` recording the bridge the box reported at pairing time.
 5. **Validation helper.** `fn box_matches_active_bridge(state, active_bridge_id) -> bool`
    comparing `state.hue.bridge_unique_id` to the active id, case-insensitively. Surface a
    non-fatal warning in `SyncBoxSession`/state when they differ (new `bridge_mismatch:
-   Option<String>` on `SyncBoxSession`), e.g. *"This Sync Box is paired to a different
-   bridge in the Hue Sync app."*
+Option<String>` on `SyncBoxSession`), e.g. _"This Sync Box is paired to a different
+   bridge in the Hue Sync app."_
 6. **Secure-client cache (optional).** `Mutex<Option<(SecureTarget, Client)>>` →
    `Mutex<HashMap<String /*uniqueId*/, (SecureTarget, Client)>>` to avoid rebuilding the
    pinned TLS client on every bridge switch. Correct without this change; purely an
@@ -194,7 +202,7 @@ disagreeing about "active."
    one, render as today. No box-switcher UI — the bridge switcher drives it.
 4. **Onboarding** ([SyncBoxOnboardingWizard](../src/features/sync-box/SyncBoxOnboardingWizard.tsx)):
    pairing associates with the active bridge. If the discovered box reports a different
-   `bridgeUniqueId`, warn: the box must be paired to *this* bridge in the Hue Sync app, or
+   `bridgeUniqueId`, warn: the box must be paired to _this_ bridge in the Hue Sync app, or
    switch to the bridge it belongs to. (Discovery still lists all boxes on the LAN.)
 5. **Types** ([types/sync-box.ts](../src/types/sync-box.ts)): add `bridgeUniqueId` /
    `bridgeIpAddress` to the hue state and `bridgeMismatch` to the session.
@@ -217,7 +225,7 @@ This keeps existing single-box users working with zero re-pairing in the common 
 ## Edge cases
 
 - **Bridge with no box:** Sync view empty state + pair CTA. Commands return
-  *"No Sync Box is paired for this bridge."*
+  _"No Sync Box is paired for this bridge."_
 - **Box paired to a different bridge than active:** show `bridgeMismatch` warning; do not
   auto-issue execution changes blindly (the box will 400 with "Invalid state" anyway).
 - **Remove bridge:** `remove-hue-bridge` must also clear `syncBoxes[<bridgeId>]` and its
@@ -226,7 +234,7 @@ This keeps existing single-box users working with zero re-pairing in the common 
   old entry becomes stale and its token 401s → prompt to re-pair. Acceptable.
 - **One box, two bridges:** the second bridge simply has no box. Fine.
 - **Both boxes syncing at once:** fully supported. Because each box is autonomous and
-  streams to its *own* bridge, starting Box A then switching to Bridge B and starting Box B
+  streams to its _own_ bridge, starting Box A then switching to Bridge B and starting Box B
   leaves both running. The switch only changes which box is displayed/controlled; it never
   stops a box. (See "Can two boxes sync simultaneously across two bridges".)
 
@@ -235,9 +243,9 @@ This keeps existing single-box users working with zero re-pairing in the common 
 - Re-pairing a box to a different bridge from this app (`PUT /hue` with
   bridgeUniqueId/username/clientKey). Out of scope; use the official Hue Sync app.
 - More than one box **per bridge**. One box per bridge by design (one stream per bridge).
-  *(Note: two boxes on two bridges syncing simultaneously **is** supported — that's the
-  autonomous-hardware case above, not a non-goal.)*
-- Simultaneous **PC host-sync** across bridges (the *app* can only stream to one bridge at
+  _(Note: two boxes on two bridges syncing simultaneously **is** supported — that's the
+  autonomous-hardware case above, not a non-goal.)_
+- Simultaneous **PC host-sync** across bridges (the _app_ can only stream to one bridge at
   a time — that constraint is unchanged and unrelated to HDMI boxes).
 - Controlling/observing both boxes on one screen at the same time. The plan is
   switch-driven for control; a side-by-side multi-box dashboard is a later add
@@ -268,4 +276,4 @@ Frontend / integration:
 3. **Frontend switch hook**: reload Sync Box on `switchBridge`/`removeBridge`; empty state
    for bridges with no box.
 4. **Onboarding association + mismatch prompt.**
-5. *(Optional)* secure-client cache map; `list-sync-boxes` overview.
+5. _(Optional)_ secure-client cache map; `list-sync-boxes` overview.

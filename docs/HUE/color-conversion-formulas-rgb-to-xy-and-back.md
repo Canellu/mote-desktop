@@ -1,6 +1,15 @@
 ---
 title: "Color Conversion Formulas RGB to XY and Back"
-keywords: ["color conversion", "RGB", "CIE xy", "gamut", "HSV", "color temperature", "Philips Hue color"]
+keywords:
+  [
+    "color conversion",
+    "RGB",
+    "CIE xy",
+    "gamut",
+    "HSV",
+    "color temperature",
+    "Philips Hue color",
+  ]
 summary: "Formulas and code snippets for converting between RGB, CIE xy, HSV, and Hue color gamuts, including practical notes for Hue color lights."
 ---
 

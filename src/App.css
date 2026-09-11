@@ -23,6 +23,7 @@
   --color-chart-2: var(--chart-2);
   --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
+  --color-placement-pin-foreground: var(--placement-pin-foreground);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-interactive-hover: var(--interactive-hover);
@@ -148,6 +149,8 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  /* Placement test colors are deliberately bright, including pure white. */
+  --placement-pin-foreground: oklch(0.145 0 0);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);

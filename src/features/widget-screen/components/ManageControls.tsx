@@ -180,7 +180,8 @@ const ControlRow = ({
     <div
       ref={setNodeRef}
       style={{
-        transform: CSS.Transform.toString(transform),
+        // Keep expanded and collapsed rows at their own size while reordering.
+        transform: CSS.Translate.toString(transform),
         transition,
         opacity: isDragging ? 0.65 : 1,
         zIndex: isDragging ? 10 : undefined,

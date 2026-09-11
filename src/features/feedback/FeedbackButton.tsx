@@ -25,13 +25,14 @@ import {
 import { MessageSquareText, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useFeedbackPreferences } from "./preferences";
 
 const MAX_MESSAGE_LENGTH = 1_200;
 
 const feedbackCategories = {
-  bug: "Bug report",
-  feature: "Feature suggestion",
+  bug: "Report a bug",
+  feature: "Suggest a feature",
   general: "General feedback",
 } as const;
 
@@ -57,18 +58,25 @@ export const FeedbackButton = () => {
 
   if (preferences.buttonMode === "hidden") return null;
 
+  // Lives in the title bar, so it never floats over a full-bleed workspace.
   const trigger = (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size={preferences.buttonMode === "icon" ? "icon" : "default"}
-      className="fixed bottom-5 left-5 z-40 gap-2 border-foreground/10 bg-background/60 shadow-lg backdrop-blur-md hover:bg-background/75 dark:border-white/10 dark:bg-background/30 dark:backdrop-blur-xl dark:hover:bg-background/45"
-      onClick={() => setOpen(true)}
       aria-label="Send feedback"
+      onMouseDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        setOpen(true);
+      }}
+      className={cn(
+        "flex h-full items-center justify-center gap-1.5 text-muted-foreground transition-colors hover:bg-foreground/5 hover:text-foreground dark:hover:bg-foreground/10",
+        preferences.buttonMode === "icon" ? "aspect-square" : "px-3 text-xs",
+      )}
     >
-      <MessageSquareText />
+      <MessageSquareText size={16} strokeWidth={2.2} />
       {preferences.buttonMode === "full" && "Feedback"}
-    </Button>
+    </button>
   );
 
   return (
@@ -77,7 +85,7 @@ export const FeedbackButton = () => {
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger render={trigger} />
-            <TooltipContent side="right">Send feedback</TooltipContent>
+            <TooltipContent side="bottom">Send feedback</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       ) : (
@@ -105,9 +113,11 @@ export const FeedbackButton = () => {
                 <SelectValue>{() => feedbackCategories[category]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="bug">Report a bug</SelectItem>
-                <SelectItem value="feature">Suggest a feature</SelectItem>
-                <SelectItem value="general">General feedback</SelectItem>
+                {Object.entries(feedbackCategories).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

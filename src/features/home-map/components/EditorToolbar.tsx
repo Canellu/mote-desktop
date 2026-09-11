@@ -34,6 +34,7 @@ export function EditorToolbar({
   busy,
   leading,
   rightInset,
+  leftInset = 0,
   onToolChange,
   onSnapChange,
   onUndo,
@@ -48,6 +49,8 @@ export function EditorToolbar({
   leading?: React.ReactNode;
   /** Width taken by the panel and the zoom group, so the bar centres clear. */
   rightInset: number;
+  /** Width taken by the fixture tray, so the bar centres clear of it too. */
+  leftInset?: number;
   onToolChange: (tool: EditorTool) => void;
   onSnapChange: (settings: SnapSettings) => void;
   onMeasurementChange: (settings: MeasurementDisplaySettings) => void;
@@ -57,8 +60,8 @@ export function EditorToolbar({
     // Centred on the strip the panel and the zoom group leave free.
     <div
       // A container, so the bar answers to its own strip and not the window.
-      className="@container pointer-events-none absolute bottom-6 left-0 flex justify-center"
-      style={{ right: rightInset }}
+      className="@container pointer-events-none absolute bottom-6 flex justify-center transition-[left,right] duration-200"
+      style={{ left: leftInset, right: rightInset }}
     >
       <div
         role="toolbar"

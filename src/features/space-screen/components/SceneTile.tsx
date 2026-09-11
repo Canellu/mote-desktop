@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
  */
 export const SceneTile: React.FC<{
   name: string;
+  subtitle?: string;
   visual: React.ReactNode;
   onActivate: () => void;
   /** The tile paints its own palette as the background (drop-shadowed name). */
@@ -42,6 +43,7 @@ export const SceneTile: React.FC<{
   editId?: string;
 }> = ({
   name,
+  subtitle,
   visual,
   onActivate,
   activeBackground = false,
@@ -68,6 +70,8 @@ export const SceneTile: React.FC<{
       tabIndex={disabled ? -1 : 0}
       aria-pressed={ariaPressed}
       aria-disabled={disabled || undefined}
+      aria-label={subtitle ? `${name}: ${subtitle}` : undefined}
+      title={subtitle ? `${name}: ${subtitle}` : undefined}
       onClick={() => {
         if (!disabled) onActivate();
       }}
@@ -141,13 +145,14 @@ export const SceneTile: React.FC<{
       </div>
       <span
         className={cn(
-          "flex min-w-0 flex-col items-center justify-center",
+          "flex w-full min-w-0 flex-col items-center justify-center",
           tiny ? "h-7" : small ? "h-9" : "h-11",
         )}
       >
         <span
           className={cn(
-            "line-clamp-2 max-w-full font-medium wrap-break-word",
+            "max-w-full font-medium wrap-normal",
+            subtitle ? "w-full truncate" : "line-clamp-2",
             tiny
               ? "text-[11px] leading-tight tracking-[0.03em]"
               : small
@@ -158,6 +163,19 @@ export const SceneTile: React.FC<{
         >
           {name}
         </span>
+        {subtitle && (
+          <span
+            className={cn(
+              "w-full truncate text-xs leading-tight",
+              tiny && "text-[11px]",
+              activeBackground
+                ? "text-foreground/80 drop-shadow"
+                : "text-muted-foreground",
+            )}
+          >
+            {subtitle}
+          </span>
+        )}
       </span>
     </Card>
   );

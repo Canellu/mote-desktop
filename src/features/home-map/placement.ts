@@ -1,10 +1,15 @@
 import type { HueLight, HueRoomZone } from "@/types/hue";
-import { groupFixtures, type MapFixture } from "./fixtures";
+import {
+  groupDeviceFixtures,
+  groupFixtures,
+  type MapFixture,
+} from "./fixtures";
 import { locatePoint } from "./geometry";
 import { getAreaLabelPoint } from "./viewGeometry";
 import type {
   HomeMapDocument,
   MapArea,
+  MapFixtureGroup,
   MapFloor,
   MapPoint,
   MapResult,
@@ -106,8 +111,12 @@ export function findFixturePlacement(
   return {
     floorId: best.floorId,
     point: {
-      x: best.points.reduce((sum, point) => sum + point.x, 0) / best.points.length,
-      y: best.points.reduce((sum, point) => sum + point.y, 0) / best.points.length,
+      x:
+        best.points.reduce((sum, point) => sum + point.x, 0) /
+        best.points.length,
+      y:
+        best.points.reduce((sum, point) => sum + point.y, 0) /
+        best.points.length,
     },
     placedCount: best.points.length,
   };
@@ -177,6 +186,19 @@ export interface TrayFixture {
   /** The mapped area the marker sits in, which may differ from its target. */
   areaName: string | null;
   outsideTarget: boolean;
+  /** The product this fixture would rejoin, when the map is keeping it apart. */
+  rejoins: string | null;
+}
+
+/** Light id to the Hue room or zone that controls it, which bounds a product. */
+export function targetsOfLights(
+  roomZones: readonly HueRoomZone[],
+): Record<string, string> {
+  const targets: Record<string, string> = {};
+  for (const target of roomZones)
+    for (const lightId of target.lightIds)
+      targets[lightId] = `${target.resourceType}:${target.id}`;
+  return targets;
 }
 
 /** Describes every bridge fixture against the map, for the placement tray. */
@@ -185,7 +207,22 @@ export function buildTray(
   lights: HueLight[],
   roomZones: HueRoomZone[],
 ): TrayFixture[] {
-  return groupFixtures(lights).map((fixture) => {
+  const targetOfLight = targetsOfLights(roomZones);
+  // What the map would group on its own, so a split row can offer to rejoin.
+  const automatic =
+    map.fixtures && map.fixtures.length > 0
+      ? groupFixtures(lights, { targetOfLight })
+      : null;
+  return groupFixtures(lights, {
+    targetOfLight,
+    overrides: map.fixtures,
+  }).map((fixture) => {
+    const rejoin =
+      automatic?.find(
+        (entry) =>
+          entry.deviceCount > fixture.deviceCount &&
+          entry.lightIds.includes(fixture.lightIds[0]),
+      ) ?? null;
     const placement = findFixturePlacement(map, fixture.lightIds);
     const placedFloor = placement
       ? (map.floors.find((entry) => entry.id === placement.floorId) ?? null)
@@ -242,8 +279,76 @@ export function buildTray(
           area.target.resourceType === target.resourceType
         ),
       ),
+      rejoins: rejoin?.name ?? null,
     };
   });
+}
+
+/** Records a grouping decision, replacing whatever covered the same lights. */
+function withFixtureGroups(
+  document: HomeMapDocument,
+  drop: ReadonlySet<string>,
+  add: readonly MapFixtureGroup[],
+): MapResult<HomeMapDocument> {
+  const kept = (document.fixtures ?? []).filter(
+    (group) => !group.lightIds.some((id) => drop.has(id)),
+  );
+  const fixtures = [...kept, ...add];
+  const next: HomeMapDocument = { ...document };
+  if (fixtures.length > 0) next.fixtures = fixtures;
+  else delete next.fixtures;
+  const issue = validateHomeMap(next)[0];
+  return issue
+    ? { ok: false, error: issue.message }
+    : { ok: true, value: next };
+}
+
+/**
+ * Splits a product back into the devices the bridge reports, for lights joined
+ * up by name and room that are really separate lamps.
+ */
+export function splitFixture(
+  document: HomeMapDocument,
+  lights: readonly HueLight[],
+  roomZones: readonly HueRoomZone[],
+  fixtureId: string,
+): MapResult<HomeMapDocument> {
+  const fixture = groupFixtures(lights, {
+    targetOfLight: targetsOfLights(roomZones),
+    overrides: document.fixtures,
+  }).find((entry) => entry.id === fixtureId);
+  if (!fixture) return { ok: false, error: "That fixture is not on the map." };
+  if (fixture.deviceCount < 2)
+    return { ok: false, error: "This fixture is already one device." };
+  return withFixtureGroups(
+    document,
+    new Set(fixture.lightIds),
+    groupDeviceFixtures(fixture.lights).map((device) => ({
+      id: device.id,
+      lightIds: device.lightIds,
+    })),
+  );
+}
+
+/** Undoes a split, letting the product group itself up again. */
+export function rejoinFixture(
+  document: HomeMapDocument,
+  lights: readonly HueLight[],
+  roomZones: readonly HueRoomZone[],
+  fixtureId: string,
+): MapResult<HomeMapDocument> {
+  const targetOfLight = targetsOfLights(roomZones);
+  const fixture = groupFixtures(lights, {
+    targetOfLight,
+    overrides: document.fixtures,
+  }).find((entry) => entry.id === fixtureId);
+  if (!fixture) return { ok: false, error: "That fixture is not on the map." };
+  const product = groupFixtures(lights, { targetOfLight }).find((entry) =>
+    entry.lightIds.includes(fixture.lightIds[0]),
+  );
+  if (!product || product.deviceCount <= fixture.deviceCount)
+    return { ok: false, error: "There is nothing to rejoin this to." };
+  return withFixtureGroups(document, new Set(product.lightIds), []);
 }
 
 /** Floors are added empty; the draw tool gives the first room its shape. */

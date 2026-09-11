@@ -24,7 +24,7 @@ HDMI Sync Box on the LAN, pair with it, and let the user:
 - See live state (current mode, source, content specs, sync supported, errors).
 
 The Sync Box has its **own HTTP JSON API** (`https://<ip>/api/v1/...`) that is
-*separate* from the Bridge's CLIP v2 API, but architecturally a near-twin:
+_separate_ from the Bridge's CLIP v2 API, but architecturally a near-twin:
 mDNS discovery → pushlink registration → bearer-token HTTPS calls. This is why
 most of the work is repeating patterns already in `hue_client.rs`.
 
@@ -35,7 +35,7 @@ most of the work is repeating patterns already in `hue_client.rs`.
 
 ## Why this shape (decisions to make / made)
 
-- **The Sync Box is a distinct device from the Bridge.** It is *not* reachable
+- **The Sync Box is a distinct device from the Bridge.** It is _not_ reachable
   through the Bridge API. It is its own networked box with its own pairing and
   token. We model it as a separate service + separate stored session, sitting
   alongside the existing Bridge session, not inside it.
@@ -68,20 +68,21 @@ most of the work is repeating patterns already in `hue_client.rs`.
 
 ### New / changed files
 
-| File | Purpose |
-|---|---|
+| File                                        | Purpose                                                              |
+| ------------------------------------------- | -------------------------------------------------------------------- |
 | `src-tauri/src/services/sync_box_client.rs` | New. Discovery, registration, state GET, execution PUTs, TLS config. |
-| `src-tauri/src/commands/sync_box.rs` | New. Tauri commands wrapping the client. |
-| `src-tauri/src/commands/mod.rs` | Register the new commands. |
-| `src-tauri/src/lib.rs` | Add commands to the invoke handler. |
-| `src-tauri/assets/hsb_cacert.pem` | New (Phase 2). Pinned Sync Box CA cert. |
-| `src/features/sync-box/*` | Sync Box screen, onboarding, polling, and constants. |
-| `src/stores/SyncBoxStore.ts` | Sync Box session and execution state. |
-| `src/types/sync-box.ts` | TypeScript API types. |
+| `src-tauri/src/commands/sync_box.rs`        | New. Tauri commands wrapping the client.                             |
+| `src-tauri/src/commands/mod.rs`             | Register the new commands.                                           |
+| `src-tauri/src/lib.rs`                      | Add commands to the invoke handler.                                  |
+| `src-tauri/assets/hsb_cacert.pem`           | New (Phase 2). Pinned Sync Box CA cert.                              |
+| `src/features/sync-box/*`                   | Sync Box screen, onboarding, polling, and constants.                 |
+| `src/stores/SyncBoxStore.ts`                | Sync Box session and execution state.                                |
+| `src/types/sync-box.ts`                     | TypeScript API types.                                                |
 
 ## API surface we actually use
 
 Discovery / auth (no auth header needed for the first two):
+
 - `GET  /api/v1/device` — basic info, **read apiLevel here before anything else**.
 - `POST /api/v1/registrations` `{"appName","instanceName"}` — pushlink; returns
   `{"registrationId","accessToken"}`. Returns `{"code":16}` ("Invalid State")
@@ -90,8 +91,9 @@ Discovery / auth (no auth header needed for the first two):
 - `GET  /api/v1` — full state tree (device, hue, execution, hdmi, behavior, ...).
 
 Control (all bearer-authed PUTs to `/api/v1/execution`):
+
 - Start/stop sync: `{"syncActive": true|false}` (needs `hue.connectionState ==
-  connected`; false → passthrough).
+connected`; false → passthrough).
 - Power: `{"hdmiActive": true|false}` (false → powersave).
 - Mode: `{"mode": "video|game|music|ambient|passthrough|powersave"}`
   (clients must gracefully ignore unknown modes).
@@ -104,6 +106,7 @@ Control (all bearer-authed PUTs to `/api/v1/execution`):
   `cycleHdmiSource`, `incrementBrightness`, `cycleIntensity`).
 
 Errors to handle explicitly:
+
 - `device.overheating == true` or `device.undervolt == true` → **critical**,
   show prominently.
 - HTTP 16 / "Invalid state" during PUT → e.g. tried to sync before hue
@@ -128,7 +131,7 @@ stricter and more specific for production:
 
 1. **Pin a custom CA.** The box presents a certificate signed by a Philips
    "Sync Box CA". You're meant to bundle `hsb_cacert.pem` in the app and trust
-   *only* that CA — not the OS trust store.
+   _only_ that CA — not the OS trust store.
 2. **Validate the common name = device uniqueId.** The cert's CN is the device's
    12-char `uniqueId` (e.g. `C42996000000`), **not** an IP and **not** a DNS name
    you'd normally connect to.
@@ -140,11 +143,11 @@ hostname you dialed matches the cert's CN/SAN — which will **fail**, because
 
 ### Implemented TLS resolution
 
-| Option | How | Trade-off |
-|---|---|---|
-| **A. Connect by hostname, resolve yourself** | Dial `https://<uniqueId>/...` and tell reqwest to resolve that name to the discovered IP (`ClientBuilder::resolve(uniqueId, ip:443)`). Hostname then matches CN naturally. | Cleanest, keeps full validation. Needs the box's cert CN to actually equal uniqueId (verify in the spike). |
-| **B. Connect by IP, disable hostname check only** | `add_root_certificate(hsb_ca)` + `danger_accept_invalid_hostnames(true)`. Still validates the chain against the pinned CA; only skips the name match. | Simple. Slightly weaker (a different box with a CA-signed cert on that IP would pass). Acceptable on LAN. |
-| **C. Connect by IP, manual CN check** | Disable reqwest hostname verify, then manually assert the peer cert CN == expected uniqueId. | Most control, most code. Usually overkill. |
+| Option                                            | How                                                                                                                                                                        | Trade-off                                                                                                  |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **A. Connect by hostname, resolve yourself**      | Dial `https://<uniqueId>/...` and tell reqwest to resolve that name to the discovered IP (`ClientBuilder::resolve(uniqueId, ip:443)`). Hostname then matches CN naturally. | Cleanest, keeps full validation. Needs the box's cert CN to actually equal uniqueId (verify in the spike). |
+| **B. Connect by IP, disable hostname check only** | `add_root_certificate(hsb_ca)` + `danger_accept_invalid_hostnames(true)`. Still validates the chain against the pinned CA; only skips the name match.                      | Simple. Slightly weaker (a different box with a CA-signed cert on that IP would pass). Acceptable on LAN.  |
+| **C. Connect by IP, manual CN check**             | Disable reqwest hostname verify, then manually assert the peer cert CN == expected uniqueId.                                                                               | Most control, most code. Usually overkill.                                                                 |
 
 The implementation uses **Option A**: validate against the pinned CA, request by
 the validated unique-ID hostname, and use reqwest `resolve()` to route that name
@@ -182,27 +185,34 @@ client guidance; any repeat testing that pairs or controls physical hardware
 requires the user's explicit confirmation.
 
 1. **Confirm reachability + apiLevel** (no auth):
+
    ```
    GET https://<ip>/api/v1/device
    ```
+
    Check `apiLevel >= 7`, note `uniqueId`, `firmwareVersion`, `deviceType`.
 
 2. **Pushlink registration** (no auth). First call returns `{"code":16}`:
+
    ```
    POST https://<ip>/api/v1/registrations
    Body: {"appName":"Mote Desktop","instanceName":"<your machine>"}
    ```
+
    Then hold the box button ~3s until LED blinks green, release, repeat the POST
    within 5s → expect `{"registrationId","accessToken"}`. **Save the token.**
 
 3. **Read full state** (auth):
+
    ```
    GET https://<ip>/api/v1
    Header: Authorization: Bearer <token>
    ```
+
    Confirm the shape of `execution`, `hdmi`, `hue.groups`, `hue.connectionState`.
 
 4. **Drive it** (auth) — the actual feature, one PUT at a time:
+
    ```
    PUT https://<ip>/api/v1/execution   Body: {"hdmiActive": true}     (passthrough)
    PUT https://<ip>/api/v1/execution   Body: {"hdmiSource": "input2"}
@@ -210,10 +220,11 @@ requires the user's explicit confirmation.
    PUT https://<ip>/api/v1/execution   Body: {"brightness": 150}
    PUT https://<ip>/api/v1/execution   Body: {"syncActive": false}    (back to passthrough)
    ```
+
    Watch the lights react and re-GET `/api/v1` to see state change.
 
 5. **TLS reality check (optional but valuable):** download `hsb_cacert.pem`, then
-   try a *verifying* curl to learn how the box wants to be addressed:
+   try a _verifying_ curl to learn how the box wants to be addressed:
    ```
    curl --cacert hsb_cacert.pem --resolve "<uniqueId>:443:<ip>" \
         -H "Authorization: Bearer <token>" https://<uniqueId>/api/v1
@@ -229,9 +240,9 @@ approach.
 
 1. Run the Postman/curl spikes above; capture real JSON.
 2. [x] `sync_box_client.rs`: discovery probe, device GET + apiLevel gate,
-   pinned-CA registration, full-state GET, and execution PUT.
+       pinned-CA registration, full-state GET, and execution PUT.
 3. [x] Tauri commands + minimal store.
 4. [x] `features/sync-box` UI; polling while visible.
 5. [x] Phase 2 TLS hardening (pin CA, resolve CN); no caller changes.
 6. [x] Error/edge handling: overheating/undervolt, connectionState, apiLevel < 7,
-   token loss / re-pair.
+       token loss / re-pair.

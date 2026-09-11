@@ -365,6 +365,7 @@ const UnavailableCard = ({ label }: { label: string }) => (
 interface ToggleItem {
   key: string;
   name: string;
+  sceneName?: string;
   icon: React.ReactNode;
   isOn: boolean;
   /** The chip's live color when on, or null (renders neutral). */
@@ -393,12 +394,16 @@ const ToggleTile = ({
     <SceneTile
       size={size}
       name={item.name}
+      subtitle={item.sceneName}
       ariaPressed={item.isOn}
       activeBackground={lit}
       onActivate={item.onToggle}
       // On-without-a-color (e.g. a sync-locked light) still reads as "on" via a
       // faint fill, so the chip doesn't look identical to its off state.
-      className={cn(!lit && item.isOn && "bg-foreground/10")}
+      className={cn(
+        !lit && item.isOn && "bg-foreground/10",
+        item.sceneName && (size === "xs" ? "w-24" : "w-28"),
+      )}
       style={
         lit && item.background
           ? activeTileTheme(
@@ -485,7 +490,8 @@ const TogglesCard = ({
         const bubble = sceneBubbleCss(scene);
         return {
           key: `scene:${roomZone.id}:${scene.id}`,
-          name: scene.name,
+          name: roomZone.name,
+          sceneName: scene.name,
           icon: (
             <span
               aria-hidden

@@ -176,6 +176,8 @@ before enabling either model.
    - Synchronize and validate application versions.
    - Create source-controlled release notes and immutable release tags.
    - Show the installed version and a release-notes link in Settings/About.
+     The release-notes row is currently omitted because release notes are not
+     available yet; restore it once the public release-notes page is live.
 2. **Read-only history (post-launch)**
    - Add the in-app What's New and release-history views.
    - Show the current release once after upgrades.

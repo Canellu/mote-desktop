@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Combine, Loader2, MousePointer2, PenLine, Trash2 } from "lucide-react";
 import {
   AlertDialog,
@@ -33,7 +33,14 @@ import {
   renameMapArea,
   splitMapArea,
 } from "../operations";
-import { buildTray, placeFixture, unplaceFixture } from "../placement";
+import {
+  buildTray,
+  placeFixture,
+  rejoinFixture,
+  splitFixture,
+  targetsOfLights,
+  unplaceFixture,
+} from "../placement";
 import {
   nearestIncrement,
   readSnapSettings,
@@ -128,6 +135,12 @@ export function CreateMapWizard({
   const [roomTool, setRoomTool] = useState<RoomTool>("move");
   const [placingFixtureId, setPlacingFixtureId] = useState<string | null>(null);
   const [liftedFixtureId, setLiftedFixtureId] = useState<string | null>(null);
+  // A fixture in flight, so the settings panel can offer itself as the bin.
+  const [fixtureDrag, setFixtureDrag] = useState<{
+    fixtureId: string;
+    overRemoveZone: boolean;
+  } | null>(null);
+  const removeZoneRef = useRef<HTMLDivElement>(null);
   const [stepError, setStepError] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
   const [confirmingExit, setConfirmingExit] = useState(false);
@@ -187,9 +200,22 @@ export function CreateMapWizard({
   );
   // Markers, labels and placement all work on whole products, not single bulbs.
   const fixtures = useMemo(
-    () => indexFixtures(groupFixtures(lights)),
-    [lights],
+    () =>
+      indexFixtures(
+        groupFixtures(lights, {
+          targetOfLight: targetsOfLights(roomZones),
+          overrides: document?.fixtures,
+        }),
+      ),
+    [lights, roomZones, document?.fixtures],
   );
+  // Only a fixture already on the plan can be dropped back out of it.
+  const removing = fixtureDrag
+    ? tray.find(
+        (entry) =>
+          entry.fixture.id === fixtureDrag.fixtureId && entry.floorId !== null,
+      )
+    : undefined;
 
   function editFloor(result: MapResult<MapFloor>) {
     if (!result.ok) {
@@ -436,6 +462,13 @@ export function CreateMapWizard({
         placingFixtureId={placingFixtureId}
         liftedFixtureId={liftedFixtureId}
         onLiftEnd={() => setLiftedFixtureId(null)}
+        removeZoneRef={removeZoneRef}
+        onRemoveFixture={(fixtureId) => {
+          const fixture = fixtures.byId.get(fixtureId);
+          if (fixture) editMap(unplaceFixture(document, fixture.lightIds));
+          setPlacingFixtureId(null);
+        }}
+        onFixtureDragChange={setFixtureDrag}
         fixtureLabels={Object.fromEntries(
           [...fixtures.byId].map(([id, fixture]) => [id, fixture.name]),
         )}
@@ -738,6 +771,14 @@ export function CreateMapWizard({
                 onIdentify={(fixture) =>
                   void blink(fixture.id, fixture.lightIds)
                 }
+                onSplit={(fixture) =>
+                  editMap(splitFixture(document, lights, roomZones, fixture.id))
+                }
+                onRejoin={(fixture) =>
+                  editMap(
+                    rejoinFixture(document, lights, roomZones, fixture.id),
+                  )
+                }
                 onRemove={(fixture) =>
                   editMap(unplaceFixture(document, fixture.lightIds))
                 }
@@ -793,6 +834,25 @@ export function CreateMapWizard({
             {step === "outline" ? "Cancel" : "Back"}
           </Button>
         </div>
+
+        {/* Dropping a placed fixture back into the panel takes it off the
+          plan — the whole product, every bulb, in one drag. */}
+        {removing && (
+          <div
+            ref={removeZoneRef}
+            className={cn(
+              "pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed backdrop-blur-sm transition-colors",
+              fixtureDrag?.overRemoveZone
+                ? "border-destructive bg-destructive/15 text-destructive"
+                : "border-border bg-background/70 text-muted-foreground",
+            )}
+          >
+            <Trash2 className="size-6" />
+            <p className="px-6 text-center text-sm font-medium">
+              Drop here to remove {removing.fixture.name} from the map
+            </p>
+          </div>
+        )}
       </aside>
 
       <AlertDialog

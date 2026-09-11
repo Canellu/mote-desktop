@@ -1,9 +1,10 @@
 # Windows Store packaging and commerce spike
 
-Status: **in progress; Store API diagnostic complete, blocked on package identity
-and a Partner Center test add-on**.
+Status: **MSIX selected; parent and hidden Mote Pro Store drafts prepared, with
+package submission, Store commerce, and packaged capability validation still in
+progress**.
 
-Last reviewed: **2026-08-14**.
+Last reviewed: **2026-09-02**.
 
 ## Goal
 
@@ -34,10 +35,11 @@ decision is recorded.
 
 - Do not delete, rename, or publish the existing Partner Center product while
   investigating its package options.
-- Use hidden/private test availability and test product IDs. Do not make a paid
-  add-on publicly purchasable.
-- Do not add production feature gates, prices, account linking, or Household
-  behavior in this spike.
+- Keep the paid add-on hidden from Store discovery and purchasable only through
+  its parent app. Its public audience does not authorize submission or
+  publication.
+- Do not add production feature gates, account linking, or Household behavior
+  in this spike.
 - Keep Store-specific identifiers inside a Windows adapter or spike module.
 - Do not commit certificates, Partner Center credentials, Store identity keys,
   transaction data, or other secrets.
@@ -51,11 +53,12 @@ decision is recorded.
       current development host is available for initial checks.
 - [x] Windows SDK `makeappx.exe` and `signtool.exe` are installed for x64 under
       SDK version `10.0.19041.0`.
-- [ ] A Partner Center test flight/private audience suitable for Store-license
-      testing.
-- [ ] A hidden durable add-on with a temporary internal product ID. Its customer
-      name may be **Mote Pro Test**; the permanent public product ID is chosen
-      only after the spike.
+- [ ] A published parent-app package suitable for Store-license testing. The
+      add-on cannot be submitted before the parent app is published.
+- [x] A hidden durable **Mote Pro** add-on with the permanent internal product ID
+      `mote-pro`. Its first submission has a public audience but remains hidden
+      from Store discovery, unpublished, and purchasable only through the parent
+      app.
 
 ## Work checklist
 
@@ -63,7 +66,10 @@ decision is recorded.
 
 - [x] Record the product type and self-service package controls. The existing
       product is EXE/MSI and exposes no self-service MSIX conversion control.
-- [ ] Record the Store-provided package identity name, publisher, publisher ID,
+- [x] Confirm that Partner Center support can assist with conversion to MSIX if
+      requested. Coordinate the conversion only after approving the MSIX
+      direction and confirming which existing product properties are preserved.
+- [x] Record the Store-provided package identity name, publisher, publisher ID,
       package family name, product/Store ID, and supported architectures in a
       private release record. Do not invent these values from
       `com.motedesktop.mote`.
@@ -74,10 +80,17 @@ decision is recorded.
 
 - [x] Build the normal Tauri release executable from the current worktree with
       `bun tauri build --no-bundle`.
+- [x] Add an isolated, parameterized MSIX spike pipeline in
+      `scripts/build-msix-spike.ps1` and
+      `src-tauri/msix/AppxManifest.xml.template`. It does not alter normal Tauri
+      or NSIS configuration and does not guess Store identity values.
+- [x] Package and sign the x64 app with an explicit temporary test identity.
+      Verify `Windows.Desktop`, `runFullTrust`, package contents, signature hash,
+      and the expected untrusted-test-certificate install boundary.
 - [ ] Repeat the release build from a clean release-candidate checkout.
-- [ ] Create a separate MSIX packaging configuration using the exact Partner
+- [x] Configure the MSIX packaging script to use the exact Partner
       Center identity and a full-trust desktop entry point.
-- [ ] Include required icons and metadata without changing normal development
+- [x] Include required icons and metadata without changing normal development
       packaging.
 - [ ] Install, launch, update, and uninstall the package on the test profile.
 - [ ] Verify app data, Windows Credential Manager entries, shortcuts, protocol
@@ -89,11 +102,13 @@ decision is recorded.
 
 - [x] Add a Windows-only Rust diagnostic for `Windows.Services.Store` app
       license, durable product discovery, and cached add-on licenses.
-- [ ] Associate Store UI calls with the main Tauri window handle.
-- [ ] Query the hidden durable add-on and return only sanitized product state,
+- [x] Include the diagnostic executable in the disposable MSIX so it can be run
+      with package identity after the package is installed and Store-associated.
+- [x] Associate Store UI calls with the main Tauri window handle.
+- [x] Query associated durable add-ons and return only sanitized product state,
       localized title, and localized price to the frontend or a diagnostic view.
 - [ ] Invoke Microsoft's purchase UI from an explicit test action.
-- [ ] Read `GetAppLicenseAsync` and map the add-on into a provider-neutral
+- [x] Read `GetAppLicenseAsync` and map the add-on into a provider-neutral
       `pro: active | inactive | unknown` result.
 - [ ] Confirm relaunch and restore behavior while signed into the purchasing
       Microsoft account.
@@ -123,6 +138,150 @@ decision is recorded.
   not prove Store association, add-on discovery, purchase, restore, cached
   offline licensing, refund/revocation, or MSIX compatibility.
 
+## Progress evidence — 2026-09-01
+
+- Partner Center converted the existing product to **MSIX or PWA app**. The exact
+  Store identity and product identifiers are recorded in the private local
+  release record and are now the defaults in the MSIX build script.
+- Added `scripts/build-msix-spike.ps1` and
+  `src-tauri/msix/AppxManifest.xml.template`. The pipeline accepts exact identity
+  and publisher values as parameters, builds the Tauri app and commerce
+  diagnostic, stages only the required payload, packages with `makeappx.exe`,
+  optionally signs with an ephemeral self-signed certificate, exports only its
+  public certificate, and removes the temporary private certificate.
+- Windows SDK `10.0.19041.0` successfully produced and signed
+  `MoteDesktop_0.1.0.0_x64.msix` using the explicit temporary identity
+  `MoteDesktop.MsixSpike`; this is not a Store identity and must never be used for
+  submission.
+- Package SHA-256:
+  `F0F29FB437DB61C76FBE4CCFC173CA06ACB796023592A148C036C5A9392B54F6`.
+  Main executable SHA-256:
+  `18BC6F4078611ECCEEA3A0209B2E3671C49281342EB5647CEA294821594C3AC8`.
+  Commerce diagnostic SHA-256:
+  `0FD82BF4D27B3B54E3CAAF6376FC21C822B2846CFE8D04A3C6F182DDCAF8D2D7`.
+- Unpacking the signed package verified the x64 identity, version `0.1.0.0`,
+  `Windows.Desktop` target family, `runFullTrust`, app executable, and packaged
+  commerce diagnostic. The package size was 10,425,037 bytes.
+- Installation without trusting the temporary public certificate failed as
+  expected with `0x800B0109`; no package was installed. A controlled test-profile
+  run must trust the public test certificate in Local Machine `TrustedPeople`,
+  install and exercise the package, then remove both package and certificate.
+- This proves the local build/package/sign pipeline, not Store association,
+  Store ingestion, durable-product discovery or purchase, offline licensing,
+  update/uninstall behavior, or native capability compatibility.
+
+### Store-identity rebuild after repository rename
+
+- Cleared the generated Rust target cache after it retained absolute build paths
+  to the former `hue-app` directory, then rebuilt cleanly from
+  `D:\Documents\GitHub\mote-desktop`.
+- Produced the unsigned Store-identity package
+  `src-tauri/target/msix-spike/MoteDesktop_0.1.0.0_x64.msix` with identity
+  `AntonVo.MoteDesktop`, publisher
+  `CN=44112F90-AF39-497A-AE42-3BEEBE2299A7`, version `0.1.0.0`, and x64
+  architecture.
+- Package SHA-256:
+  `ECCBE6C23B5ED3C3A6351EFDADD9069D84468D9AE49D8E514E82E20C0E28BAB6`.
+  Main executable SHA-256:
+  `D0B6EEFCBC7EF57DFC7A5129754758E35FE212C5C1B173BD5CFA2F48D2F69434`.
+  Commerce diagnostic SHA-256:
+  `BF60689E84F47607815B3C4DEA993A5861E710B3D8E439F6203BCC144D5CBE19`.
+- Unpacked the package and verified the manifest identity, publisher, version,
+  architecture, main executable, assets, and packaged commerce diagnostic. The
+  package is 10,422,096 bytes.
+- The package remains unsigned and has not been uploaded, installed, or sent to
+  Microsoft.
+
+### Main-app Store diagnostic boundary
+
+- Added the read-only `get_store_commerce_diagnostic` Tauri command. It binds
+  `StoreContext` to the main Mote Desktop window through
+  `IInitializeWithWindow`, then reads the app license, cached durable add-on
+  licenses, and associated durable products.
+- The command returns only package state, license flags, Store/product IDs,
+  in-app offer tokens, localized titles/prices, and collection state. It does
+  not request a purchase or expose customer or transaction identity.
+- The cached add-on license whose in-app offer token is `mote-pro` now maps to
+  the provider-neutral Pro state. Only an active base app license plus an active
+  matching add-on grants `active`; failed or ambiguous reads map to `unknown`,
+  and an authoritative successful read without the add-on maps to `inactive`.
+- The non-Windows response is explicitly unsupported, and failed window/package
+  association returns a blocked diagnostic instead of granting Pro.
+- `cargo check --manifest-path src-tauri/Cargo.toml` passes, as do four focused
+  Store entitlement mapping tests. Store-associated runtime output remains
+  pending until a Store-associated parent package and the hidden add-on are
+  available.
+
+### Partner Center parent-app draft — 2026-09-02
+
+- Confirmed the existing **Mote Desktop** product, Store ID `9P910JMMP9SZ`, is
+  an **MSIX or PWA app** and remains in draft. Submission 1 is
+  `1152921505701789210`.
+- Saved the English (United States) description, short description, copyright
+  and trademark information, developer attribution, product features, and
+  search terms from the source-controlled Store listing copy.
+- Completed the IARC questionnaire as **All Other App Types**, with no
+  ratings-relevant packaged content, user-content sharing, age-restricted
+  products, precise-location sharing, chance-based purchases, cash rewards,
+  browser/search-engine behavior, or directly issued board rating. Digital
+  goods purchases are declared because the app offers Mote Pro.
+- Accepted the IARC terms with the account holder's explicit authorization.
+  Partner Center now reports **Age ratings: Complete**. Generated ratings are
+  IARC and Microsoft **3+**, PEGI **3**, ESRB and USK **Everyone**, Chile and
+  Russia **All ages**, and Brazil **14**; applicable boards show the
+  **In-App Purchases** interactive element. The rating ID remains pending until
+  the publication workflow advances.
+- Partner Center reports **Pricing and availability**, **Properties**, **Age
+  ratings**, and **Submission options** complete. **Packages** remains not
+  started and was not opened for upload. **Store listings** remains incomplete
+  because at least one required desktop screenshot has not been supplied.
+- Account tax and electronic-bank-transfer payment profiles have been assigned
+  to Microsoft Store earnings and are pending Microsoft validation. No tax,
+  banking, customer, transaction, credential, or other sensitive value is
+  recorded here.
+- The parent submission remains in draft. It was not submitted for
+  certification or published, and its disabled submission control was left
+  untouched.
+
+### Partner Center hidden add-on draft — 2026-09-02
+
+- Inspected the existing **Mote Desktop** product and its add-on table before
+  creation. The parent product is Store ID `9P910JMMP9SZ`, is an **MSIX or PWA
+  app**, and remains in draft. The table reported zero existing add-ons, so no
+  duplicate Mote Pro product was present.
+- Created Store add-on `9P3J5KCBFVQZ` with internal Product ID `mote-pro` and
+  product type **Durable**. Partner Center displays product lifetime **Forever**.
+- Created draft Submission 1 (`1152921505701792702`). It was not submitted for
+  certification or published.
+- Saved **Public audience**. Discoverability remains **Hidden in the Microsoft
+  Store**, with acquisition limited to purchase from within the parent app. The
+  parent app and this add-on submission remain unpublished.
+- Saved the publishing hold as **Publish manually**. Even after any future
+  certification, a separate explicit **Publish now** action would be required.
+- Added an English (United States) listing with display name **Mote Pro** and a
+  short description derived from the source-controlled Store listing. Partner
+  Center reports this listing as complete. No package or listing image was
+  uploaded.
+- Saved a base retail price of **NOK 149**. Partner Center will map this tier to
+  corresponding local Store prices; those market conversions still require
+  review before any submission.
+- Completed **Properties** with lifetime **Forever**, content type **Electronic
+  software download**, the same personal-information declaration and privacy
+  policy URL as the parent app, and the existing Mote Desktop website and support
+  URLs. Optional phone/address, keywords, and custom developer data remain blank.
+- Completed **Age ratings** by selecting **This add-on does not require more
+  restrictive ratings than its parent product**. Partner Center will apply the
+  parent product's ratings after that product is published.
+- **Pricing and availability** is complete. Partner Center now reports every
+  submission section as complete. No audience identity, customer information,
+  transaction data, credential, or secret was entered or recorded.
+- Partner Center currently prevents add-on submission because the parent app is
+  not published. Account tax and payout validation is pending.
+
+Do not change the durable type, lifetime, or product ID without updating the
+entitlement adapter and this record. Do not submit or publish until the parent
+app, account-level commerce prerequisites, and release candidate are ready.
+
 ### 4. Run the native capability smoke test
 
 - [ ] Local Hue discovery, pairing, HTTPS control, and event stream.
@@ -147,9 +306,11 @@ decision is recorded.
 - Capability smoke-test results and every failure with reproduction steps.
 - Artifact SHA-256 hashes. Do not retain or commit test customer data.
 
-## Pass criteria
+## Release validation criteria
 
-Choose **MSIX + Microsoft Store commerce** when all of the following are true:
+**MSIX + Microsoft Store commerce** was selected on 2026-08-24. All of the
+following remain release gates; reopen the decision if any gate fails without an
+acceptable remedy:
 
 - The existing product can use the required package route without unacceptable
   product migration loss.
@@ -175,22 +336,21 @@ Free/Pro enforcement are required for the first public release.
 
 Do not silently combine Store and custom license checks as an unplanned fallback.
 
-## Decision record to complete
-
-At the end of the spike, append:
+## Decision record
 
 ```text
-Date:
-Decision: MSIX Store commerce | reviewed alternative commerce | blocked
-Existing Partner Center product reusable: yes | no | unknown
-Store durable add-on proven: yes | no
-Offline cached entitlement proven: yes | no
-Native capability smoke test: pass | fail
-Primary blockers:
-Required follow-up:
-Evidence location:
+Date: 2026-09-01
+Decision: MSIX Store commerce
+Existing Partner Center product reusable: yes; conversion complete
+Store durable add-on proven: no
+Offline cached entitlement proven: no
+Native capability smoke test: pending
+Primary blockers: required parent Store screenshot and package, account-level
+  tax/payout validation, parent app publication, and release-candidate validation
+Required follow-up: rebuild and validate the Store-identity MSIX, complete
+  commerce and native capability tests, then submit only when release-ready
+Evidence location: this plan and local Partner Center identity record
 ```
 
-After recording the decision, update the Microsoft Store release plan, the
-monetization plan, and the package configuration before starting production
-entitlement work.
+Do not start production entitlement work until the pending Store commerce and
+offline-license gates pass.

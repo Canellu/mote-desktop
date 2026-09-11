@@ -21,7 +21,6 @@ const DEFAULT_WIDGET_WIDTH: f64 = 360.0;
 const DEFAULT_WIDGET_HEIGHT: f64 = 136.0;
 const MIN_WIDGET_WIDTH: u32 = 360;
 const MIN_WIDGET_HEIGHT: u32 = 136;
-const MAX_OPEN_WIDGETS: usize = 3;
 
 /// The kinds of Hue resource a control can target.
 const CONTROL_TARGET_KINDS: [&str; 3] = ["room", "zone", "light"];
@@ -270,15 +269,6 @@ pub fn open_widget_window(
                     });
                 }
             }
-        }
-        if settings
-            .widgets
-            .iter()
-            .filter(|widget| widget.enabled)
-            .count()
-            >= MAX_OPEN_WIDGETS
-        {
-            return Err("Maximum of 3 desktop widgets reached. Please close an open widget before creating a new one.".to_string());
         }
         let widget = StoredWidget {
             id: next_widget_id(&settings),

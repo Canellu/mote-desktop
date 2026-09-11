@@ -19,6 +19,7 @@ implementation until those decisions are final.
 | ------------------------ | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Product model            | Free + Pro + Household                                                 | Free covers essential local Hue control; Pro is a one-time purchase; Household is a later subscription for shared/cloud-backed features.                                                        |
 | Windows commerce         | Microsoft Store durable add-on                                         | Use a Store-managed `pro` purchase. Confirm the required package identity and MSIX path before implementing the Windows adapter.                                                                |
+| Windows packaging        | MSIX                                                                   | Selected on 2026-08-24. Partner Center conversion is complete; Store commerce, offline licensing, and native capability validation remain required.                                             |
 | Apple commerce           | StoreKit non-consumable and subscription                               | Use a non-consumable `pro` purchase on macOS/iOS and a subscription if Household ships there.                                                                                                   |
 | Cross-platform ownership | One equivalent purchase unlocks supported platforms                    | A signed-in Mote account links verified Microsoft or Apple ownership to a normalized entitlement. Do not require a second purchase solely because the user changes platform.                    |
 | Local/offline Pro        | Platform-cached license through a provider-neutral entitlement service | Microsoft and Apple adapters map into the same capability model. Local licensing deters casual bypass but is not an absolute security boundary.                                                 |
@@ -55,11 +56,11 @@ Microsoft Store / Apple StoreKit ───────┘    ├─ normalized e
 The exact boundary for current functionality is defined in the
 [Free, Pro, and Household feature matrix](./free-pro-feature-matrix.md).
 
-| Tier      | Initial scope                                                                                                                                                                                                                                                | Model                                                                                 |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| Free      | Local discovery and pairing, one active bridge, essential light/room/zone controls, basic scenes, basic Sync Box control, and essential settings/accessibility                                                                                               | Free; no Mote account required                                                        |
-| Pro       | PC Sync, widgets, advanced dashboard customization, advanced personalization, future multi-bridge/local-home support, advanced Sync Box workflows, local automation, personal remote control, and personal cloud settings where operating cost remains small | One-time purchase                                                                     |
-| Household | Shared homes, invitations, owner/member/guest roles, shared settings/automations, encrypted owner Hue credentials, and guest command relay                                                                                                                   | Subscription because these features create continuing infrastructure and support cost |
+| Tier      | Initial scope                                                                                                                                                                                                                                                                               | Model                                                                                 |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Free      | Local discovery and pairing, one active bridge, essential light/room/zone controls, basic scenes, basic Sync Box control, one standard single-target desktop widget, and essential settings/accessibility                                                                                   | Free; no Mote account required                                                        |
+| Pro       | PC Sync, advanced/multi-target widgets without a widget-count cap, custom dashboard layout, multiple saved bridges, advanced personalization, future advanced Sync Box workflows, local automation, personal remote control, and personal cloud settings where operating cost remains small | One-time purchase                                                                     |
+| Household | Shared homes, invitations, owner/member/guest roles, shared settings/automations, encrypted owner Hue credentials, and guest command relay                                                                                                                                                  | Subscription because these features create continuing infrastructure and support cost |
 
 The exact control-level feature matrix and regional prices remain to be frozen
 before paywall implementation. Do not paywall security, accessibility, account
@@ -109,27 +110,22 @@ it again before executing paid local commands. Server-backed Household actions
 also enforce the normalized entitlement and membership role on every request.
 
 Capability names describe product behavior rather than stores. The current
-canonical names are `pc_sync`, `widgets`, `dashboard_custom_layout`, and
+canonical names are `pc_sync`, `advanced_widgets`, `dashboard_custom_layout`, and
 `multiple_bridges`; future Household capabilities include `shared_home_relay`.
 Do not spread Microsoft or Apple conditionals through feature components and
 commands.
 
 ## Microsoft Store commerce
 
-The first Partner Center product was created as an **EXE/MSI** listing. That
-route can distribute the Free tier, but it does not yet provide the Microsoft
-Store commerce required for the freemium launch. Unless the Store package/product
-route is changed to MSIX in coordination with Partner Center, paid Mote Desktop
-releases on this route must use the selected secure third-party/
-Merchant-of-Record commerce and licensing design. Revisit this decision before
-implementing checkout.
+The first Partner Center product was created as an **EXE/MSI** listing. MSIX was
+selected on 2026-08-24 after the local build/package/sign pipeline passed.
+Partner Center converted the product to **MSIX or PWA app** by 2026-09-01 and
+assigned the Store package identity recorded in the private release record.
 
-The selected long-term Windows direction is a free Store app with a one-time
-**Mote Pro** durable add-on. Before building the adapter, run a packaging and
-commerce spike to confirm whether to replace the existing EXE/MSI listing with
-MSIX or use another supported package-identity route. Prefer the simplest route
-that provides Store-managed purchases and updates without weakening PC Sync or
-other desktop capabilities.
+The selected long-term Windows direction is an MSIX-packaged free Store app with
+a one-time **Mote Pro** durable add-on. Before building the production adapter,
+complete Store-associated purchase, restore, offline-license, update, and native
+capability validation.
 
 The previous draft incorrectly said Microsoft Store policy forbids third-party
 checkout for locally used PC features and therefore requires premium assets to
@@ -245,7 +241,6 @@ commerce/licensing and is deferred.
 ## Open decisions
 
 - Exact control-level Free/Pro boundary and regional Store pricing.
-- Windows MSIX versus another supported package-identity route.
 - Identity and backend providers after Windows, macOS, and iOS auth spikes.
 - Account-linking and device policy for one cross-platform purchase.
 - Whether a notarized direct-download macOS build is worth separate commerce.

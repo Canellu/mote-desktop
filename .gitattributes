@@ -1,0 +1,26 @@
+# Normalize every text file to LF in the repository and in the working tree.
+#
+# Without this, Git's `core.autocrlf=true` (the Windows installer default)
+# rewrites files as CRLF on checkout while the committed blobs stay LF. That
+# leaves a mix of LF and CRLF on disk, and Prettier — whose `endOfLine`
+# defaults to "lf" — then fails `format:check` on whichever files Git happened
+# to touch last, even though nothing about their content changed.
+#
+# `text=auto` still lets Git detect and skip binary content; `eol=lf` pins the
+# working-tree ending regardless of each contributor's autocrlf setting.
+* text=auto eol=lf
+
+# Binary assets: never diffed, never line-ending converted.
+*.png binary
+*.ico binary
+*.icns binary
+
+# Lockfiles are generated; collapse them in GitHub's diff view. They are
+# still LF-normalized by the rule above.
+bun.lock linguist-generated=true
+src-tauri/Cargo.lock linguist-generated=true
+
+# Windows shells want CRLF in batch scripts. None are tracked today; the rule
+# is here so adding one later doesn't reintroduce the mixed-ending problem.
+*.bat text eol=crlf
+*.cmd text eol=crlf

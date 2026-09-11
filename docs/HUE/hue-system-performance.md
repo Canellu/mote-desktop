@@ -1,6 +1,15 @@
 ---
 title: "Hue System Performance"
-keywords: ["performance", "bridge load", "rate limits", "commands per second", "latency", "polling", "best practices"]
+keywords:
+  [
+    "performance",
+    "bridge load",
+    "rate limits",
+    "commands per second",
+    "latency",
+    "polling",
+    "best practices",
+  ]
 summary: "Guidance for keeping Hue systems responsive, including bridge performance characteristics, command pacing, polling behavior, and application best practices."
 ---
 
@@ -28,24 +37,24 @@ Using the CLIP interface, an application can dispatch light commands into the br
 
 Table 1 below summarizes the system latency that one can expect. As obvious from the table, this latency depends on the number of ZigBee messages that result out of the hue API command – details of this translation will be discussed in the Translation of hue API commands section below. The system latencies listed in Table 1 have been measured under the following conditions:
 
--   he hue API command is controlling a single lamp (unicast message)
--   The lamp is already on
--   The parameter transitiontime is set to 0
--   The lamp can be reached via a single ZigBee hop
--   A wired Ethernet connection is used between PC or app and router and between router and hue bridge (being independent of Wifi latencies)
--   There is no background ZigBee traffic (such as software download)
--   The maximum system throughput rate from the System Throughput section is respected
+- he hue API command is controlling a single lamp (unicast message)
+- The lamp is already on
+- The parameter transitiontime is set to 0
+- The lamp can be reached via a single ZigBee hop
+- A wired Ethernet connection is used between PC or app and router and between router and hue bridge (being independent of Wifi latencies)
+- There is no background ZigBee traffic (such as software download)
+- The maximum system throughput rate from the System Throughput section is respected
 
 The values in the table are averages from a series of measurements; variations of about +/-5 ms are typical.
 
 Table 1: Average latency for various hue API messages
 
-| Column 1 | Column 2 | Column 3 |
-| --- | --- | --- |
+| Column 1                             | Column 2                                             | Column 3        |
+| ------------------------------------ | ---------------------------------------------------- | --------------- |
 | #ZigBee messages per hue API command | parameters used in body of hue API command (example) | average latency |
-| 1 | brightness | 55 ms |
-| 2 | brightness + color | 95 ms |
-| 3 | brightness + color + on | 125 ms |
+| 1                                    | brightness                                           | 55 ms           |
+| 2                                    | brightness + color                                   | 95 ms           |
+| 3                                    | brightness + color + on                              | 125 ms          |
 
 Translation of Hue API Commands to ZigBee Messages
 
@@ -55,24 +64,24 @@ As a consequence, for optimal performance, the application should not send super
 
 Table 2: Translation of hue API commands to ZigBee messages
 
-| Field | Value |
-| --- | --- |
+| Field                                      | Value            |
+| ------------------------------------------ | ---------------- |
 | Parameters used in body of hue API command | #ZigBee messages |
-| bri | 1 |
-| hue | 1 |
-| sat | 1 |
-| xy | 1 |
-| ct | 1 |
-| on | 1 |
-| transitiontime | 02 |
-| bri + xy | 2 |
-| bri + xy + on | 3 |
-| bri + hue | 2 |
-| bri + sat | 2 |
-| bri + hue + sat | 2 |
-| bri + hue + sat + on | 3 |
-| bri + ct | 2 |
-| bri + ct + on | 3 |
+| bri                                        | 1                |
+| hue                                        | 1                |
+| sat                                        | 1                |
+| xy                                         | 1                |
+| ct                                         | 1                |
+| on                                         | 1                |
+| transitiontime                             | 02               |
+| bri + xy                                   | 2                |
+| bri + xy + on                              | 3                |
+| bri + hue                                  | 2                |
+| bri + sat                                  | 2                |
+| bri + hue + sat                            | 2                |
+| bri + hue + sat + on                       | 3                |
+| bri + ct                                   | 2                |
+| bri + ct + on                              | 3                |
 
 System Throughput
 
@@ -82,12 +91,12 @@ The throttling takes into account the combined system load of these messages of 
 
 Table 3: Throughput for various hue API commands
 
-| Column 1 | Column 2 | Column 3 | Column 4 |
-| --- | --- | --- | --- |
-| #ZigBee messages per hue API command | Parameters used in body of hue API command (example) | System throughput | Time between hue API messages |
-| 1 | setting brightness | brightness | 40 ms |
-| 1 | setting brightness+color | 25 hue API commands/s | 80 ms |
-| 3 | setting brightness + color+on | 2 hue API commands/s | 120 ms |
+| Column 1                             | Column 2                                             | Column 3              | Column 4                      |
+| ------------------------------------ | ---------------------------------------------------- | --------------------- | ----------------------------- |
+| #ZigBee messages per hue API command | Parameters used in body of hue API command (example) | System throughput     | Time between hue API messages |
+| 1                                    | setting brightness                                   | brightness            | 40 ms                         |
+| 1                                    | setting brightness+color                             | 25 hue API commands/s | 80 ms                         |
+| 3                                    | setting brightness + color+on                        | 2 hue API commands/s  | 120 ms                        |
 
 As soon as an application exceeds these rates, buffering will occur in the bridge, which will significantly increase the latency for following commands. Therefore, exceeding these rates should be avoided.
 
@@ -103,11 +112,11 @@ When exceeding the throughput limit (and hence buffering occurring), there is no
 
 ```json
 {
-"error":{
-"type":901,
-"address":"/lights/1/state",
-"description":"Internal error, 503"
-}
+  "error": {
+    "type": 901,
+    "address": "/lights/1/state",
+    "description": "Internal error, 503"
+  }
 }
 ```
 

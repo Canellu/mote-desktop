@@ -1,8 +1,8 @@
 # Free, Pro, and Household feature matrix
 
-Status: **initial product decision; entitlement implementation pending**.
+Status: **initial product decision updated; entitlement implementation pending**.
 
-Last reviewed: **2026-08-14**.
+Last reviewed: **2026-09-01**.
 
 This document defines the initial product boundary for functionality that exists
 today and establishes rules for future paid features. Store-specific product IDs
@@ -23,24 +23,55 @@ and APIs must map into the provider-neutral capabilities defined here.
 
 ## Current functionality
 
-| Product area                    | Free                                                                                                                    | Pro                                                                                                                  | Capability                |
-| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| Bridge setup                    | Discover, pair, restore, rename, remove, and recover one saved Hue Bridge                                               | Save and switch among multiple bridges                                                                               | `multiple_bridges`        |
-| Home dashboard                  | View and control resources; choose standard grouping modes                                                              | Reorder cards and edit/persist a custom dashboard layout                                                             | `dashboard_custom_layout` |
-| Lights, rooms, and zones        | Power, brightness, color, color temperature, membership, placement, naming, and live updates                            | No current control is reserved for Pro                                                                               | —                         |
-| Scenes                          | View, activate, create, edit, delete, and run supported dynamic scenes                                                  | No current scene control is reserved for Pro                                                                         | —                         |
-| Devices                         | Inspect, discover, configure, assign, rename, and remove supported Hue resources                                        | No current device-administration control is reserved for Pro                                                         | —                         |
-| Entertainment areas             | Create, position, test, edit, and delete areas                                                                          | Using an area for PC Sync requires Pro                                                                               | `pc_sync`                 |
-| PC Sync                         | Explain requirements and show the upgrade entry point                                                                   | Video, Games, and Music modes; display/audio selection; start, update, and stop streaming                            | `pc_sync`                 |
-| Hue Play HDMI Sync Box          | All current single-box discovery, pairing, source, mode, intensity, brightness, sync, restore, and removal controls     | Future workflows that combine several boxes, bridges, or automations may be Pro                                      | —                         |
-| Desktop widgets                 | Explain and preview the feature without creating an active widget                                                       | Create and manage up to three widget windows, including target, pinning, placement, size, and always-on-top behavior | `widgets`                 |
-| Appearance and desktop behavior | Light/dark/system theme, close behavior, tray behavior, start-on-login, window state, and navigation                    | No current essential application setting is reserved for Pro                                                         | —                         |
-| About and support               | Version, legal/support links, privacy summary, release notes, diagnostics, purchase status, and restore-purchase action | No support or privacy control is reserved for Pro                                                                    | —                         |
+| Product area                    | Free                                                                                                                      | Pro                                                                                                                        | Capability                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| Bridge setup                    | Discover, pair, restore, rename, remove, and recover one saved Hue Bridge                                                 | Save and switch among multiple bridges                                                                                     | `multiple_bridges`        |
+| Home dashboard                  | View and control resources; choose standard grouping modes                                                                | Reorder cards and edit/persist a custom dashboard layout                                                                   | `dashboard_custom_layout` |
+| Lights, rooms, and zones        | Power, brightness, color, color temperature, membership, placement, naming, and live updates                              | No current control is reserved for Pro                                                                                     | —                         |
+| Scenes                          | View, activate, create, edit, delete, and run supported dynamic scenes                                                    | No current scene control is reserved for Pro                                                                               | —                         |
+| Devices                         | Inspect, discover, configure, assign, rename, and remove supported Hue resources                                          | No current device-administration control is reserved for Pro                                                               | —                         |
+| Entertainment areas             | Create, position, test, edit, and delete areas                                                                            | Using an area for PC Sync requires Pro                                                                                     | `pc_sync`                 |
+| PC Sync                         | Explain requirements and show the upgrade entry point                                                                     | Video, Games, and Music modes; display/audio selection; start, update, and stop streaming                                  | `pc_sync`                 |
+| Hue Play HDMI Sync Box          | All current single-box discovery, pairing, source, mode, intensity, brightness, sync, restore, and removal controls       | Future workflows that combine several boxes, bridges, or automations may be Pro                                            | —                         |
+| Desktop widgets                 | Create any number of widgets with one single-target control each, standard size, system theme, and normal window behavior | Add multiple controls or multi-target toggle groups; customize theme, size, placement, pinning, and always-on-top behavior | `advanced_widgets`        |
+| Appearance and desktop behavior | Light/dark/system theme, close behavior, tray behavior, start-on-login, window state, and navigation                      | No current essential application setting is reserved for Pro                                                               | —                         |
+| About and support               | Version, legal/support links, privacy summary, release notes, diagnostics, purchase status, and restore-purchase action   | No support or privacy control is reserved for Pro                                                                          | —                         |
 
 The first implementation should gate complete workflows, not scatter locks over
 individual sliders. For example, the PC Sync entry point may explain and sell
 Pro, but a user who starts an authorized session must not encounter additional
 paywalls inside that session.
+
+For widgets, the app does not limit how many widget windows can be created. The
+backend—not only the interface—must enforce the Free control-composition limit:
+one single-target control per widget. A room, zone, or light counts as one
+target. Adding a second control, a multi-target toggle group, or advanced window
+customization requires `advanced_widgets`.
+
+## Production enforcement phase
+
+Do not begin this phase until the Microsoft Store commerce spike has proven
+package identity, durable-add-on discovery, purchase, restore, cached offline
+licensing, and refund/revocation behavior.
+
+1. Register the provider-neutral entitlement service as managed Tauri state and
+   expose sanitized entitlement, purchase, and restore commands to React.
+2. Replace the placeholder `widgets` capability with `advanced_widgets` and
+   enforce the Free widget limits in every Rust command that can create, reopen,
+   or reconfigure widgets.
+3. Enforce `multiple_bridges` when pairing or retaining more than one saved
+   bridge. A downgrade keeps saved configuration but allows one selected Free
+   bridge to remain active.
+4. Enforce `dashboard_custom_layout` on entering layout-edit mode and on every
+   persistence write. Free mode always renders a standard grouping layout.
+5. Enforce `pc_sync` before starting Video, Games, Music, or color-test streams.
+   Status, requirements, purchase, restore, and safe stop operations remain
+   available without Pro.
+6. Add the React locked, purchase, restore, unknown-license, upgrade, downgrade,
+   and recovery states only after backend enforcement is complete.
+7. Test every paid command directly so a modified frontend cannot bypass the
+   tier boundary. Cover reinstall, offline, refund, downgrade, and preserved
+   configuration behavior for every capability.
 
 ## Future functionality
 

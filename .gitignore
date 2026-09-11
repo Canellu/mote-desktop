@@ -28,3 +28,6 @@ docs/*.local.md
 # Environment variables (keep the example, ignore real/local env files)
 .env*
 !.env.example
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/

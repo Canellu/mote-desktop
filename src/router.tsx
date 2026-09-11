@@ -34,9 +34,7 @@ const spaceRoute = createRoute({
   // The inspector selection lives in the URL so it's a real history entry:
   // mouse Back closes the pane instead of leaving the space. Shape is
   // "<kind>:<id>" where kind is light | scene | group (mutually exclusive).
-  validateSearch: (
-    search: Record<string, unknown>,
-  ): { inspect?: string } =>
+  validateSearch: (search: Record<string, unknown>): { inspect?: string } =>
     typeof search.inspect === "string" &&
     /^(light|scene|group):.+/.test(search.inspect)
       ? { inspect: search.inspect }
@@ -68,6 +66,17 @@ const deviceDiscoveryRoute = createRoute({
 const widgetWizardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/widget-wizard",
+  validateSearch: (search: Record<string, unknown>) => {
+    const rawStep = Number(search.step);
+    const step =
+      import.meta.env.DEV &&
+      Number.isInteger(rawStep) &&
+      rawStep >= 0 &&
+      rawStep <= 2
+        ? rawStep
+        : undefined;
+    return step === undefined ? {} : { step };
+  },
   component: WidgetWizardRoute,
 });
 

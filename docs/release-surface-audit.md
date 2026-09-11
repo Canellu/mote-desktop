@@ -22,7 +22,7 @@ Hue-hardware acceptance testing.
 | Entertainment-area wizard and placement | Included; no release-facing placeholder feature found                                     | Test capability rejection, positioning, color test, save, and cancel                |
 | PC Sync                                 | Included for Windows; no placeholder control found                                        | Complete the PC Sync hardware/driver/HDR/audio acceptance matrix                    |
 | Sync Box                                | Included for the current single-box model                                                 | Test discovery, pairing, restore, unsupported firmware, disconnect, and reset       |
-| Widgets                                 | Included; dummy targets are development-only                                              | Test the three-widget limit, persistence, placement, DPI, and monitor removal       |
+| Widgets                                 | Included; dummy targets are development-only                                              | Test many simultaneous widgets, persistence, placement, DPI, and monitor removal    |
 | General Settings                        | Included                                                                                  | Test tray, close behavior, autostart, uninstall cleanup, and standard-user behavior |
 | About & Support                         | Added for v1                                                                              | Verify the public URLs after deployment and re-check final legal text               |
 

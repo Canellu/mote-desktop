@@ -1,6 +1,14 @@
 ---
 title: "Watch that Transition Time"
-keywords: ["transition time", "light transitions", "user experience", "Hue API", "timing", "animations"]
+keywords:
+  [
+    "transition time",
+    "light transitions",
+    "user experience",
+    "Hue API",
+    "timing",
+    "animations",
+  ]
 summary: "Short application design guidance explaining why Hue apps should choose transition times carefully to avoid slow, surprising, or inconsistent light behavior."
 ---
 

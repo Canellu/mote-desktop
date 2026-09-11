@@ -1,6 +1,16 @@
 ---
 title: "Hue API v2 Core Concepts"
-keywords: ["Hue API v2", "core concepts", "resources", "application key", "service references", "light control", "grouped light", "HTTPS"]
+keywords:
+  [
+    "Hue API v2",
+    "core concepts",
+    "resources",
+    "application key",
+    "service references",
+    "light control",
+    "grouped light",
+    "HTTPS",
+  ]
 summary: "Overview of Hue API v2 concepts such as bridge URLs, application keys, resources, service references, light control, grouped light control, and event-driven behavior."
 ---
 
@@ -42,11 +52,11 @@ The list of all resources is available in the [API reference](https://developers
 
 You can query resources available in your bridge by doing a GET on its local URL. For example the following returns all devices in your bridge.
 
-| Field | Value |
-| --- | --- |
+| Field   | Value                                               |
+| ------- | --------------------------------------------------- |
 | Address | https://<bridge IP address>/clip/v2/resource/device |
-| Method | GET |
-| Header | hue-application-key: <appkey> |
+| Method  | GET                                                 |
+| Header  | hue-application-key: <appkey>                       |
 
 ## Change a Resource
 
@@ -54,12 +64,12 @@ The principle for changing a resource is to send a `PUT` request to the URL of t
 
 For example to change the name of a device we address the device resource by its id `(/resource/device/<id>)` and send the new name with the request in the message body.
 
-| Field | Value |
-| --- | --- |
+| Field   | Value                                           |
+| ------- | ----------------------------------------------- |
 | Address | https://<bridge IP address>/clip/v2/device/<id> |
-| Method | PUT |
-| Header | hue-application-key: <appkey> |
-| Body | {"metadata": {"name": "developer lamp"}} |
+| Method  | PUT                                             |
+| Header  | hue-application-key: <appkey>                   |
+| Body    | {"metadata": {"name": "developer lamp"}}        |
 
 If you’re doing something that isn’t allowed, maybe setting a value out of range or typo in the resource name, then you’ll get a 4xx HTTP status code and an error message letting you know what’s wrong.
 
@@ -69,28 +79,28 @@ Each device in the Hue System typically offers a set of services. For example a 
 
 ```json
 {
-    "type": "device",
-    "id": "7b839dff-c2d2-4f90-9509-fea4b461b30d",
-    "metadata": {
-        "archetype": "sultan_bulb",
-        "name": "User given name"
+  "type": "device",
+  "id": "7b839dff-c2d2-4f90-9509-fea4b461b30d",
+  "metadata": {
+    "archetype": "sultan_bulb",
+    "name": "User given name"
+  },
+  "product_data": {
+    "manufacturer_name": "Signify Netherlands B.V.",
+    "model_id": "XXX001",
+    "product_name": "Fixed product name",
+    "software_version": "x.y.z"
+  },
+  "services": [
+    {
+      "rid": "c6b028c8-076e-4817-92b1-bcb0cbb78783",
+      "rtype": "light"
     },
-    "product_data": {
-        "manufacturer_name": "Signify Netherlands B.V.",
-        "model_id": "XXX001",
-        "product_name": "Fixed product name",
-        "software_version": "x.y.z"
-    },
-    "services": [
-        {
-            "rid": "c6b028c8-076e-4817-92b1-bcb0cbb78783",
-            "rtype": "light"
-        },
-        {
-            "rid": "6ec5432f-fb66-4b07-88de-bb0087a0e33d",
-            "rtype": "zigbee_connectivity"
-        }
-    ]
+    {
+      "rid": "6ec5432f-fb66-4b07-88de-bb0087a0e33d",
+      "rtype": "zigbee_connectivity"
+    }
+  ]
 }
 ```
 
@@ -104,12 +114,12 @@ There are multiple light features that can be controlled with Hue. These feature
 
 **dimming** – This is about controlling brightness of a light. We use the brightness in % (note minimum brightness is not off). The range has been calibrated so there are perceptually similar steps in brightness over the range. You can set the “brightness” key in the “dimming” object to a specific value, e.g. the following command sets the light to 50% of its maximum brightness.
 
-| Field | Value |
-| --- | --- |
+| Field   | Value                                                   |
+| ------- | ------------------------------------------------------- |
 | Address | https://<bridge IP address>/clip/v2/resource/light/<id> |
-| Method | PUT |
-| Header | hue-application-key: <appkey> |
-| Body | {"dimming": {"brightness": 50}} |
+| Method  | PUT                                                     |
+| Header  | hue-application-key: <appkey>                           |
+| Body    | {"dimming": {"brightness": 50}}                         |
 
 ## Colors Get More Complicated
 
@@ -119,7 +129,7 @@ The color point of light has lots of ways of being quantified. The diagram below
 
 All points on this plot have unique xy coordinates that can be used when setting the color of a Hue bulb. If an xy value outside of bulbs relevant Gamut triangle is chosen, it will produce the closest color it can make. You can find the supported gamut of each light by performing a GET on the light resource. To control lights with xy use the “xy” sub-object within the “color” object which takes an x and y values between 0 and 1 e.g. `{"color": {"xy": {"x":0.675, "y":0.322}}}` is red.
 
-We can also choose to address the color point of light in a different way, using colors on the black curved line in the center of the diagram. This is the line that follows white colors from a warm white to a cold white. Hue lights typically support color temperatures from 2000K (warm) to 6500K (cold) with high quality white light. To set the light to a white value you need to interact with the “color\_temperature” object, which takes values in a scale called “reciprocal megakelvin” or “mirek”. Using this scale, the warm white color 2000K is 500 mirek `{"color_temperature": {"mirek": 500}}` and the cold white color 6500K is 153 mirek. As with xy, the light will go to the closest value it can produce if the specified color temperature is outside of the achievable range. You can find the supported color temperature range of each light by performing a GET on the light resource.
+We can also choose to address the color point of light in a different way, using colors on the black curved line in the center of the diagram. This is the line that follows white colors from a warm white to a cold white. Hue lights typically support color temperatures from 2000K (warm) to 6500K (cold) with high quality white light. To set the light to a white value you need to interact with the “color_temperature” object, which takes values in a scale called “reciprocal megakelvin” or “mirek”. Using this scale, the warm white color 2000K is 500 mirek `{"color_temperature": {"mirek": 500}}` and the cold white color 6500K is 153 mirek. As with xy, the light will go to the closest value it can produce if the specified color temperature is outside of the achievable range. You can find the supported color temperature range of each light by performing a GET on the light resource.
 
 An important note is that availability of the feature objects depends on device capabilities. So for example a light that has no color capabilities, will not have the color feature object.
 
@@ -131,34 +141,34 @@ This lets us do things fast without worrying about the wireless messages bouncin
 
 ## Rooms
 
-A user can have a lot of devices in their home. To organize them, we typically list devices per room, as each device can only be part of one room. By now it will probably be clear that retrieving the list of rooms can be done by a GET on `/resource/room`. This shows the id and name of each room, with the array of “children” referring to the devices in the room. Referencing the devices uses the same universal method as we’ve seen before with services i.e. using “rid” and “rtype”. As you can see in the example below the room itself also offers a “grouped\_light” service. This can be used to control the lights as a group, in a similar way as controlling an individual light.
+A user can have a lot of devices in their home. To organize them, we typically list devices per room, as each device can only be part of one room. By now it will probably be clear that retrieving the list of rooms can be done by a GET on `/resource/room`. This shows the id and name of each room, with the array of “children” referring to the devices in the room. Referencing the devices uses the same universal method as we’ve seen before with services i.e. using “rid” and “rtype”. As you can see in the example below the room itself also offers a “grouped_light” service. This can be used to control the lights as a group, in a similar way as controlling an individual light.
 
 Example representation of a room:
 
 ```json
 {
-    "type": "room",
-    "id": "708d8a89-5d05-408f-b43c-830fbff8316e",
-    "metadata": {
-        "archetype": "living_room",
-        "name": "Living room"
+  "type": "room",
+  "id": "708d8a89-5d05-408f-b43c-830fbff8316e",
+  "metadata": {
+    "archetype": "living_room",
+    "name": "Living room"
+  },
+  "children": [
+    {
+      "rid": "a91cde76-1d98-400c-873d-12f241f26145",
+      "rtype": "device"
     },
-    "children": [
-        {
-            "rid": "a91cde76-1d98-400c-873d-12f241f26145",
-            "rtype": "device"
-        },
-        {
-            "rid": "25f1f7e4-e409-4b64-a1d7-8186916de2d6",
-            "rtype": "device"
-        }
-    ],
-    "services": [
-        {
-            "rid": "27a6cc29-57e3-4e3e-b83d-f9cc33cc9629",
-            "rtype": "grouped_light"
-        }
-    ]
+    {
+      "rid": "25f1f7e4-e409-4b64-a1d7-8186916de2d6",
+      "rtype": "device"
+    }
+  ],
+  "services": [
+    {
+      "rid": "27a6cc29-57e3-4e3e-b83d-f9cc33cc9629",
+      "rtype": "grouped_light"
+    }
+  ]
 }
 ```
 
@@ -198,12 +208,12 @@ Note that events are currently only openly available on the local network API, n
 
 There’s a lot more to the Hue System, for example:
 
--   Zones are a way of grouping just like rooms, but they group services rather than devices, and have no restrictions i.e. services can be part of multiple zones
--   Scenes are a way of creating preset light settings for all lights within a room or zone, which can then be easily recalled later
--   Sensor services like “motion”, “light\_level”, “temperature”, and “contact” can indicate information about the environment
--   Button service can be used to receive an event when a user presses a button on one of our button/switch devices
--   Entertainment configurations enable fast changing position based light effects for [Hue Entertainment](https://developers.meethue.com/develop/hue-entertainment) use cases
--   Behaviors are used to create and configure automations in the Hue System, however this is under development and at this moment you can only list behaviors
+- Zones are a way of grouping just like rooms, but they group services rather than devices, and have no restrictions i.e. services can be part of multiple zones
+- Scenes are a way of creating preset light settings for all lights within a room or zone, which can then be easily recalled later
+- Sensor services like “motion”, “light_level”, “temperature”, and “contact” can indicate information about the environment
+- Button service can be used to receive an event when a user presses a button on one of our button/switch devices
+- Entertainment configurations enable fast changing position based light effects for [Hue Entertainment](https://developers.meethue.com/develop/hue-entertainment) use cases
+- Behaviors are used to create and configure automations in the Hue System, however this is under development and at this moment you can only list behaviors
 
 They all follow many of the same core concepts you have just learned about, so have fun exploring our full [API Reference](https://developers.meethue.com/develop/hue-api-v2/api-reference)!
 

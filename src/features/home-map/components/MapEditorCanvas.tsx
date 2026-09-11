@@ -242,6 +242,14 @@ export interface MapEditorCanvasProps {
   liftedFixtureId?: string | null;
   /** Ends that drag, whether it landed on the map or beside it. */
   onLiftEnd?: () => void;
+  /** Releasing a fixture inside this element takes it off the map instead. */
+  removeZoneRef?: React.RefObject<HTMLElement | null>;
+  /** Takes the whole product off the map, every head with it. */
+  onRemoveFixture?: (fixtureId: string) => void;
+  /** Reports the fixture under the pointer, so the remove zone can show. */
+  onFixtureDragChange?: (
+    drag: { fixtureId: string; overRemoveZone: boolean } | null,
+  ) => void;
   fixtureLabels: Record<string, string>;
   /** Light id to the fixture it is a head of, so one product draws once. */
   fixtureOf: Record<string, string>;
@@ -305,6 +313,9 @@ function EditorSurface({
   placingFixtureId,
   liftedFixtureId = null,
   onLiftEnd,
+  removeZoneRef,
+  onRemoveFixture,
+  onFixtureDragChange,
   fixtureLabels,
   fixtureOf,
   onPlaceFixture,
@@ -367,7 +378,20 @@ function EditorSurface({
     fixtureId: string;
     point: MapPoint;
   } | null>(null);
+  const [overRemoveZone, setOverRemoveZone] = useState(false);
   const [peekMeasurements, setPeekMeasurements] = useState(false);
+
+  /** True while the pointer is over whatever the host offered as the bin. */
+  function inRemoveZone(event: { clientX: number; clientY: number }) {
+    const rect = removeZoneRef?.current?.getBoundingClientRect();
+    return Boolean(
+      rect &&
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom,
+    );
+  }
 
   useEffect(() => {
     // Windows reads a lone Alt as a menu shortcut, and releasing it drops the
@@ -1032,7 +1056,13 @@ function EditorSurface({
       );
       setGuides([]);
       dragRef.current = { ...drag, moved: true };
-      setLightPreview({ fixtureId: drag.fixtureId, point: result.point });
+      const removing = inRemoveZone(event);
+      setOverRemoveZone(removing);
+      // Over the bin the marker stops following, so the plan does not twitch
+      // under a drag that is about to take the fixture off it.
+      setLightPreview(
+        removing ? null : { fixtureId: drag.fixtureId, point: result.point },
+      );
       return;
     }
     if (drag.kind === "combine") {
@@ -1159,10 +1189,14 @@ function EditorSurface({
     const committed = previewRef.current;
     if (drag.kind === "fixture") {
       const moved = lightPreview;
+      const removing = inRemoveZone(event);
       setLightPreview(null);
+      setOverRemoveZone(false);
       setDrag(null);
       setGuides([]);
-      if (drag.moved && moved) onPlaceFixture(moved.fixtureId, moved.point);
+      if (removing) onRemoveFixture?.(drag.fixtureId);
+      else if (drag.moved && moved)
+        onPlaceFixture(moved.fixtureId, moved.point);
       return;
     }
     if (drag.kind === "combine") {
@@ -1210,8 +1244,20 @@ function EditorSurface({
   // A tray row hands its fixture over on press and the map takes the pointer
   // from there, so dragging one in never depends on HTML5 drag and drop, which
   // the desktop shell's own drop handler swallows on Windows.
-  const liftRef = useRef({ draftCorner, onPlaceFixture, onLiftEnd });
-  liftRef.current = { draftCorner, onPlaceFixture, onLiftEnd };
+  const liftRef = useRef({
+    draftCorner,
+    onPlaceFixture,
+    onLiftEnd,
+    onRemoveFixture,
+    inRemoveZone,
+  });
+  liftRef.current = {
+    draftCorner,
+    onPlaceFixture,
+    onLiftEnd,
+    onRemoveFixture,
+    inRemoveZone,
+  };
 
   useEffect(() => {
     if (!liftedFixtureId) return;
@@ -1226,7 +1272,9 @@ function EditorSurface({
       );
     };
     const move = (event: PointerEvent) => {
-      if (!over(event)) {
+      const removing = liftRef.current.inRemoveZone(event);
+      setOverRemoveZone(removing);
+      if (removing || !over(event)) {
         setLightPreview(null);
         return;
       }
@@ -1234,15 +1282,19 @@ function EditorSurface({
       setLightPreview({ fixtureId: liftedFixtureId, point });
     };
     const drop = (event: PointerEvent) => {
-      if (over(event)) {
+      if (liftRef.current.inRemoveZone(event))
+        liftRef.current.onRemoveFixture?.(liftedFixtureId);
+      else if (over(event)) {
         const { point } = liftRef.current.draftCorner(event);
         liftRef.current.onPlaceFixture(liftedFixtureId, point);
       }
       setLightPreview(null);
+      setOverRemoveZone(false);
       liftRef.current.onLiftEnd?.();
     };
     const cancel = () => {
       setLightPreview(null);
+      setOverRemoveZone(false);
       liftRef.current.onLiftEnd?.();
     };
     window.addEventListener("pointermove", move);
@@ -1254,6 +1306,20 @@ function EditorSurface({
       window.removeEventListener("pointercancel", cancel);
     };
   }, [liftedFixtureId]);
+
+  // One report for both ways a fixture travels — out of the tray and off its
+  // own marker — so the host shows one remove zone for either.
+  const draggingFixtureId =
+    liftedFixtureId ?? (drag?.kind === "fixture" ? drag.fixtureId : null);
+  const dragChangeRef = useRef(onFixtureDragChange);
+  dragChangeRef.current = onFixtureDragChange;
+  useEffect(() => {
+    dragChangeRef.current?.(
+      draggingFixtureId
+        ? { fixtureId: draggingFixtureId, overRemoveZone }
+        : null,
+    );
+  }, [draggingFixtureId, overRemoveZone]);
 
   const gridStep = useMemo(
     () =>

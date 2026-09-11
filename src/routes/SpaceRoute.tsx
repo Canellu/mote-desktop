@@ -25,8 +25,7 @@ export const SpaceRoute: React.FC = () => {
     toggle: toggleInspector,
     close: closeInspector,
   } = useInspector();
-  const selectedLightId =
-    selection?.kind === "light" ? selection.id : null;
+  const selectedLightId = selection?.kind === "light" ? selection.id : null;
 
   // Customize/Manage take the tiles over for reordering and multi-select, so the
   // inspector pane closes on entry and stays closed until the mode exits — the
@@ -38,7 +37,8 @@ export const SpaceRoute: React.FC = () => {
         (event as CustomEvent<"customize" | "manage" | null>).detail != null,
       );
     window.addEventListener("hue-space-edit-state", onEditState);
-    return () => window.removeEventListener("hue-space-edit-state", onEditState);
+    return () =>
+      window.removeEventListener("hue-space-edit-state", onEditState);
   }, []);
 
   // Remember whatever the pane was showing when the mode opened, so leaving the
@@ -55,7 +55,13 @@ export const SpaceRoute: React.FC = () => {
       restoreInspectRef.current = null;
       openInspector(restore.kind, restore.id);
     }
-  }, [spaceEditActive, inspectorOpen, selection, closeInspector, openInspector]);
+  }, [
+    spaceEditActive,
+    inspectorOpen,
+    selection,
+    closeInspector,
+    openInspector,
+  ]);
 
   const inspect = useCallback(
     (kind: InspectKind, id: string) => {

@@ -252,6 +252,8 @@ export interface HueSwitchInputConfiguration {
 
 /** Resource change pushed from the bridge SSE stream. Matched by v2 `id`. */
 export interface HueEventUpdate {
+  /** Metadata or membership changed; reload the resource snapshot in each window. */
+  resourcesChanged?: boolean;
   /** SSE container kind: update, add, delete, or error. */
   eventType: string | null;
   type: string;

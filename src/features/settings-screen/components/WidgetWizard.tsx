@@ -1,5 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -48,8 +53,8 @@ import {
 import {
   SortableContext,
   arrayMove,
-  rectSortingStrategy,
   useSortable,
+  verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -440,7 +445,7 @@ export const WidgetWizard = ({
         onClick: create,
       }}
     >
-      <SettingsWizardViewport stepKey={step} contained={step === 1}>
+      <SettingsWizardViewport stepKey={step} contained={step !== 0}>
         {step === 0 ? (
           <section className="mx-auto flex w-full max-w-md flex-col items-center gap-12 py-16 text-center">
             <div className="space-y-3">
@@ -600,105 +605,114 @@ export const WidgetWizard = ({
         ) : null}
 
         {step === 2 ? (
-          <section className="space-y-6">
-            <div className="space-y-2 text-center">
-              <h1 className="font-heading text-3xl font-semibold">Configure</h1>
-              <p className="text-base text-muted-foreground">
-                Arrange your controls and style the desktop frame before the
-                widget opens.
-              </p>
-              <p className="text-xs text-muted-foreground/80">
-                All settings can be changed after the widget is created.
-              </p>
-            </div>
-            <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
-              <Tabs defaultValue="controls" className="min-w-0 gap-4">
-                <TabsList className="w-full">
-                  <TabsTrigger value="controls">Controls</TabsTrigger>
-                  <TabsTrigger value="appearance">Appearance</TabsTrigger>
-                </TabsList>
-                <TabsContent
-                  value="controls"
-                  className="flex min-w-0 flex-col gap-3"
-                >
-                  {controls.length === 0 ? (
-                    <p className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
-                      Go back and choose a control, or add a toggles card below.
-                    </p>
-                  ) : (
-                    controls.map((control) => {
-                      if (isTogglesControl(control)) {
+          <ScrollArea
+            fade="bottom"
+            className="min-h-0 flex-1 overflow-hidden"
+            viewportClassName="pr-2"
+          >
+            <section className="space-y-6 py-4 pb-6">
+              <div className="space-y-2 text-center">
+                <h1 className="font-heading text-3xl font-semibold">
+                  Configure
+                </h1>
+                <p className="text-base text-muted-foreground">
+                  Arrange your controls and style the desktop frame before the
+                  widget opens.
+                </p>
+                <p className="text-xs text-muted-foreground/80">
+                  All settings can be changed after the widget is created.
+                </p>
+              </div>
+              <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+                <Tabs defaultValue="controls" className="min-w-0 gap-4">
+                  <TabsList className="w-full">
+                    <TabsTrigger value="controls">Controls</TabsTrigger>
+                    <TabsTrigger value="appearance">Appearance</TabsTrigger>
+                  </TabsList>
+                  <TabsContent
+                    value="controls"
+                    className="flex min-w-0 flex-col gap-3"
+                  >
+                    {controls.length === 0 ? (
+                      <p className="rounded-lg border border-dashed border-border/60 px-3 py-6 text-center text-sm text-muted-foreground">
+                        Go back and choose a control, or add a toggles card
+                        below.
+                      </p>
+                    ) : (
+                      controls.map((control) => {
+                        if (isTogglesControl(control)) {
+                          return (
+                            <TogglesConfigRow
+                              key={control.id}
+                              control={control}
+                              onChange={updateControl}
+                              onRemove={() => removeControl(control.id)}
+                            />
+                          );
+                        }
+                        const isLight = control.target.kind === "light";
+                        const Icon = isLight
+                          ? Lightbulb
+                          : getRoomZoneIcon(
+                              roomZoneById.get(control.target.id)?.class ?? "",
+                            );
+                        const groupScenes = isLight
+                          ? []
+                          : scenes.filter(
+                              (scene) => scene.group === control.target.id,
+                            );
                         return (
-                          <TogglesConfigRow
+                          <ControlConfigRow
                             key={control.id}
                             control={control}
-                            onChange={updateControl}
-                            onRemove={() => removeControl(control.id)}
+                            icon={<Icon size={18} strokeWidth={2.5} />}
+                            groupScenes={groupScenes}
+                            onCompactChange={(compact) =>
+                              setControlCompact(control.id, compact)
+                            }
+                            onToggleScene={(sceneId) =>
+                              toggleControlScene(control.id, sceneId)
+                            }
                           />
                         );
-                      }
-                      const isLight = control.target.kind === "light";
-                      const Icon = isLight
-                        ? Lightbulb
-                        : getRoomZoneIcon(
-                            roomZoneById.get(control.target.id)?.class ?? "",
-                          );
-                      const groupScenes = isLight
-                        ? []
-                        : scenes.filter(
-                            (scene) => scene.group === control.target.id,
-                          );
-                      return (
-                        <ControlConfigRow
-                          key={control.id}
-                          control={control}
-                          icon={<Icon size={18} strokeWidth={2.5} />}
-                          groupScenes={groupScenes}
-                          onCompactChange={(compact) =>
-                            setControlCompact(control.id, compact)
-                          }
-                          onToggleScene={(sceneId) =>
-                            toggleControlScene(control.id, sceneId)
-                          }
+                      })
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addTogglesCard}
+                      className="self-start"
+                    >
+                      <ToggleRight size={16} />
+                      Add toggles card
+                    </Button>
+                  </TabsContent>
+                  <TabsContent value="appearance" className="space-y-5">
+                    <PickerGroup title="Theme">
+                      {themeModes.map((mode) => (
+                        <OptionButton
+                          key={mode.value}
+                          active={themeMode === mode.value}
+                          compact
+                          icon={<Sparkles size={16} />}
+                          title={mode.label}
+                          onClick={() => setThemeMode(mode.value)}
                         />
-                      );
-                    })
-                  )}
+                      ))}
+                    </PickerGroup>
+                  </TabsContent>
+                </Tabs>
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addTogglesCard}
-                    className="self-start"
-                  >
-                    <ToggleRight size={16} />
-                    Add toggles card
-                  </Button>
-                </TabsContent>
-                <TabsContent value="appearance" className="space-y-5">
-                  <PickerGroup title="Theme">
-                    {themeModes.map((mode) => (
-                      <OptionButton
-                        key={mode.value}
-                        active={themeMode === mode.value}
-                        compact
-                        icon={<Sparkles size={16} />}
-                        title={mode.label}
-                        onClick={() => setThemeMode(mode.value)}
-                      />
-                    ))}
-                  </PickerGroup>
-                </TabsContent>
-              </Tabs>
-
-              <WidgetPreview
-                theme={previewTheme}
-                controls={controls}
-                onReorder={reorderControls}
-              />
-            </div>
-          </section>
+                <WidgetPreview
+                  theme={previewTheme}
+                  controls={controls}
+                  onReorder={reorderControls}
+                />
+              </div>
+            </section>
+          </ScrollArea>
         ) : null}
       </SettingsWizardViewport>
     </SettingsWizardLayout>
@@ -982,35 +996,57 @@ const TogglesConfigRow = ({
   onRemove: () => void;
 }) => {
   const count = control.targets.length;
+  const [open, setOpen] = useState(true);
+
   return (
-    <div className="space-y-3 rounded-xl border border-border/60 bg-card p-3">
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="rounded-xl border border-border/60 bg-card"
+    >
       <div className="flex items-center gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center text-muted-foreground">
-          <ToggleRight size={18} strokeWidth={2.5} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">
-            {control.label ?? "Toggles"}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">
-            {count === 0
-              ? "No chips yet"
-              : `${count} chip${count === 1 ? "" : "s"}`}
-          </p>
-        </div>
+        <CollapsibleTrigger
+          className="group flex min-w-0 flex-1 items-center gap-3 rounded-xl p-3 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          aria-label={`${open ? "Collapse" : "Expand"} ${control.label ?? "Toggles"} configuration`}
+        >
+          <span className="flex size-8 shrink-0 items-center justify-center text-muted-foreground">
+            <ToggleRight size={18} strokeWidth={2.5} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">
+              {control.label ?? "Toggles"}
+            </span>
+            <span className="block truncate text-xs text-muted-foreground">
+              {count === 0
+                ? "No chips yet"
+                : `${count} chip${count === 1 ? "" : "s"}`}
+            </span>
+          </span>
+          <ChevronDown
+            size={16}
+            className={cn(
+              "shrink-0 text-muted-foreground transition-transform duration-200",
+              open && "rotate-180",
+            )}
+          />
+        </CollapsibleTrigger>
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          className="shrink-0 text-destructive hover:text-destructive"
+          className="mr-3 shrink-0 text-destructive hover:text-destructive"
           onClick={onRemove}
         >
           <Trash2 size={15} />
           Remove
         </Button>
       </div>
-      <TogglesControlBody control={control} onChange={onChange} />
-    </div>
+      <CollapsibleContent>
+        <div className="border-t border-border/50 p-3">
+          <TogglesControlBody control={control} onChange={onChange} />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 };
 
@@ -1120,7 +1156,7 @@ const WidgetPreview = ({
             >
               <SortableContext
                 items={controls.map((control) => control.id)}
-                strategy={rectSortingStrategy}
+                strategy={verticalListSortingStrategy}
               >
                 {grid}
               </SortableContext>
@@ -1160,7 +1196,13 @@ const SortablePreviewCard = ({
   } = useSortable({ id });
 
   const adjusted = transform
-    ? { ...transform, x: transform.x / scale, y: transform.y / scale }
+    ? {
+        ...transform,
+        x: transform.x / scale,
+        y: transform.y / scale,
+        scaleX: 1,
+        scaleY: 1,
+      }
     : null;
 
   return (

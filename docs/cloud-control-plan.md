@@ -79,6 +79,7 @@ scenes, rooms, zones, settings) is transport-agnostic once this is abstracted.
 ## Components to build
 
 ### 1. Hue app registration (one-time, manual)
+
 - Register at developers.meethue.com → username → "Remote Hue API appids" →
   "Add new Remote Hue API app".
 - **Decide the redirect URL before registering — it is fixed at registration.**
@@ -94,12 +95,12 @@ The design has **two distinct URLs** that are easy to conflate. Only the second
 lives on the selected serverless/backend host, and neither inherently requires
 buying a domain.
 
-| | Redirect URL | Token broker URL |
-|---|---|---|
-| **What** | Where the browser lands after the user approves (the app catches the `code` here) | Where the app sends the `code` to swap it for tokens (the `client_secret` lives here) |
-| **Example** | `<APP_SCHEME>://oauth/callback` | `https://<broker-host>/api/hue-token` |
-| **Registered with Hue?** | Yes — fixed at registration | No |
-| **Needs a domain?** | No (custom scheme) | No (free `*.vercel.app`) |
+|                          | Redirect URL                                                                      | Token broker URL                                                                      |
+| ------------------------ | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| **What**                 | Where the browser lands after the user approves (the app catches the `code` here) | Where the app sends the `code` to swap it for tokens (the `client_secret` lives here) |
+| **Example**              | `<APP_SCHEME>://oauth/callback`                                                   | `https://<broker-host>/api/hue-token`                                                 |
+| **Registered with Hue?** | Yes — fixed at registration                                                       | No                                                                                    |
+| **Needs a domain?**      | No (custom scheme)                                                                | No (free `*.vercel.app`)                                                              |
 
 The **redirect URL** is not provided by the broker host. Two ways to do it:
 
@@ -117,6 +118,7 @@ both options, because it's where the `client_secret` lives — separate from the
 redirect, which only catches the `code`.
 
 ### 2. Server-side token broker
+
 - `POST /api/hue-token` handling two grant types:
   - `authorization_code` → exchange `code` for tokens
   - `refresh_token` → refresh an expired access token
@@ -131,6 +133,7 @@ redirect, which only catches the `code`.
   extractable.
 
 ### 3. Tauri OAuth flow (Rust + minimal UI)
+
 - **Authorize:** open the system browser to
   `https://api.meethue.com/v2/oauth2/authorize?client_id=...&response_type=code&state=<random>&redirect_uri=<APP_SCHEME>://oauth/callback&code_challenge=<challenge>&code_challenge_method=S256`.
   Use `@tauri-apps/plugin-opener` (already a dependency) or the shell opener.
@@ -147,6 +150,7 @@ redirect, which only catches the `code`.
     → returns the `username` to use as `hue-application-key` for cloud calls.
 
 ### 4. Transport abstraction in `hue_client.rs`
+
 - Introduce a `Transport` notion: `Local { ip }` or `Cloud { access_token }`.
 - Centralize URL building + auth headers in one helper used by all four verbs,
   so `get_lights`/`set_light_state`/etc. stay unchanged.
@@ -157,6 +161,7 @@ redirect, which only catches the `code`.
   live updates remotely (can be a later sub-phase; polling works initially).
 
 ### 5. Token storage & refresh (Rust, keychain)
+
 - Store `access_token` + `refresh_token` + expiry in the OS keychain via the
   existing `keyring` crate (see `KEYRING_SERVICE`/`KEYRING_ACCOUNT` constants),
   separate entries from the local application key.
@@ -164,6 +169,7 @@ redirect, which only catches the `code`.
   grant. Handle refresh failure by prompting re-login.
 
 ### 6. Session model changes
+
 - `HueSession` (Rust `hue_client.rs` + TS `src/context/HueContext.tsx`) gains a
   notion of connection mode, e.g. `mode: "local" | "cloud"` and optional
   `accessToken`. The cloud `hue-application-key` (username from step 3) maps onto

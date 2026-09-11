@@ -14,7 +14,6 @@ const PUBLIC_LINKS = {
   privacy: "https://motedesktop.com/privacy",
   terms: "https://motedesktop.com/terms",
   support: "https://motedesktop.com/support",
-  releases: "https://motedesktop.com/releases",
 } as const;
 
 const ExternalLinkButton = ({
@@ -85,15 +84,6 @@ export const AboutSupportTab = () => {
           <span className="rounded-lg bg-black/5 px-3 py-1.5 text-sm font-medium text-muted-foreground shadow-[inset_0_1px_3px_rgb(0_0_0/0.14)] dark:bg-black/20 dark:shadow-[inset_0_1px_3px_rgb(0_0_0/0.45)]">
             Version {version}
           </span>
-        </SettingsRow>
-        <SettingsRow
-          title="Release notes"
-          description="See improvements, fixes, and known issues for each release."
-        >
-          <ExternalLinkButton
-            label="View release notes"
-            href={PUBLIC_LINKS.releases}
-          />
         </SettingsRow>
       </SettingsSection>
 

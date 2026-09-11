@@ -7,7 +7,7 @@ import {
   Plus,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { MapPopover } from "./components/MapPopover";
@@ -59,8 +59,11 @@ import {
   addFloor,
   buildTray,
   placeFixture,
+  rejoinFixture,
   removeFloor,
   renameFloor,
+  splitFixture,
+  targetsOfLights,
   unplaceFixture,
 } from "./placement";
 import { groupFixtures, indexFixtures } from "./fixtures";
@@ -78,6 +81,9 @@ import {
   type QueuedHueOperation,
 } from "./hueOperations";
 import { MapRoomControls } from "./components/MapRoomControls";
+import { RULER_SIZE } from "./components/MapRulers";
+import { PANEL_INSET, PANEL_STRIP } from "./layout";
+import { cn } from "@/lib/utils";
 
 export interface HomeMapScreenProps {
   map: HomeMapDocument;
@@ -173,11 +179,26 @@ export function HomeMapScreen({
   );
   const [placingFixtureId, setPlacingFixtureId] = useState<string | null>(null);
   const [liftedFixtureId, setLiftedFixtureId] = useState<string | null>(null);
+  // The tray is a palette docked clear of the plan, not a sheet over it.
+  const [trayOpen, setTrayOpen] = useState(false);
+  // A fixture in flight, from the tray or off its own marker, so the tray can
+  // offer itself as the place to drop it to take it off the map.
+  const [fixtureDrag, setFixtureDrag] = useState<{
+    fixtureId: string;
+    overRemoveZone: boolean;
+  } | null>(null);
+  const removeZoneRef = useRef<HTMLDivElement>(null);
   const { blinkingKeys, blink } = useBlinkLights();
   // Markers, labels and placement all work on whole products, not single bulbs.
   const fixtures = useMemo(
-    () => indexFixtures(groupFixtures(lighting.lights)),
-    [lighting.lights],
+    () =>
+      indexFixtures(
+        groupFixtures(lighting.lights, {
+          targetOfLight: targetsOfLights(roomZones),
+          overrides: map.fixtures,
+        }),
+      ),
+    [lighting.lights, roomZones, map.fixtures],
   );
   // Every bridge fixture measured against the map, so the screen can say how
   // many are still waiting to be placed before the editor is even opened.
@@ -185,6 +206,7 @@ export function HomeMapScreen({
     () => buildTray(map, lighting.lights, roomZones),
     [map, lighting.lights, roomZones],
   );
+  const unplacedCount = tray.filter((entry) => entry.floorId === null).length;
   /** Leaves the editor's transient selections behind before a mode change. */
   function resetEditorSelection() {
     setSelectedWallId(null);
@@ -194,6 +216,14 @@ export function HomeMapScreen({
   }
   const floor =
     map.floors.find((entry) => entry.id === selectedFloorId) ?? map.floors[0];
+  const trayVisible = editing && tool === "lights" && trayOpen;
+  // Only a fixture already on the plan can be dropped back out of it.
+  const removing = fixtureDrag
+    ? tray.find(
+        (entry) =>
+          entry.fixture.id === fixtureDrag.fixtureId && entry.floorId !== null,
+      )
+    : undefined;
 
   const floorScope = getFloorControlScope({
     document: map,
@@ -425,6 +455,8 @@ export function HomeMapScreen({
     <LightTrayPanel
       entries={tray}
       floor={floor}
+      scrollable
+      onClose={() => setTrayOpen(false)}
       placingFixtureId={placingFixtureId}
       liftedFixtureId={liftedFixtureId}
       blinkingKeys={blinkingKeys}
@@ -432,6 +464,12 @@ export function HomeMapScreen({
       onChoose={setPlacingFixtureId}
       onLift={(fixture) => setLiftedFixtureId(fixture.id)}
       onIdentify={(fixture) => void blink(fixture.id, fixture.lightIds)}
+      onSplit={(fixture) =>
+        applyMapEdit(splitFixture(map, lighting.lights, roomZones, fixture.id))
+      }
+      onRejoin={(fixture) =>
+        applyMapEdit(rejoinFixture(map, lighting.lights, roomZones, fixture.id))
+      }
       onRemove={(fixture) =>
         applyMapEdit(unplaceFixture(map, fixture.lightIds))
       }
@@ -742,6 +780,13 @@ export function HomeMapScreen({
           placingFixtureId={editing ? placingFixtureId : null}
           liftedFixtureId={editing ? liftedFixtureId : null}
           onLiftEnd={() => setLiftedFixtureId(null)}
+          removeZoneRef={removeZoneRef}
+          onRemoveFixture={(id) => {
+            const fixture = fixtures.byId.get(id);
+            if (fixture) applyMapEdit(unplaceFixture(map, fixture.lightIds));
+            setPlacingFixtureId(null);
+          }}
+          onFixtureDragChange={setFixtureDrag}
           fixtureLabels={Object.fromEntries(
             [...fixtures.byId].map(([id, fixture]) => [id, fixture.name]),
           )}
@@ -781,12 +826,43 @@ export function HomeMapScreen({
           }}
           onError={setWallError}
           className="h-full w-full rounded-none border-0 bg-transparent"
+          insetRight={trayVisible ? PANEL_INSET : 0}
           showNavigationHint={false}
           onViewportControls={setZoomControls}
         />
+        {/* The tray is a palette you drag out of, so it keeps to the right
+          edge and leaves the plan — and the middle of the window — clear. It
+          runs the height of the grid, which starts below the top ruler; there
+          is no ruler along the bottom, so the inset is equal from there. */}
+        {trayVisible && (
+          <div
+            className="absolute right-6 bottom-6 z-20 flex w-80 flex-col rounded-2xl border border-border bg-background/95 p-4 shadow-lg backdrop-blur"
+            style={{ top: RULER_SIZE + 24 }}
+          >
+            {fixtureTray}
+            {/* Dropping a placed fixture back into the tray takes it off the
+              plan — the whole product, every bulb, in one drag. */}
+            {removing && (
+              <div
+                ref={removeZoneRef}
+                className={cn(
+                  "pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed backdrop-blur-sm transition-colors",
+                  fixtureDrag?.overRemoveZone
+                    ? "border-destructive bg-destructive/15 text-destructive"
+                    : "border-border bg-background/70 text-muted-foreground",
+                )}
+              >
+                <Trash2 className="size-6" />
+                <p className="px-6 text-center text-sm font-medium">
+                  Drop here to remove {removing.fixture.name} from the map
+                </p>
+              </div>
+            )}
+          </div>
+        )}
         {editing && (
           <EditorToolbar
-            rightInset={0}
+            rightInset={trayVisible ? PANEL_STRIP : 0}
             tool={tool}
             snap={snap}
             measurements={measurementDisplay}
@@ -796,6 +872,8 @@ export function HomeMapScreen({
             onToolChange={(next) => {
               resetEditorSelection();
               setTool(next);
+              // Picking the tool is the request for the tray; it opens with it.
+              setTrayOpen(next === "lights");
               if (next === "lights") setShowLights(true);
             }}
             onSnapChange={(next) => {
@@ -812,17 +890,21 @@ export function HomeMapScreen({
             }}
             leading={
               tool === "lights" ? (
-                <MapPopover
-                  title="Fixtures"
-                  trigger={
-                    <Button size="sm" variant="secondary">
-                      <Lightbulb />
-                      Choose fixture
-                    </Button>
-                  }
+                <Button
+                  size="sm"
+                  variant={trayOpen ? "secondary" : "ghost"}
+                  aria-pressed={trayOpen}
+                  aria-label="Fixtures"
+                  onClick={() => setTrayOpen((open) => !open)}
                 >
-                  {fixtureTray}
-                </MapPopover>
+                  <Lightbulb />
+                  Fixtures
+                  {unplacedCount > 0 && (
+                    <span className="text-muted-foreground tabular-nums">
+                      · {unplacedCount} left
+                    </span>
+                  )}
+                </Button>
               ) : selectedVertexId ? (
                 <MapPopover
                   title="Corner"
@@ -841,7 +923,8 @@ export function HomeMapScreen({
         {/* Every control that acts on the plan itself floats in one corner,
           clear of the plan and of the editor's tool bar. */}
         <div
-          className="absolute top-6 right-6 z-20 flex items-center gap-1 rounded-xl border border-border bg-background p-1"
+          className="absolute top-6 z-20 flex items-center gap-1 rounded-xl border border-border bg-background p-1 transition-[right] duration-200"
+          style={{ right: trayVisible ? PANEL_STRIP : 24 }}
           aria-label="Map controls"
         >
           {!editing && (

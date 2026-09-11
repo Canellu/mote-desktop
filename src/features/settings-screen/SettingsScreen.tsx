@@ -27,6 +27,7 @@ import { SyncBoxTab } from "./tabs/SyncBoxTab";
 import { DevicesTab } from "./tabs/DevicesTab";
 import { EntertainmentAreasTab } from "./tabs/EntertainmentAreasTab";
 import { GeneralTab } from "./tabs/GeneralTab";
+import { ShortcutsTab } from "./tabs/ShortcutsTab";
 import { ScenesTab } from "./tabs/ScenesTab";
 import { SpacesTab } from "./tabs/SpacesTab";
 import { WidgetTab } from "./tabs/WidgetTab";
@@ -114,9 +115,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     : "general";
   const activeTabDetails =
     settingsTabs.find((tab) => tab.value === activeTab) ?? settingsTabs[0];
-  const openWidgetCount = widgets.filter((widget) => widget.enabled).length;
-  const widgetLimitReached = openWidgetCount >= 3;
-
   const loadSettingsSummary = async () => {
     setSettingsError(null);
     try {
@@ -355,12 +353,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 )}
                 {activeTab === "widget" && (
                   <AddWidgetButton
-                    disabled={widgetLimitReached}
-                    disabledReason={
-                      widgetLimitReached
-                        ? "Maximum of 3 desktop widgets reached. Please close an open widget before creating a new one."
-                        : undefined
-                    }
                     onClick={() =>
                       void navigate({ to: "/settings/widget-wizard" })
                     }
@@ -461,6 +453,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   }
                   onUpdateAutoStart={(enabled) => void updateAutoStart(enabled)}
                 />
+              </TabsContent>
+
+              <TabsContent value="shortcuts">
+                <ShortcutsTab />
               </TabsContent>
 
               <TabsContent value="widget">

@@ -103,10 +103,18 @@ have rounded line ends and shared segments render once. Light markers are
 fixed-size circles (5px radius) with a background fill and foreground outline
 (2px); they indicate placement and are not individual light controls.
 
-A marker stands for a fixture, not a bulb: every light service the bridge hangs
-off one device is one product in the room, so a three-head spot bar places,
-moves and removes as a single marker, drawn with a filled dot inside its ring
-to say it carries several bulbs. Membership still decides what a control
+A marker stands for a fixture, not a bulb. Some products are one Hue device
+carrying several light services, so a three-head spot bar is one device and one
+marker. Others — a Centris plate, a run of downlights — register every spot as
+its own device, and those are joined back up by what they are and where they
+are: the same fixed archetype (spot, ceiling, downlight, pendant), the same Hue
+room or zone, and a name that starts the same way for two words. Portable lamps,
+light strips and Play bars are never joined, however they are named. A joined
+product takes the shared start of its heads' names ("Hue Centris"), places,
+moves and removes as one marker, and draws a filled dot inside its ring to say
+it carries several bulbs. The guess is always reversible: a joined row offers
+Split, a split row offers to group back, and the map records either decision in
+`fixtures` so it survives a reload. Membership still decides what a control
 affects; the marker only says where the product is.
 
 Editor handles are told apart by shape, not only by size: corners are small
@@ -137,6 +145,25 @@ itself always means "drag this wall".
   opens it on Move for walls and rooms; Place lights opens it on the light tray
   and counts the fixtures still missing from the map ("Place lights · 3 left"),
   so lights are never something the user has to find inside a wall editor.
+- **Fixture tray:** Place fixtures opens a 320px palette docked to the right
+  edge, in the same column the create-map panel uses. It runs the full height
+  of the grid — the top inset clears the ruler strip, the bottom matches it,
+  since only the top edge carries a ruler — and scrolls its own list, while the
+  tool bar, the map controls and the framed plan all step clear of the strip it
+  claims. It never floats over the middle of the plan, because the plan is
+  where the fixture is going. Rows sit under their placement bucket (Not
+  placed, On this floor, On other floors) and, within it, under the Hue room or
+  zone that controls them, so the space is named once instead of on every row.
+  A whole row is the grab target: the leading bulb becomes a grip under the
+  pointer, so the affordance is the row, not a handle. Hover raises the row
+  surface and its hairline; selection adds the selection surface, a 2px
+  selection border, and the line that says to click the map.
+- **Taking a fixture off the map:** dragging a placed marker, or its tray row,
+  turns the tray itself into the bin: a dashed overlay reading "Drop here to
+  remove <name> from the map" covers it, and arms in the destructive colour
+  once the pointer is inside. One drag carries the whole product, so a
+  multi-head fixture leaves as one marker and every bulb with it. The row keeps
+  its own remove button for anyone who would rather click.
 - **Layers:** Lights and Dimensions expose pressed states. Lights start visible;
   dimensions start visible for measured maps. Dimension labels show meters or
   feet with a background stroke for legibility and rotate along vertical walls.

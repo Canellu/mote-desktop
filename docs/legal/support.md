@@ -1,6 +1,9 @@
 # Mote Desktop Support
 
-Status: **pre-publication draft**.
+Status: **superseded**. The published support page is the one served from the
+website repository (`mote-website`), which the application links to at
+`https://motedesktop.com/support`. Change the site first, and treat this file as
+the record of what the pre-launch draft said.
 
 Mote Desktop is an unofficial Windows desktop controller for compatible Philips
 Hue devices. It is not affiliated with or endorsed by Signify.

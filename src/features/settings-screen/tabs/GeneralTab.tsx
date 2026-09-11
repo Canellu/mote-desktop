@@ -174,7 +174,7 @@ export const GeneralTab = ({
           </SettingsRow>
           <SettingsRow
             title="Feedback button"
-            description="Show the full button, use a smaller icon, or hide it."
+            description="Show it in the title bar with its label, as an icon only, or hide it."
           >
             <SegmentedControl
               value={feedbackPreferences.buttonMode}

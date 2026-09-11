@@ -154,8 +154,10 @@ choose shared or separate control → review affected lights → apply. Placed
 lights suggest subsets; unplaced lights and markers on the new boundary need
 an explicit assignment. Keep their original positions whenever possible.
 
-**Combine flow:** select adjacent areas → Combine → preview removed boundaries →
-choose name and control target → apply. Disconnected areas use a zone for
+**Combine flow:** Combine → drag one room onto another, or click two rooms that
+touch and then the dot that appears on the wall between them → confirm on the
+map → apply. The room dropped on, or the one picked first, keeps its name and
+Hue link, so combining never asks for a name. Disconnected areas use a zone for
 combined control while keeping separate shapes. Never invent a wall or corridor
 between them.
 

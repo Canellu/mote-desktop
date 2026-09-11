@@ -7,9 +7,11 @@ import logo from "../assets/rectangle.svg";
 interface TitleBarProps {
   /** Dev-only: when set, shows a "back to wizard" control in the title bar. */
   onDevBack?: () => void;
+  /** App-wide controls that would otherwise float over the content. */
+  actions?: React.ReactNode;
 }
 
-export const TitleBar: React.FC<TitleBarProps> = ({ onDevBack }) => {
+export const TitleBar: React.FC<TitleBarProps> = ({ onDevBack, actions }) => {
   const handleMinimize = async () => {
     try {
       await invoke("minimize-main-window");
@@ -87,6 +89,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onDevBack }) => {
         Mote Desktop
       </div>
       <div className="flex items-stretch">
+        {actions}
         <button
           type="button"
           aria-label="Minimize window"

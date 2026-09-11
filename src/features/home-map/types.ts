@@ -47,6 +47,16 @@ export interface MapFloor {
   lights: MapLightPlacement[];
 }
 
+/**
+ * A product the map keeps together, or apart, against what it would work out
+ * on its own. Its id is the fixture's id, so markers and placements are
+ * unaffected by how the lights came to be grouped.
+ */
+export interface MapFixtureGroup {
+  id: string;
+  lightIds: string[];
+}
+
 export interface HomeMapDocument {
   schemaVersion: typeof HOME_MAP_SCHEMA_VERSION;
   id: string;
@@ -55,6 +65,8 @@ export interface HomeMapDocument {
   drawingMode: "sketch" | "measured";
   units: "metric" | "imperial";
   floors: MapFloor[];
+  /** Present only where a product was grouped or split by hand. */
+  fixtures?: MapFixtureGroup[];
 }
 
 export interface MapValidationIssue {

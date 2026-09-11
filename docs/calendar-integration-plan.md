@@ -148,7 +148,7 @@ event instances.
 - **Google:** desktop OAuth through the system browser, PKCE/state, and a
   random `127.0.0.1` callback listener. Use read-only Calendar scope,
   CalendarList, and incremental event sync tokens. Handle pagination and `410
-  Gone` by rebuilding the affected range. Google explicitly supports loopback
+Gone` by rebuilding the affected range. Google explicitly supports loopback
   callbacks for desktop apps and incremental synchronization.
   [OAuth](https://developers.google.com/identity/protocols/oauth2/native-app),
   [sync](https://developers.google.com/workspace/calendar/api/guides/sync).

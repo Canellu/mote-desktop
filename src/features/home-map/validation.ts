@@ -262,5 +262,27 @@ export function validateHomeMap(value: unknown): MapValidationIssue[] {
   );
   if (new Set(lights).size !== lights.length)
     issue("floors", "A light can appear on only one floor.");
+  if (value.fixtures !== undefined) {
+    if (!list(value.fixtures, 512))
+      issue("fixtures", "A map records at most 512 fixture groups.");
+    else {
+      const grouped: string[] = [];
+      value.fixtures.forEach((group, i) => {
+        if (
+          !isRecord(group) ||
+          !text(group.id, 128) ||
+          !list(group.lightIds, 64) ||
+          group.lightIds.length === 0 ||
+          !group.lightIds.every((id) => text(id, 128))
+        ) {
+          issue(`fixtures[${i}]`, "A fixture group needs an ID and lights.");
+          return;
+        }
+        grouped.push(...(group.lightIds as string[]));
+      });
+      if (new Set(grouped).size !== grouped.length)
+        issue("fixtures", "A light can belong to only one fixture group.");
+    }
+  }
   return issues;
 }

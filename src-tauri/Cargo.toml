@@ -20,6 +20,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-opener = "2"
+tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-store = "2"
 tauri-plugin-window-state = "2.0"
@@ -40,6 +41,8 @@ windows = { version = "0.62.2", features = [
     "ApplicationModel",
     "Foundation",
     "Services_Store",
+    "Win32_Foundation",
+    "Win32_UI_Shell",
 ] }
 windows-collections = "0.3.2"
 windows-capture = "2.0.0"

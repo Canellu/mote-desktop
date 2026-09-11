@@ -1,6 +1,7 @@
 ---
 title: "Hue API v1 Overview"
-keywords: ["Hue API v1", "overview", "legacy API", "publishing", "local bridge API"]
+keywords:
+  ["Hue API v1", "overview", "legacy API", "publishing", "local bridge API"]
 summary: "Overview page for the legacy Hue API v1 documentation and publishing guidance."
 ---
 

@@ -1,8 +1,12 @@
 # Mote Desktop Terms of Use
 
-Status: **pre-publication draft for legal review**.
+Status: **superseded**. The published documents are the ones served from the
+website repository (`mote-website`), which the application links to at
+`https://motedesktop.com/terms`; they were written from this draft and carry
+more than it does. Change the site first, and treat this file as the record of
+what the pre-launch draft said rather than as the policy in force.
 
-Effective date: **To be set before publication**.
+Effective date of the published version: **10 September 2026**.
 
 These terms apply to Mote Desktop, an unofficial Windows desktop application
 published by Anton Vo. By installing or using the application, you agree to

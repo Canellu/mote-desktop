@@ -65,9 +65,7 @@ export const RoomZoneWizardRoute: React.FC = () => {
             );
             void navigate({ to: "/settings", search: { tab: "spaces" } });
           } catch (error) {
-            toast.error(
-              String(error) || `Unable to create ${resourceType}.`,
-            );
+            toast.error(String(error) || `Unable to create ${resourceType}.`);
           }
         })();
       }}

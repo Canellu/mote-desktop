@@ -1,6 +1,16 @@
 ---
 title: "Migration Guide to the New Hue API"
-keywords: ["migration", "Hue API v2", "Hue API v1", "HTTPS", "discovery", "application key", "resource identifiers", "events"]
+keywords:
+  [
+    "migration",
+    "Hue API v2",
+    "Hue API v1",
+    "HTTPS",
+    "discovery",
+    "application key",
+    "resource identifiers",
+    "events",
+  ]
 summary: "Migration guide for moving from Hue API v1 to Hue API v2, covering HTTPS, bridge discovery, application keys, endpoint changes, identifiers, and new resource models."
 ---
 
@@ -36,53 +46,53 @@ Combining the new endpoint with the new header results in the following equivale
 
 `curl --insecure -H 'hue-application-key: <appkey (== username)>' -X GET 'https://<ipaddress>/clip/v2/resource/light'`
 
-However, there is a conceptual difference: on the V2 API the devices and it’s services are separated, so the /light endpoint requests the list of light *services*, whereas the /device endpoint request the list of all devices, of which some may expose one or more light services. More on that later in the references section.
+However, there is a conceptual difference: on the V2 API the devices and it’s services are separated, so the /light endpoint requests the list of light _services_, whereas the /device endpoint request the list of all devices, of which some may expose one or more light services. More on that later in the references section.
 
 An example response with only a single light service might look like this:
 
 ```json
 {
-    "errors": [],
-    "data": [
-        {
-            "type": "light",
-            "id": "c6b028c8-076e-4817-92b1-bcb0cbb78783",
-            "id_v1": "/lights/21",
-            "metadata": {
-                "name": "Hue downlight right"
-            },
-            "on": {
-                "on": true
-            },
-            "dimming": {
-                "brightness": 100.0
-            },
-            "color_temperature": {
-                "mirek": 366
-            },
-            "color": {
-                "gamut": {
-                    "blue": {
-                        "x": 0.1532,
-                        "y": 0.0475
-                    },
-                    "green": {
-                        "x": 0.17,
-                        "y": 0.7
-                    },
-                    "red": {
-                        "x": 0.6915,
-                        "y": 0.3083
-                    }
-                },
-                "gamut_type": "C",
-                "xy": {
-                    "x": 0.4575,
-                    "y": 0.4099
-                }
-            }
+  "errors": [],
+  "data": [
+    {
+      "type": "light",
+      "id": "c6b028c8-076e-4817-92b1-bcb0cbb78783",
+      "id_v1": "/lights/21",
+      "metadata": {
+        "name": "Hue downlight right"
+      },
+      "on": {
+        "on": true
+      },
+      "dimming": {
+        "brightness": 100.0
+      },
+      "color_temperature": {
+        "mirek": 366
+      },
+      "color": {
+        "gamut": {
+          "blue": {
+            "x": 0.1532,
+            "y": 0.0475
+          },
+          "green": {
+            "x": 0.17,
+            "y": 0.7
+          },
+          "red": {
+            "x": 0.6915,
+            "y": 0.3083
+          }
+        },
+        "gamut_type": "C",
+        "xy": {
+          "x": 0.4575,
+          "y": 0.4099
         }
-    ]
+      }
+    }
+  ]
 }
 ```
 
@@ -90,9 +100,9 @@ An example response with only a single light service might look like this:
 
 To prevent reuse and duplication of identifiers, the V2 API is using Universally Unique Identifiers (UUIDs) for all resources. This does mean that the same resources have a different id on the V2 API than on the V1 API.
 
-Temporarily the resources on V2 will have an id\_v1 field that can be used to find the respective identifier on the V1 API. This would typically be used for a one-time migration to overwrite ids that you may have stored in the context of your application, and it could temporarily be used to support an intermediate application version that uses parts of both APIs.
+Temporarily the resources on V2 will have an id_v1 field that can be used to find the respective identifier on the V1 API. This would typically be used for a one-time migration to overwrite ids that you may have stored in the context of your application, and it could temporarily be used to support an intermediate application version that uses parts of both APIs.
 
-There are however two caveats. First, some resources on the V2 API do not have a V1 equivalent, and second, the id\_v1 field (as well as the V1 API) will eventually be removed. Therefore your application has to gracefully handle the case that a resource does not have an id\_v1 and/or that the id\_v1 cannot actually be found on the V1 API.
+There are however two caveats. First, some resources on the V2 API do not have a V1 equivalent, and second, the id_v1 field (as well as the V1 API) will eventually be removed. Therefore your application has to gracefully handle the case that a resource does not have an id_v1 and/or that the id_v1 cannot actually be found on the V1 API.
 
 ## Example request to change light state
 
@@ -122,37 +132,37 @@ Below is an illustrative example of how that could look.
 
 ```json
 {
-    "type": "device",
-    "id": "7b839dff-c2d2-4f90-9509-fea4b461b30d",
-    "id_v1": "/lights/21",
-    "metadata": {
-        "archetype": "fake_example",
-        "name": "User given name"
+  "type": "device",
+  "id": "7b839dff-c2d2-4f90-9509-fea4b461b30d",
+  "id_v1": "/lights/21",
+  "metadata": {
+    "archetype": "fake_example",
+    "name": "User given name"
+  },
+  "product_data": {
+    "manufacturer_name": "Signify Netherlands B.V.",
+    "model_id": "XXX001",
+    "product_name": "Fixed product name",
+    "software_version": "x.y.z"
+  },
+  "services": [
+    {
+      "rid": "c6b028c8-076e-4817-92b1-bcb0cbb78783",
+      "rtype": "light"
     },
-    "product_data": {
-        "manufacturer_name": "Signify Netherlands B.V.",
-        "model_id": "XXX001",
-        "product_name": "Fixed product name",
-        "software_version": "x.y.z"
+    {
+      "rid": "6cb990a3-7a5c-4c56-9e19-421952405a29",
+      "rtype": "light"
     },
-    "services": [
-        {
-            "rid": "c6b028c8-076e-4817-92b1-bcb0cbb78783",
-            "rtype": "light"
-        },
-        {
-            "rid": "6cb990a3-7a5c-4c56-9e19-421952405a29",
-            "rtype": "light"
-        },
-        {
-            "rid": "f7a7f522-22b2-4978-9cf9-f37ed8b53058",
-            "rtype": "motion"
-        },
-        {
-            "rid": "6ec5432f-fb66-4b07-88de-bb0087a0e33d",
-            "rtype": "zigbee_connectivity"
-        }
-    ]
+    {
+      "rid": "f7a7f522-22b2-4978-9cf9-f37ed8b53058",
+      "rtype": "motion"
+    },
+    {
+      "rid": "6ec5432f-fb66-4b07-88de-bb0087a0e33d",
+      "rtype": "zigbee_connectivity"
+    }
+  ]
 }
 ```
 
@@ -166,29 +176,29 @@ Example of a room:
 
 ```json
 {
-    "type": "room",
-    "id": "708d8a89-5d05-408f-b43c-830fbff8316e",
-    "id_v1": "/groups/1",
-    "metadata": {
-        "archetype": "living_room",
-        "name": "Living room"
+  "type": "room",
+  "id": "708d8a89-5d05-408f-b43c-830fbff8316e",
+  "id_v1": "/groups/1",
+  "metadata": {
+    "archetype": "living_room",
+    "name": "Living room"
+  },
+  "children": [
+    {
+      "rid": "a91cde76-1d98-400c-873d-12f241f26145",
+      "rtype": "device"
     },
-    "children": [
-        {
-            "rid": "a91cde76-1d98-400c-873d-12f241f26145",
-            "rtype": "device"
-        },
-        {
-            "rid": "25f1f7e4-e409-4b64-a1d7-8186916de2d6",
-            "rtype": "device"
-        }
-    ],
-    "services": [
-        {
-            "rid": "27a6cc29-57e3-4e3e-b83d-f9cc33cc9629",
-            "rtype": "grouped_light"
-        }
-    ]
+    {
+      "rid": "25f1f7e4-e409-4b64-a1d7-8186916de2d6",
+      "rtype": "device"
+    }
+  ],
+  "services": [
+    {
+      "rid": "27a6cc29-57e3-4e3e-b83d-f9cc33cc9629",
+      "rtype": "grouped_light"
+    }
+  ]
 }
 ```
 
@@ -196,29 +206,29 @@ Example of a zone:
 
 ```json
 {
-    "type": "zone",
-    "id": "218bd1d6-fc0f-4288-bcc4-f01675d630ea",
-    "id_v1": "/groups/4",
-    "metadata": {
-        "archetype": "computer",
-        "name": "Gaming zone"
+  "type": "zone",
+  "id": "218bd1d6-fc0f-4288-bcc4-f01675d630ea",
+  "id_v1": "/groups/4",
+  "metadata": {
+    "archetype": "computer",
+    "name": "Gaming zone"
+  },
+  "children": [
+    {
+      "rid": "2e8297bb-b54c-455f-937e-726ea83df687",
+      "rtype": "light"
     },
-    "children": [
-        {
-            "rid": "2e8297bb-b54c-455f-937e-726ea83df687",
-            "rtype": "light"
-        },
-        {
-            "rid": "fecdff3b-a5f2-417b-9918-32f1f328d995",
-            "rtype": "light"
-        }
-    ],
-    "services": [
-        {
-            "rid": "1aa448ee-3299-411e-a2f2-a09a777a5bf1",
-            "rtype": "grouped_light"
-        }
-    ]
+    {
+      "rid": "fecdff3b-a5f2-417b-9918-32f1f328d995",
+      "rtype": "light"
+    }
+  ],
+  "services": [
+    {
+      "rid": "1aa448ee-3299-411e-a2f2-a09a777a5bf1",
+      "rtype": "grouped_light"
+    }
+  ]
 }
 ```
 
@@ -244,18 +254,18 @@ Below shows an example entertainment area for V1.
 
 ```json
 {
-    "2": {
-        "name": "Entertainment area 1",
-        "type": "Entertainment",
-        "class": "TV",
-        "locations": {
-            "1": [-0.1,  0.8, -0.8], //Play Bar (B)
-            "4": [-0.1,  0.8,  0.0]  //Gradient Strip (C)
-        },
-        "stream": {
-            "active": false
-        }
+  "2": {
+    "name": "Entertainment area 1",
+    "type": "Entertainment",
+    "class": "TV",
+    "locations": {
+      "1": [-0.1, 0.8, -0.8], //Play Bar (B)
+      "4": [-0.1, 0.8, 0.0] //Gradient Strip (C)
+    },
+    "stream": {
+      "active": false
     }
+  }
 }
 ```
 
@@ -263,46 +273,46 @@ And below is how the same entertainment area would be exposed on V2.
 
 ```json
 {
-    "metadata": { "name": "Entertainment area 1" },
-    "type": "entertainment_configuration",
-    "configuration_type": "screen",
-    "id": "1a8d99cc-967b-44f2-9202-43f976c0fa6b",
-    "id_v1": "/groups/2",
-    "channels": [
-        {
-            "channel_id": 0, //Play Bar (B)
-            "position": { "x": -0.1, "y": 0.8, "z": -0.8 }
-        },
-        {
-            "channel_id": 1, //Gradient Strip (BL)
-            "position": { "x": -0.4, "y": 0.8, "z": -0.4 }
-        },
-        {
-            "channel_id": 2, //Gradient Strip (L)
-            "position": { "x": -0.4, "y": 0.8, "z":  0.0 }
-        },
-        {
-            "channel_id": 3, //Gradient Strip (TL)
-            "position": { "x": -0.4, "y": 0.8, "z":  0.4 }
-        },
-        {
-            "channel_id": 4, //Gradient Strip (T)
-            "position": { "x":  0.0, "y": 0.8, "z":  0.4 }
-        },
-        {
-            "channel_id": 5, //Gradient Strip (TR)
-            "position": { "x":  0.4, "y": 0.8, "z":  0.4 }
-        },
-        {
-            "channel_id": 6, //Gradient Strip (R)
-            "position": { "x":  0.4, "y": 0.8, "z":  0.0 }
-        },
-        {
-            "channel_id": 7, //Gradient Strip (BR)
-            "position": { "x":  0.4, "y": 0.8, "z": -0.4 }
-        }
-    ],
-    "status": "inactive"
+  "metadata": { "name": "Entertainment area 1" },
+  "type": "entertainment_configuration",
+  "configuration_type": "screen",
+  "id": "1a8d99cc-967b-44f2-9202-43f976c0fa6b",
+  "id_v1": "/groups/2",
+  "channels": [
+    {
+      "channel_id": 0, //Play Bar (B)
+      "position": { "x": -0.1, "y": 0.8, "z": -0.8 }
+    },
+    {
+      "channel_id": 1, //Gradient Strip (BL)
+      "position": { "x": -0.4, "y": 0.8, "z": -0.4 }
+    },
+    {
+      "channel_id": 2, //Gradient Strip (L)
+      "position": { "x": -0.4, "y": 0.8, "z": 0.0 }
+    },
+    {
+      "channel_id": 3, //Gradient Strip (TL)
+      "position": { "x": -0.4, "y": 0.8, "z": 0.4 }
+    },
+    {
+      "channel_id": 4, //Gradient Strip (T)
+      "position": { "x": 0.0, "y": 0.8, "z": 0.4 }
+    },
+    {
+      "channel_id": 5, //Gradient Strip (TR)
+      "position": { "x": 0.4, "y": 0.8, "z": 0.4 }
+    },
+    {
+      "channel_id": 6, //Gradient Strip (R)
+      "position": { "x": 0.4, "y": 0.8, "z": 0.0 }
+    },
+    {
+      "channel_id": 7, //Gradient Strip (BR)
+      "position": { "x": 0.4, "y": 0.8, "z": -0.4 }
+    }
+  ],
+  "status": "inactive"
 }
 ```
 

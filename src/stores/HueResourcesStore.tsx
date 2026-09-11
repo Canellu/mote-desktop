@@ -1734,6 +1734,72 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
  */
 export const HueResourcesStoreEffects: React.FC = () => {
   useEffect(() => {
+    let refresh: ReturnType<typeof setTimeout> | undefined;
+    const unlisten = listen<
+      { id: string; on: boolean; brightness: number | null }[]
+    >("shortcut-state-changed", ({ payload }) => {
+      clearTimeout(refresh);
+      const store = useHueResourcesStore.getState();
+      const ids = new Set(payload.map((light) => light.id));
+      clearResourceLocks([
+        ...ids,
+        ...store.roomZones
+          .filter((group) => group.lightIds.some((id) => ids.has(id)))
+          .map((group) => group.groupedLightId),
+      ]);
+      store.applyHueEvents(
+        payload.map(
+          (light) =>
+            ({
+              type: "light",
+              id: light.id,
+              on: light.on,
+              brightness: light.brightness,
+            }) as HueEventUpdate,
+        ),
+      );
+      // Share completed shortcut state across windows while bridge echoes settle.
+      const options = { durationMs: 2000, releaseOnConfirm: false };
+      for (const light of payload) {
+        lockResource(
+          light.id,
+          {
+            on: light.on,
+            ...(light.brightness != null
+              ? { brightness: light.brightness }
+              : {}),
+          },
+          options,
+        );
+      }
+      for (const group of useHueResourcesStore.getState().roomZones) {
+        if (group.groupedLightId && group.lightIds.some((id) => ids.has(id))) {
+          lockResource(
+            group.groupedLightId,
+            {
+              on: group.anyOn,
+              ...(group.brightness != null
+                ? { brightness: group.brightness }
+                : {}),
+            },
+            options,
+          );
+        }
+      }
+      refresh = setTimeout(
+        () => {
+          void useHueResourcesStore.getState().loadAll();
+        },
+        payload.length ? 2100 : 0,
+      );
+    });
+    return () => {
+      clearTimeout(refresh);
+      void unlisten.then((dispose) => dispose());
+    };
+  }, []);
+
+  useEffect(() => {
     // The setup wizard prefetches resources before entering Home so the reveal
     // lands on a ready screen; skip the duplicate load when that already ran.
     if (!useHueResourcesStore.getState().hasLoaded) {
@@ -1746,11 +1812,35 @@ export const HueResourcesStoreEffects: React.FC = () => {
       // Non-fatal: controls still work, they just won't passively update.
     });
 
+    let refresh: ReturnType<typeof setTimeout> | undefined;
+    let disposed = false;
+    let refreshing = false;
+    let refreshPending = false;
+    const refreshResources = async () => {
+      if (disposed || refreshing) return;
+      refreshing = true;
+      try {
+        // Keep a second refresh when an edit arrives during an in-flight read.
+        while (refreshPending && !disposed) {
+          refreshPending = false;
+          await useHueResourcesStore.getState().loadAll();
+        }
+      } finally {
+        refreshing = false;
+      }
+    };
     const unlisten = listen<HueEventUpdate[]>("hue-event", (event) => {
       useHueResourcesStore.getState().applyHueEvents(event.payload);
+      if (event.payload.some((update) => update.resourcesChanged)) {
+        refreshPending = true;
+        clearTimeout(refresh);
+        refresh = setTimeout(() => void refreshResources(), 150);
+      }
     });
 
     return () => {
+      disposed = true;
+      clearTimeout(refresh);
       void unlisten.then((dispose) => dispose());
     };
   }, []);

@@ -1,6 +1,7 @@
 # Plan: Microsoft Store Release
 
-Status: **in progress**. Last reviewed: **2026-08-14**.
+Status: **in progress; MSIX selected and Partner Center conversion complete**.
+Last reviewed: **2026-09-01**.
 
 ## Goal
 
@@ -20,20 +21,15 @@ spike, and production entitlement enforcement are submission requirements in
 - Freemium app with a useful essential-control tier and a one-time Mote Pro
   add-on at launch. Package identity, purchase/restore, offline, refund,
   enforcement, and certification behavior must pass before submission.
-- Reopen the existing Win32/NSIS choice before implementation. Prefer MSIX if
-  the packaging spike confirms Store-managed Pro purchases and all required
-  desktop capabilities; otherwise choose and validate another Store-compliant
-  commerce route before release.
-- If EXE/MSI remains, use a signed offline installer, immutable versioned HTTPS
-  hosting, silent installation, and a tested in-app updater.
+- Use MSIX with Microsoft Store commerce. The local packaging pipeline is proven,
+  Partner Center conversion has been requested, and Store purchase/offline and
+  packaged native-capability checks remain release gates.
 - English Store listing first; add languages only when the app and support
   material are ready in those languages.
 
 Tauri currently generates MSI and NSIS installers through its normal bundling
-flow. MSIX requires an additional packaging workflow, but its package identity,
-Store commerce, and Store-managed updates may make it the smaller long-term
-surface. The packaging/commerce spike decides this before release engineering
-continues.
+flow. The selected Store release uses the repository's separate MSIX packaging
+workflow so normal development and non-Store bundling remain unchanged.
 
 ## Current repository state
 
@@ -52,6 +48,11 @@ Ready or substantially ready:
 - The Windows Store diagnostic compiles and confirms that unpackaged execution
   has no package identity and cannot discover associated durable products. The
   normal Tauri release executable still builds with the Store API dependency.
+- A parameterized local MSIX spike pipeline builds, packages, signs, and
+  validates the full-trust x64 app without changing normal Tauri/NSIS settings.
+  Partner Center support can assist with conversion if requested. Store identity,
+  Store association, durable-add-on behavior, install/update/uninstall, and
+  native capability tests remain pending.
 
 Release blockers:
 
@@ -88,10 +89,11 @@ Release blockers:
 - [x] Choose `com.motedesktop.mote` as the permanent reverse-domain application
       identifier. Avoid changing it after release because it affects
       installation identity and stored data.
-- [ ] Activate `support@motedesktop.com` and publish a public support URL. The
-      intended addresses are `support@motedesktop.com` and
-      `privacy@motedesktop.com`, but they do not exist until the domain/email
-      order is paid and activated.
+- [x] Activate `support@motedesktop.com` and publish a public support URL.
+      `motedesktop.com` and its Domeneshop email are paid for and active, and
+      `support@motedesktop.com` receives mail. `privacy@motedesktop.com` has not
+      been created yet; until it is, the published privacy policy routes privacy
+      requests to `support@motedesktop.com`.
 - [x] Enroll in Partner Center with an **Individual** account. Re-check account
       eligibility and migrate/contact Partner Center support if required before
       launching paid features or conducting distribution as a business.
@@ -106,8 +108,8 @@ legal documents until these decisions are complete.
 
 - Brand: **Mote**.
 - Reserved Store/product title: **Mote Desktop**.
-- Planned primary domain: `motedesktop.com` (available and placed in the
-  Domeneshop order, but not yet purchased).
+- Primary domain: `motedesktop.com` (purchased through Domeneshop and live, with
+  its email service active).
 - Mascot name: **Lumi**.
 - Positioning: Mote controls the broader Philips Hue home, including lights,
   sensors, cameras, and other supported devices; it is not positioned only as
@@ -297,33 +299,18 @@ Security hardening should be reviewed separately from frontend release polish.
 
 ### Store-specific packaging configuration
 
-The packaging/commerce spike must decide MSIX versus the existing EXE/MSI route.
-If EXE/MSI remains, add `src-tauri/tauri.microsoftstore.conf.json` so Store
-packaging does not alter the normal development configuration:
+The Store release uses the isolated MSIX manifest and build script recorded in
+the packaging/commerce spike. Its defaults now use the exact Partner Center
+identity recorded after conversion; never derive those values from the Tauri
+identifier.
 
-```json
-{
-  "bundle": {
-    "targets": ["nsis"],
-    "windows": {
-      "webviewInstallMode": {
-        "type": "offlineInstaller"
-      }
-    }
-  }
-}
-```
-
-The exact schema must be checked against the installed Tauri CLI before merging.
-
-- [ ] Decide **MSIX versus EXE/MSI** from the packaging/commerce spike. The
-      previous NSIS choice is reopened because the product now plans a
-      Microsoft Store durable Pro add-on.
-- [ ] Configure the offline WebView2 installer required by Tauri's Store guide.
-- [ ] Ensure the installer installs only this app and does not download payloads.
-- [ ] Verify silent install: `/S` for Tauri NSIS or `/qn` for MSI.
-- [ ] Verify silent upgrade and uninstall behavior, exit codes, and no forced
-      restart.
+- [x] Select **MSIX + Microsoft Store commerce** for the Windows Store release.
+- [x] Receive Partner Center's conversion result and record the exact package
+      identity name, publisher, publisher ID, PFN, and product/Store ID.
+- [ ] Rebuild the MSIX with the Store-assigned identity and submit it through a
+      private flight.
+- [ ] Verify install, launch, Store-managed update, rollback/replacement behavior,
+      and uninstall with no forced restart.
 - [ ] Decide per-user versus per-machine installation. Prefer per-user unless a
       tested feature requires elevation.
 - [ ] Ensure uninstall removes binaries and autostart entries without deleting
@@ -515,24 +502,27 @@ The first Store submission is ready only when all of these are true:
 
 ## Immediate next actions
 
-1. Review and approve the initial
-   [Free/Pro/Household feature matrix](./free-pro-feature-matrix.md). It assigns
-   current functionality, provider-neutral capability names, and offline,
-   refund, downgrade, unknown-license, and grandfathering behavior.
-2. Run a Windows packaging/commerce spike before investing further in NSIS:
-   confirm whether the current EXE/MSI Partner Center product can move to MSIX,
-   then prove package identity plus Microsoft durable-add-on discovery,
-   purchase, restore, and cached offline licensing in a minimal Tauri build.
+1. Treat the updated
+   [Free/Pro/Household feature matrix](./free-pro-feature-matrix.md) as the v1
+   product boundary. Free includes one standard single-target widget; Pro owns
+   PC Sync, advanced/additional widgets, custom dashboard layout, and multiple
+   saved bridges.
+2. Continue the selected MSIX packaging/commerce path: use the completed Partner
+   Center conversion to prove package identity plus Microsoft
+   durable-add-on discovery, purchase, restore, and cached offline licensing.
    Follow the restartable checklist in
    [windows-store-commerce-spike.md](./windows-store-commerce-spike.md).
-3. Based on that spike, choose and document the release package/update path,
-   connect the existing provider-neutral Rust entitlement foundation to managed
-   state and the Store adapter, then add backend enforcement before paywall UI.
-4. Pay for and activate the pending Domeneshop order for `motedesktop.com` and
-   its email service (currently quoted at NOK 568/year including VAT).
-5. Create `support@motedesktop.com` and `privacy@motedesktop.com`; deploy the
-   public site, Privacy Policy, Terms, and Support pages through Cloudflare
-   Pages, preserving the Domeneshop email DNS records.
+3. After those validation gates pass, complete the production enforcement phase
+   in the feature matrix: connect the provider-neutral Rust entitlement
+   foundation to managed state and the Store adapter, enforce every paid command,
+   and only then add purchase, restore, and locked-state UI.
+4. Done. The Domeneshop order for `motedesktop.com` and its email service was
+   paid for and activated (quoted at NOK 568/year including VAT).
+5. Largely done. The separate `mote-website` repository exists, the public site
+   and its legal and support routes are built and deployed through Cloudflare
+   Pages, and the Domeneshop email DNS records are preserved.
+   `support@motedesktop.com` is live; `privacy@motedesktop.com` is still to be
+   created.
 6. Complete preliminary trademark/marketplace clearance and choose the final
    signing identity. The application identifier is now fixed as
    `com.motedesktop.mote`.

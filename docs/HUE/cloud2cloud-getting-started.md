@@ -1,6 +1,14 @@
 ---
 title: "Cloud2Cloud Getting Started"
-keywords: ["Cloud2Cloud", "remote access", "OAuth", "Hue account", "cloud API", "integration setup"]
+keywords:
+  [
+    "Cloud2Cloud",
+    "remote access",
+    "OAuth",
+    "Hue account",
+    "cloud API",
+    "integration setup",
+  ]
 summary: "Getting started guide for Philips Hue Cloud2Cloud integrations, covering account setup, authentication concepts, and initial remote API integration flow."
 ---
 
@@ -14,7 +22,7 @@ We start with an authorization request in a web browser.
 GET https://api.meethue.com/v2/oauth2/authorize?client_id=<clientid>&response_type=code&state=<state>&redirect_uri=<uri>
 ```
 
-The user will log in to their Philips Hue account, is requested to approve the access request, and then gets redirected to the redirect\_uri you specified when registering your application. If the user approved the access request, then the response contains an authorization code (which in the next step can be exchanged for an access token) and the state parameter as query parameters. If the user did not approve the request, the response contains an error message.
+The user will log in to their Philips Hue account, is requested to approve the access request, and then gets redirected to the redirect_uri you specified when registering your application. If the user approved the access request, then the response contains an authorization code (which in the next step can be exchanged for an access token) and the state parameter as query parameters. If the user did not approve the request, the response contains an error message.
 
 In the next step you exchange the code for a token.
 
@@ -40,7 +48,7 @@ Content-Type: application/json
 
 The complete list of options for OAUTH2 including how to refresh tokens is described [here](https://developers.meethue.com/develop/hue-api/remote-authentication-oauth/).
 
-To finalize the authorization we need to execute these two additional requests using the access\_token as a bearer token in the Authorization header:
+To finalize the authorization we need to execute these two additional requests using the access_token as a bearer token in the Authorization header:
 
 ```http
 PUT https://api.meethue.com/route/api/0/config
@@ -70,10 +78,10 @@ This last call will return the username, which you can save and use as the appli
 
 Now you can use the full Hue API V2 described in the core concepts and API reference sections. An example API request to list all devices is the following:
 
-| Field | Value |
-| --- | --- |
-| Address | https://api.meethue.com/route/clip/v2/resource/device |
-| Method | GET |
+| Field   | Value                                                               |
+| ------- | ------------------------------------------------------------------- |
+| Address | https://api.meethue.com/route/clip/v2/resource/device               |
+| Method  | GET                                                                 |
 | Headers | Authorization: Bearer <access_token>hue-application-key: <username> |
 
 From here on you can follow the getting started guide for local control from the [controlling a light](https://developers.meethue.com/develop/hue-api-v2/getting-started/#controlling-a-light) section. Just in every example replace the bridge ip address by the Cloud API base path https://api.meethue.com/route .

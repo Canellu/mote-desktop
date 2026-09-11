@@ -17,7 +17,7 @@ A **Home** is our own top-level logical container — **not** a Hue concept and 
 necessarily a physical residence. It could be a house, an office, a factory, a
 venue, anything. It is the upper entity that **holds one or more bridges**, and
 each bridge holds the rooms / zones / lights it already owns. Hue has no
-equivalent: on Hue's side a bridge is the ceiling, so the Home sits *above*
+equivalent: on Hue's side a bridge is the ceiling, so the Home sits _above_
 anything Hue models.
 
 ```
@@ -31,6 +31,7 @@ Home (our entity)              "Acme Factory"
 ```
 
 Cardinality (a **decision**, not an open question):
+
 - A Home has **one or more bridges**.
 - A bridge belongs to **exactly one Home**.
 - A user can belong to **multiple Homes**; a Home can have **multiple members**.
@@ -44,12 +45,12 @@ bridge stays the unit of **device control**.
 The user-facing goal has four parts. They do **not** all become possible at the
 same time, because two of them require infrastructure we own.
 
-| # | Pillar | Source of truth | Needs our backend? |
-|---|---|---|---|
-| 1 | **Account login** | Philips Hue account (OAuth2) now; app-native identity later | App identity: **yes** |
-| 2 | **Cloud device control** | Hue cloud (`api.meethue.com/route`) | No — only the stateless token broker |
-| 3 | **Homes** (top-level container over bridges) | Local app now; our backend when shared | Shared homes: **yes** |
-| 4 | **Members / invites / roles / auto-recognition** | Our backend | **Yes** |
+| #   | Pillar                                           | Source of truth                                             | Needs our backend?                   |
+| --- | ------------------------------------------------ | ----------------------------------------------------------- | ------------------------------------ |
+| 1   | **Account login**                                | Philips Hue account (OAuth2) now; app-native identity later | App identity: **yes**                |
+| 2   | **Cloud device control**                         | Hue cloud (`api.meethue.com/route`)                         | No — only the stateless token broker |
+| 3   | **Homes** (top-level container over bridges)     | Local app now; our backend when shared                      | Shared homes: **yes**                |
+| 4   | **Members / invites / roles / auto-recognition** | Our backend                                                 | **Yes**                              |
 
 ### What can be implemented without an app backend
 
@@ -90,7 +91,7 @@ The only model that actually works:
 - The **home owner** links their Hue account once (OAuth + per-bridge app key, per
   [cloud-control-plan.md](./cloud-control-plan.md)). Their refresh token is stored
   **server-side**.
-- **Members** authenticate to *our* backend (pillar 1) and are authorised by *our*
+- **Members** authenticate to _our_ backend (pillar 1) and are authorised by _our_
   roles. Their device commands are **relayed through our backend** to Hue using the
   owner's stored credential. Members never hold the owner's Hue tokens.
 
@@ -123,7 +124,7 @@ one.
 ```
 
 - **Device transport** (local bridge vs Hue cloud) is unchanged from
-  [cloud-control-plan.md](./cloud-control-plan.md). Homes/membership sit *on top*
+  [cloud-control-plan.md](./cloud-control-plan.md). Homes/membership sit _on top_
   of it.
 - **Owner's home** controlled directly app→Hue using the owner's own credential.
 - **Guest member's home** controlled app→our-backend→Hue using the owner's stored
@@ -135,7 +136,9 @@ The first two phases ship real value with **no stateful backend**. Pillars 3-4
 arrive when the backend exists.
 
 ### Phase 1 — Cloud device control + Hue-account login (now)
+
 Fully specified in [cloud-control-plan.md](./cloud-control-plan.md). Deliverables:
+
 - Hue OAuth2 login (system browser + deep-link callback).
 - Stateless token broker on Vercel (exchange + refresh).
 - Transport abstraction in `hue_client.rs` (`Local` vs `Cloud`).
@@ -145,21 +148,25 @@ Follow that doc's own sub-phasing (broker → transport → OAuth flow → wire 
 commands → optional remote SSE). **Do not re-plan it here.**
 
 ### Phase 2 — Local Homes over multiple bridges (now, optional)
+
 Without any backend, introduce the **Home** container locally: each Home holds a
 list of **bridge connections**, and the app stores a list of Homes. This is
 single-user; it does not add sharing. It deliberately shapes the data model so a
 future server-owned Home maps cleanly onto a local one.
+
 - Session model: `homes: { id, name, bridges: Connection[] }[]`, with an active
   Home and an active bridge within it.
 - UI: a Home switcher plus per-Home bridge management; reuse the existing
   pairing/cloud flows to add a bridge to a Home.
 
 ### Phase 3 — App-native identity (requires backend)
+
 - Our own user accounts (or federate: "Sign in with Hue/Google/Apple" → our user).
 - App user becomes the stable principal that memberships attach to.
 - Migrate Phase-1/2 local sessions to be associated with an app user.
 
 ### Phase 4 — Shared homes + membership (requires backend)
+
 - Homes become **server-owned** records, each mapping to one or more bridges and
   storing the owner's Hue refresh token.
 - **Invitations** (email/link) and **roles** (owner / member / guest).
@@ -170,6 +177,7 @@ future server-owned Home maps cleanly onto a local one.
 ## What changes vs. cloud-control-plan.md
 
 That doc assumes one user controlling their own bridge(s). This plan adds:
+
 - A **principal** (app user) above the device session, so a home can have many
   users.
 - A **home** entity distinct from a bridge (one home → potentially several
@@ -199,6 +207,7 @@ That doc assumes one user controlling their own bridge(s). This plan adds:
 
 Phases 1-2 touch the files already enumerated in
 [cloud-control-plan.md → "Touch list"](./cloud-control-plan.md). Phases 3-4 add:
+
 - **New backend project** (evolution of the `/broker`): users, homes, memberships,
   invites, owner-token storage, relay endpoint.
 - `src/context/HueContext.tsx`, `src/types/hue.ts` — app-user principal; `homes`
