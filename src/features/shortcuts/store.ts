@@ -7,6 +7,11 @@ import {
 import { create } from "zustand";
 import { toast } from "sonner";
 import {
+  describeCommandError,
+  parseAuthorizationError,
+} from "@/lib/entitlement-errors";
+import { openProUpgrade } from "@/features/pro/proUpgrade";
+import {
   type LightShortcut,
   validShortcut,
   shortcutLabel,
@@ -53,7 +58,8 @@ async function registerShortcut(shortcut: LightShortcut) {
     if (executing || Date.now() - lastRun < 500) return;
     const state = useShortcutStore.getState();
     const current = state.shortcuts.find((s) => s.id === shortcut.id);
-    if (!current?.enabled || state.recording || state.editing || state.busy) return;
+    if (!current?.enabled || state.recording || state.editing || state.busy)
+      return;
     executing = true;
     lastRun = Date.now();
     void invoke("execute-shortcut", { ...current })
@@ -63,10 +69,26 @@ async function registerShortcut(shortcut: LightShortcut) {
         }));
       })
       .catch((error: unknown) => {
-        const message = String(error);
+        // Never String(error) here. A refusal from the entitlement gate is
+        // structured JSON, and printing it raw put
+        // {"code":"pro_required",...} in front of customers.
+        const message = describeCommandError(error);
         useShortcutStore.setState((s) => ({
           errors: { ...s.errors, [current.id]: message },
         }));
+
+        if (parseAuthorizationError(error)?.code === "pro_required") {
+          toast.error("Shortcuts are part of Mote Pro", {
+            description:
+              "Your shortcuts are saved. Unlock Pro and they start working straight away.",
+            action: {
+              label: "See Pro",
+              onClick: () => openProUpgrade("global_shortcuts"),
+            },
+          });
+          return;
+        }
+
         toast.error(`${current.targetName}: ${message}`);
       })
       .finally(() => {
@@ -115,7 +137,7 @@ export function initializeShortcuts(): Promise<void> {
         }
       }
     } catch (error) {
-      useShortcutStore.setState({ loadError: String(error) });
+      useShortcutStore.setState({ loadError: describeCommandError(error) });
     } finally {
       useShortcutStore.setState({ ready: true });
     }

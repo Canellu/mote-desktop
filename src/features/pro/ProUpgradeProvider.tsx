@@ -1,10 +1,15 @@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEntitlements } from "@/context/EntitlementContext";
-import { ProUpgradeContext, type ProFeature } from "@/features/pro/proUpgrade";
+import {
+  ProUpgradeContext,
+  registerProUpgradeOpener,
+  type ProFeature,
+} from "@/features/pro/proUpgrade";
 import { cn } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
-import heroImage from "@/assets/pro-hero.webp";
+import heroDark from "@/assets/pro-hero-dark.webp";
+import heroLight from "@/assets/pro-hero-light.webp";
 import {
   Check,
   Keyboard,
@@ -47,7 +52,7 @@ const INCLUDED = [
   {
     icon: Sparkles,
     title: "Richer widgets",
-    detail: "Several controls in one, your theme and size.",
+    detail: "More than one control, and set its size and place.",
   },
   {
     icon: LayoutGrid,
@@ -88,7 +93,7 @@ const BuyButton: React.FC<{
     onClick={onClick}
     disabled={disabled}
     className={cn(
-      "group relative isolate w-full overflow-hidden rounded-2xl px-6 py-3.5",
+      "group relative isolate overflow-hidden rounded-2xl px-8 py-3.5",
       "text-base font-semibold tracking-tight text-amber-950",
       "bg-[linear-gradient(110deg,oklch(0.88_0.15_86)_0%,oklch(0.82_0.19_58)_45%,oklch(0.75_0.20_28)_100%)]",
       "shadow-[0_10px_30px_-12px_oklch(0.72_0.19_50/0.9),inset_0_1px_0_oklch(1_0_0/0.45)]",
@@ -125,6 +130,10 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
 
   const close = useCallback(() => setFeature(null), []);
 
+  // Lets code with no component around it — the global shortcut handler — open
+  // this, which is exactly where a refusal happens.
+  useEffect(() => registerProUpgradeOpener(requestPro), [requestPro]);
+
   // Ask the Store what this costs here, only once the dialog is actually opened.
   useEffect(() => {
     if (feature === null) return;
@@ -158,30 +167,50 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
         <DialogContent
           showCloseButton={false}
           className={cn(
-            "overflow-hidden border-white/10 p-0 text-white",
-            "max-h-[min(92vh,44rem)] sm:max-w-[46rem]",
+            "overflow-hidden p-0 text-foreground",
+            "border-black/10 dark:border-white/10",
+            // Bigger, so the photograph is something you see rather than
+            // something behind a panel that covers it.
+            "max-h-[min(92vh,48rem)] sm:max-w-[58rem]",
           )}
         >
-          {/* Light on water, behind everything. The panel below sits on it. */}
+          {/* Natural light behind everything: dawn for the light theme, the
+            aurora for the dark one. Swapped in CSS rather than from a theme
+            hook so it follows the `.dark` class instantly, with no flash on
+            toggle. */}
           <img
-            src={heroImage}
+            src={heroLight}
             alt=""
             aria-hidden
-            className="absolute inset-0 -z-20 size-full object-cover"
+            className="absolute inset-0 -z-20 size-full object-cover dark:hidden"
+          />
+          <img
+            src={heroDark}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 -z-20 hidden size-full object-cover dark:block"
           />
           {/* Light enough to still see the water. The panel carries its own
             contrast, so the scrim only has to keep the heading and the footnote
             legible — an even 90% wash just threw the photograph away. */}
           <div
             aria-hidden
-            className="absolute inset-0 -z-10 bg-[linear-gradient(165deg,oklch(0.14_0.03_280/0.30)_0%,oklch(0.12_0.03_280/0.55)_45%,oklch(0.10_0.02_280/0.82)_100%)]"
+            className={cn(
+              "absolute inset-0 -z-10",
+              "bg-[linear-gradient(165deg,oklch(1_0_0/0.18)_0%,oklch(1_0_0/0.42)_45%,oklch(1_0_0/0.80)_100%)]",
+              "dark:bg-[linear-gradient(165deg,oklch(0.14_0.03_280/0.18)_0%,oklch(0.12_0.03_280/0.46)_45%,oklch(0.10_0.02_280/0.80)_100%)]",
+            )}
           />
           {/* The title and price sit directly on the photograph rather than on
             the panel, and the brightest reflections run across exactly that
             band. This gives them ground without dimming the rest. */}
           <div
             aria-hidden
-            className="absolute inset-x-0 top-0 -z-10 h-40 bg-[linear-gradient(to_bottom,oklch(0.09_0.02_280/0.72),transparent)]"
+            className={cn(
+              "absolute inset-x-0 top-0 -z-10 h-40",
+              "bg-[linear-gradient(to_bottom,oklch(1_0_0/0.62),transparent)]",
+              "dark:bg-[linear-gradient(to_bottom,oklch(0.09_0.02_280/0.72),transparent)]",
+            )}
           />
 
           <button
@@ -190,8 +219,9 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
             aria-label="Close"
             className={cn(
               "absolute top-4 right-4 z-20 grid size-9 place-items-center rounded-full",
-              "bg-white/10 text-white/85 backdrop-blur-md transition-colors hover:bg-white/20",
-              "outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+              "bg-black/10 text-foreground/80 backdrop-blur-md transition-colors hover:bg-black/20",
+              "dark:bg-white/10 dark:text-white/85 dark:hover:bg-white/20",
+              "outline-none focus-visible:ring-2 focus-visible:ring-ring/70",
             )}
           >
             <X size={17} />
@@ -202,12 +232,15 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
             list this fits without scrolling on any ordinary window, so the bar
             is a fallback rather than the normal state. */}
           <ScrollArea
-            className="max-h-[min(92vh,44rem)]"
-            viewportClassName="p-8"
+            className="max-h-[min(92vh,48rem)]"
+            viewportClassName="p-10 sm:p-12"
           >
-            <div className="grid gap-6">
+            {/* The dialog is wide so the photograph has room; the reading
+              column is not, because a 58rem line of body copy is unreadable and
+              a 58rem button looks like a banner. */}
+            <div className="grid max-w-xl gap-7">
               <header className="grid gap-2 pr-12">
-                <DialogTitle className="font-heading text-[2rem] leading-tight font-semibold text-balance">
+                <DialogTitle className="font-heading text-[2.25rem] leading-tight font-semibold text-balance">
                   {phase === "done"
                     ? "Mote Pro is yours"
                     : LEAD[feature ?? "general"]}
@@ -222,12 +255,12 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
                       <span className="text-3xl font-semibold tracking-tight">
                         {offer.formattedPrice}
                       </span>
-                      <span className="text-sm text-white/70">
+                      <span className="text-sm text-muted-foreground">
                         paid once, not a subscription
                       </span>
                     </>
                   ) : (
-                    <span className="text-sm text-white/70">
+                    <span className="text-sm text-muted-foreground">
                       A single purchase. Not a subscription.
                     </span>
                   )}
@@ -237,21 +270,22 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
               {/* The frosted panel. */}
               <div
                 className={cn(
-                  "rounded-2xl border border-white/15 bg-white/[0.07] p-5",
-                  "shadow-[inset_0_1px_0_oklch(1_0_0/0.18)] backdrop-blur-xl",
+                  "rounded-2xl border p-5 backdrop-blur-xl",
+                  "border-white/60 bg-white/45 shadow-[inset_0_1px_0_oklch(1_0_0/0.7)]",
+                  "dark:border-white/15 dark:bg-white/[0.07] dark:shadow-[inset_0_1px_0_oklch(1_0_0/0.18)]",
                 )}
               >
                 <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
                   {INCLUDED.map(({ icon: Icon, title, detail }) => (
                     <li key={title} className="flex gap-3">
-                      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-white/12 text-white">
+                      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-foreground/10 text-foreground dark:bg-white/12 dark:text-white">
                         <Icon size={16} />
                       </span>
                       <span className="min-w-0">
                         <span className="block text-sm font-semibold">
                           {title}
                         </span>
-                        <span className="block text-sm leading-6 text-white/70">
+                        <span className="block text-sm leading-6 text-muted-foreground">
                           {detail}
                         </span>
                       </span>
@@ -261,13 +295,13 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
               </div>
 
               {phase === "unavailable" && (
-                <p className="rounded-xl border border-white/15 bg-white/[0.07] px-4 py-3 text-sm leading-6 text-white/80 backdrop-blur-xl">
+                <p className="rounded-xl border px-4 py-3 text-sm leading-6 backdrop-blur-xl border-white/60 bg-white/45 text-foreground/85 dark:border-white/15 dark:bg-white/[0.07] dark:text-white/80">
                   The purchase did not go through, so nothing was charged. If
                   you already own Mote Pro, checking again will find it.
                 </p>
               )}
 
-              <div className="grid gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 {phase === "done" ? (
                   <BuyButton onClick={close}>
                     <span className="inline-flex items-center gap-2">
@@ -294,15 +328,17 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
                   type="button"
                   onClick={close}
                   className={cn(
-                    "mx-auto rounded-lg px-3 py-1.5 text-sm font-medium text-white/65",
-                    "transition-colors hover:text-white",
-                    "outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                    "rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground",
+                    "transition-colors hover:text-foreground",
+                    "outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
                   )}
                 >
                   Not now
                 </button>
+              </div>
 
-                <p className="text-center text-xs leading-5 text-white/50">
+              <div>
+                <p className="text-xs leading-5 text-muted-foreground">
                   Bought and refunded through the Microsoft Store. Already paid
                   on another PC? Sign in with the same account and it restores
                   itself.

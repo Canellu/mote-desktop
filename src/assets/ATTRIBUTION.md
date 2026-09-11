@@ -4,13 +4,20 @@ Every bitmap in this directory must appear here with its source and licence, per
 AGENTS.md. Mote Desktop is a paid product, so an image without a clear
 commercial-use licence is a liability rather than a shortcut.
 
-## `pro-hero.webp`
+Both paywall images are natural light: the same subject at night and at dawn,
+which is the product described without a screenshot of it.
 
-- **Source**: <https://unsplash.com/photos/colorful-city-lights-reflect-on-water-at-night-dqWE7IO2wcw>
-- **Author**: T (@tanyabarrow) on Unsplash
-- **Licence**: Unsplash License — free to use, including commercially, with no
-  attribution required. Recorded here anyway so the provenance survives.
-- **Modifications**: cropped to the lower band of reflections and re-encoded as
-  WebP at 1200px wide. The crop is deliberate: it keeps the abstract colour on
-  water and drops the quayside shopfronts, whose signage identified real
-  businesses that have nothing to do with this product.
+## `pro-hero-dark.webp`
+
+- **Source**: <https://unsplash.com/photos/northern-lights-over-snow-capped-mountian-LtnPejWDSAY>
+- **Author**: Lightscape on Unsplash. Shot in Tromsø, Norway.
+- **Licence**: Unsplash License — free to use, including commercially,
+  attribution optional. Recorded here anyway so the provenance survives.
+- **Modifications**: resized to 1600px wide and re-encoded as WebP.
+
+## `pro-hero-light.webp`
+
+- **Source**: <https://unsplash.com/photos/soft-pink-and-orange-clouds-in-a-pastel-sky-A3u8Ugv1EAw>
+- **Author**: Scott Goodwill on Unsplash
+- **Licence**: Unsplash License — as above.
+- **Modifications**: resized to 1600px wide and re-encoded as WebP.
