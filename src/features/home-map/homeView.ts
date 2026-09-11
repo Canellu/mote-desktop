@@ -47,10 +47,16 @@ function sanitizeHomeViewSearch(
 
 export function validateHomeViewSearch(
   search: Record<string, unknown>,
+  enabled: boolean = mapFeatureEnabled,
 ): HomeViewSearch {
   // Every field here is map navigation state, so a gated build accepts none of
   // it from the URL: a typed `?view=map` simply lands on the dashboard.
-  return mapFeatureEnabled ? sanitizeHomeViewSearch(search) : {};
+  //
+  // `enabled` is a parameter rather than a direct read so both sides stay
+  // testable. `import.meta.env.DEV` is undefined under `bun test`, so a gate
+  // read inline here would make every test assert the shipped path and quietly
+  // stop covering the other one.
+  return enabled ? sanitizeHomeViewSearch(search) : {};
 }
 
 export function readHomeView(bridgeId: string | null): HomeView {
@@ -117,10 +123,11 @@ export const homeSearchMatchesBridge = (
 export function resolveHomeView(
   search: HomeViewSearch,
   bridgeId: string | null,
+  enabled: boolean = mapFeatureEnabled,
 ): HomeView {
   // The route and the header both ask here, so the gate answers once for both
   // and a "map" preference left behind by a development build stays inert.
-  if (!mapFeatureEnabled) return "dashboard";
+  if (!enabled) return "dashboard";
   return (
     (homeSearchMatchesBridge(search, bridgeId) ? search.view : undefined) ??
     readHomeView(bridgeId)

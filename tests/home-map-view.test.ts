@@ -3,7 +3,6 @@ import { sampleHomeMap } from "../src/features/home-map/sampleMap";
 import { validateHomeMap } from "../src/features/home-map/validation";
 import {
   homeSearchMatchesBridge,
-  mapFeatureEnabled,
   readMapSelection,
   writeMapSelection,
   resolveHomeView,
@@ -23,25 +22,40 @@ describe("Home Map view", () => {
     };
     expect(homeSearchMatchesBridge(search, "bridge-a")).toBe(true);
     expect(homeSearchMatchesBridge(search, "bridge-b")).toBe(false);
-    // A build with the map gated off answers "dashboard" for every search.
-    expect(resolveHomeView(search, "bridge-a")).toBe(
-      mapFeatureEnabled ? "map" : "dashboard",
-    );
-    expect(resolveHomeView(search, "bridge-b")).toBe("dashboard");
+    // Both sides of the gate are asserted explicitly. Reading the build flag
+    // here instead would make this a tautology: `import.meta.env.DEV` is
+    // undefined under `bun test`, so it would only ever check the gated answer.
+    expect(resolveHomeView(search, "bridge-a", true)).toBe("map");
+    expect(resolveHomeView(search, "bridge-b", true)).toBe("dashboard");
+    expect(resolveHomeView(search, "bridge-a", false)).toBe("dashboard");
     expect(homeSearchMatchesBridge({ viewBridge: "preview" }, null)).toBe(true);
   });
 
   test("rejects malformed navigation values and bounds map identifiers", () => {
-    const search = validateHomeViewSearch({
-      view: "editor",
-      floorId: {},
-      areaId: "x".repeat(129),
-      viewBridge: ["bridge-a"],
-    });
+    // Enabled explicitly: a gated build returns {} for everything, which would
+    // satisfy these assertions without the sanitizer doing any work at all.
+    const search = validateHomeViewSearch(
+      {
+        view: "editor",
+        floorId: {},
+        areaId: "x".repeat(129),
+        viewBridge: ["bridge-a"],
+      },
+      true,
+    );
     expect(search.view).toBeUndefined();
     expect(search.floorId).toBeUndefined();
     expect(search.areaId).toBeUndefined();
     expect(search.viewBridge).toBeUndefined();
+  });
+
+  test("a gated build accepts no map navigation from the URL", () => {
+    expect(
+      validateHomeViewSearch(
+        { view: "map", viewBridge: "bridge-a", floorId: "ground" },
+        false,
+      ),
+    ).toEqual({});
   });
 
   test("remembers selection per bridge and tolerates damaged preferences", () => {
