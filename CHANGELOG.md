@@ -15,6 +15,14 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
   hardware works before paying.
 - Saving a second Hue Bridge now needs Pro. Pairing, re-pairing, and recovering
   your one bridge stay free.
+- Global keyboard shortcuts now need Pro. They can still be set up without it
+  and start working the moment Pro is unlocked.
+- Widgets hold one room, zone, or light for free, with no limit on how many
+  widgets you keep. Several controls in one widget, multi-target toggle groups,
+  pinning, and always-on-top need Pro.
+- A custom home dashboard layout needs Pro; the standard grouping modes do not.
+- Hitting a paid feature now opens a dialog that explains what Pro includes and
+  buys it, rather than only saying no.
 - The title bar shows which tier the app is running as. In a development build
   that badge is also the switch between Free and Pro.
 - Initial Microsoft Store release preparation is in progress.
@@ -31,8 +39,6 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 - Mote Pro cannot be bought yet. The add-on is submitted and publishes manually,
   so gated features refuse until it is published. A build carrying enforcement
   must not reach the Store before that happens.
-- The custom dashboard layout and advanced widget composition are described as
-  Pro but are not yet enforced.
 - The Windows purchase and restore flows have not been exercised against a
   packaged Store build.
 - Signing identity, live support/privacy URLs, package, and final `1.0.0`

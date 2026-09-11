@@ -21,11 +21,15 @@ Last reviewed: **2026-09-11**.
   per-bridge Sync Box association is not included.
 - The app does not impose a limit on the number of widget windows. Multiple
   controls/targets and advanced widget customization require Pro.
-- Mote Pro is a one-time Microsoft Store purchase. PC Sync, advanced widget
-  composition, custom dashboard layouts, and multiple saved Hue Bridges require
-  Pro. As of 2026-09-11 only PC Sync and the second saved bridge are actually
-  enforced; widget composition and the custom dashboard layout are described as
-  paid but still work without Pro until their gates land.
+- Mote Pro is a one-time Microsoft Store purchase. PC Sync, global keyboard
+  shortcuts, advanced widget composition, custom dashboard layouts, and multiple
+  saved Hue Bridges require Pro. All of these are enforced as of 2026-09-11.
+- Global keyboard shortcuts can be configured without Pro but will not fire
+  until it is owned. The refusal happens in the backend, so a shortcut prepared
+  in advance starts working the moment Pro is unlocked.
+- The custom dashboard layout is enforced in the interface only. It is stored
+  locally with no backend command behind it, unlike every other paid
+  capability.
 - Mote Pro cannot be bought yet. The durable add-on was submitted on 2026-09-11
   and publishes manually, so until it is published the app has no Pro to sell
   and every gated capability refuses.

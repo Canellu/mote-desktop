@@ -6,9 +6,12 @@ Last reviewed: **2026-09-11**.
 
 As of 2026-09-11 the entitlement service is registered as Tauri state, release
 builds read the Store licence through a cached provider, and purchase and
-restore are wired. `authorize` is applied to PC Sync (starting a session) and to
-saving a second bridge. The custom dashboard layout and advanced widget
-composition are defined below but not yet enforced.
+restore are wired. Every capability in the table below is now enforced.
+
+Global keyboard shortcuts were added to this matrix on 2026-09-11. They had
+shipped without a tier at all — absent here, from `v1-feature-inventory.md`, and
+from the Store listing copy — so nothing decided whether they were free. They
+are Pro.
 
 **No grandfathering.** The owner confirmed on 2026-09-11 that nobody has
 downloaded the app yet, so there is no installed base to protect and enforcement
@@ -46,6 +49,7 @@ and APIs must map into the provider-neutral capabilities defined here.
 | PC Sync                         | Explain requirements and show the upgrade entry point                                                                     | Video, Games, and Music modes; display/audio selection; start, update, and stop streaming                                  | `pc_sync`                 |
 | Hue Play HDMI Sync Box          | All current single-box discovery, pairing, source, mode, intensity, brightness, sync, restore, and removal controls       | Future workflows that combine several boxes, bridges, or automations may be Pro                                            | —                         |
 | Desktop widgets                 | Create any number of widgets with one single-target control each, standard size, system theme, and normal window behavior | Add multiple controls or multi-target toggle groups; customize theme, size, placement, pinning, and always-on-top behavior | `advanced_widgets`        |
+| Global keyboard shortcuts       | Explain the capability and show the upgrade entry point; shortcuts can be prepared but do not fire                        | System-wide hotkeys for lights, rooms, zones, and scenes, active whenever Mote runs, including from the tray               | `global_shortcuts`        |
 | Appearance and desktop behavior | Light/dark/system theme, close behavior, tray behavior, start-on-login, window state, and navigation                      | No current essential application setting is reserved for Pro                                                               | —                         |
 | About and support               | Version, legal/support links, privacy summary, release notes, diagnostics, purchase status, and restore-purchase action   | No support or privacy control is reserved for Pro                                                                          | —                         |
 
@@ -82,25 +86,34 @@ therefore safe; the next package submission is the one to hold.
    managed Tauri state and expose sanitized entitlement, purchase, and restore
    commands to React. Restore is the same read as refresh, so it needed no
    command of its own.
-2. **Renamed, not enforced.** The placeholder `widgets` capability is now
-   `advanced_widgets`. The Free composition limit — one single-target control per
-   widget — is not yet enforced in the Rust commands that create, reopen, or
-   reconfigure widgets.
+2. **Done (2026-09-11).** The placeholder `widgets` capability is now
+   `advanced_widgets`, and the Free composition limit is enforced in
+   `set-widget-controls` after sanitizing, so the count reflects what would
+   actually be stored. Pinning and always-on-top gate only when switching on;
+   turning them off is always allowed, or a lapsed purchase would strand a
+   widget pinned above everything forever.
 3. **Done (2026-09-11).** `multiple_bridges` is enforced on pairing when a bridge
    is already saved. The check reads what is stored rather than the pairing
    itself, so a Free customer can always pair, re-pair, and recover their one
    bridge.
-4. **Not enforced.** `dashboard_custom_layout` on entering layout-edit mode and
-   on every persistence write.
+4. **Done (2026-09-11), and weaker than the rest by nature.** The custom layout
+   lives in `localStorage` with no Tauri command behind it, so the check in the
+   header is the whole gate rather than a convenience in front of a backend one.
+   Hardening it would mean moving layout persistence into Rust; that is a poor
+   trade for what it protects, which is one person's arrangement of cards on one
+   machine. Recorded here so nobody later mistakes it for a backend gate.
 5. **Done (2026-09-11), narrower than first written.** `pc_sync` is enforced
    before starting Video, Games and Music streams, and deliberately _not_ before
    the colour test. The table above lists testing an entertainment area as a Free
    action, and gating it would stop someone confirming their hardware works
    before being asked to pay. Status, requirements, purchase, restore, and safe
    stop remain available without Pro.
-6. **Partly done.** Refusals carry structured `AuthorizationError` JSON and the
-   frontend renders distinct copy for pro-required and unknown-licence. Locked,
-   upgrade, downgrade and recovery states are not built.
+6. **Done (2026-09-11).** Refusals carry structured `AuthorizationError` JSON. A
+   `pro_required` refusal opens the purchase dialog; `entitlement_unavailable`
+   only shows copy telling the customer to retry, because offering to sell Pro
+   to somebody who already paid is the worse mistake. The Free badge in the
+   title bar carries a "Get Pro" action, and the Shortcuts tab says the same in
+   place. Downgrade and recovery states are still not built.
 7. **Not done.** Test every paid command directly so a modified frontend cannot
    bypass the tier boundary. The static half is audited — see the commerce spike
    — but reinstall, offline, refund and downgrade behaviour still need a packaged
