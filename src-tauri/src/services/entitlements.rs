@@ -220,6 +220,50 @@ impl EntitlementProvider for DebugEntitlementProvider {
     }
 }
 
+/// Holds the last answer a commerce backend gave, so the synchronous
+/// `EntitlementProvider` contract can be served from an asynchronous Store API.
+///
+/// The grace rule lives here: an authoritative answer always wins, including a
+/// downgrade, because a refund or revocation is a real Inactive. A failure is
+/// not an answer, so it must never overwrite a cached Active — otherwise a flat
+/// network or a Store hiccup would revoke a purchase the customer made.
+#[derive(Default)]
+pub struct CachedEntitlementProvider {
+    snapshot: std::sync::RwLock<EntitlementSnapshot>,
+}
+
+impl CachedEntitlementProvider {
+    /// Folds a freshly read snapshot into the cache, one product at a time.
+    pub fn apply(&self, fresh: EntitlementSnapshot) -> EntitlementSnapshot {
+        let mut cached = self
+            .snapshot
+            .write()
+            .expect("cached entitlement lock poisoned");
+
+        cached.pro = merge_state(cached.pro, fresh.pro);
+        cached.household = merge_state(cached.household, fresh.household);
+        *cached
+    }
+}
+
+/// `Unknown` means "could not answer", so it leaves whatever was known in
+/// place. Anything else is authoritative and replaces it.
+const fn merge_state(cached: EntitlementState, fresh: EntitlementState) -> EntitlementState {
+    match fresh {
+        EntitlementState::Unknown => cached,
+        answer => answer,
+    }
+}
+
+impl EntitlementProvider for CachedEntitlementProvider {
+    fn snapshot(&self) -> EntitlementSnapshot {
+        *self
+            .snapshot
+            .read()
+            .expect("cached entitlement lock poisoned")
+    }
+}
+
 /// What the Tauri app manages: the authorization service, plus — in a debug
 /// build only — the handle that can move it between Free and Pro.
 ///
@@ -231,6 +275,8 @@ pub struct EntitlementRuntime {
     service: EntitlementService,
     #[cfg(debug_assertions)]
     debug: Arc<DebugEntitlementProvider>,
+    #[cfg(not(debug_assertions))]
+    cache: Arc<CachedEntitlementProvider>,
 }
 
 impl EntitlementRuntime {
@@ -240,6 +286,24 @@ impl EntitlementRuntime {
 
     pub fn authorize(&self, capability: Capability) -> Result<(), AuthorizationError> {
         self.service.authorize(capability)
+    }
+
+    /// Folds a snapshot read from the commerce backend into the cache.
+    ///
+    /// A debug build ignores it on purpose: the developer override is the whole
+    /// point of that build, and a background Store refresh silently undoing a
+    /// deliberate toggle would make the switch untrustworthy.
+    pub fn apply_store_snapshot(&self, fresh: EntitlementSnapshot) -> EntitlementSnapshot {
+        #[cfg(debug_assertions)]
+        {
+            let _ = fresh;
+            self.snapshot()
+        }
+
+        #[cfg(not(debug_assertions))]
+        {
+            self.cache.apply(fresh)
+        }
     }
 
     #[cfg(debug_assertions)]
@@ -268,12 +332,14 @@ impl Default for EntitlementRuntime {
 
         #[cfg(not(debug_assertions))]
         {
-            // No commerce adapter is wired yet, so release reports Unknown. That
-            // is honest rather than permissive: `authorize` refuses on Unknown,
-            // which is why callers must not gate shipped features on it until a
-            // real adapter can answer. See docs/free-pro-feature-matrix.md.
+            // Starts Unknown and stays there until a Store read lands, because
+            // the Store API is asynchronous and this contract is not. Unknown
+            // refuses, so nothing is granted by a refresh that never arrived.
+            let cache = Arc::new(CachedEntitlementProvider::default());
+
             Self {
-                service: EntitlementService::default(),
+                service: EntitlementService::new(cache.clone()),
+                cache,
             }
         }
     }
@@ -406,6 +472,48 @@ mod tests {
         assert_eq!(
             serde_json::to_value(Capability::AdvancedWidgets).unwrap(),
             serde_json::json!("advanced_widgets")
+        );
+    }
+
+    #[test]
+    fn a_failed_read_never_revokes_a_cached_purchase() {
+        let cache = CachedEntitlementProvider::default();
+
+        cache.apply(EntitlementSnapshot {
+            pro: EntitlementState::Active,
+            household: EntitlementState::Inactive,
+        });
+
+        // Offline, or the Store simply not answering.
+        let after = cache.apply(EntitlementSnapshot::unavailable());
+
+        assert_eq!(after.pro, EntitlementState::Active);
+        assert_eq!(after.household, EntitlementState::Inactive);
+    }
+
+    #[test]
+    fn an_authoritative_downgrade_is_honoured() {
+        let cache = CachedEntitlementProvider::default();
+
+        cache.apply(EntitlementSnapshot {
+            pro: EntitlementState::Active,
+            household: EntitlementState::Unknown,
+        });
+
+        // A refund or revocation is a real answer and must land.
+        let after = cache.apply(EntitlementSnapshot {
+            pro: EntitlementState::Inactive,
+            household: EntitlementState::Unknown,
+        });
+
+        assert_eq!(after.pro, EntitlementState::Inactive);
+    }
+
+    #[test]
+    fn an_empty_cache_grants_nothing() {
+        assert_eq!(
+            CachedEntitlementProvider::default().snapshot(),
+            EntitlementSnapshot::unavailable()
         );
     }
 

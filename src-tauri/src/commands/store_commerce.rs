@@ -4,6 +4,31 @@ use crate::services::entitlements::{EntitlementSnapshot, EntitlementState};
 
 const MOTE_PRO_IN_APP_OFFER_TOKEN: &str = "mote-pro";
 
+/// The entitlement half of the diagnostic, without the rest of the report.
+///
+/// Deliberately the same code path the spike exercised rather than a second
+/// reader: a provider that disagreed with the diagnostic would be the hardest
+/// possible bug to chase, because the diagnostic is the tool you would reach for
+/// to chase it.
+pub async fn read_store_entitlements(app: tauri::AppHandle) -> EntitlementSnapshot {
+    get_store_commerce_diagnostic_for_platform(app)
+        .await
+        .entitlements
+}
+
+/// What Microsoft's purchase UI reported, flattened to something the interface
+/// can act on without learning the Store's vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PurchaseOutcome {
+    /// The customer now owns Mote Pro, whether they just bought it or already did.
+    Owned,
+    /// The customer dismissed the purchase without buying. Not an error.
+    Declined,
+    /// The Store could not complete it. Worth retrying; nothing was charged.
+    Unavailable,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreCommerceDiagnostic {
@@ -127,6 +152,59 @@ impl From<windows::core::Error> for ErrorDiagnostic {
 #[tauri::command]
 pub async fn get_store_commerce_diagnostic(app: tauri::AppHandle) -> StoreCommerceDiagnostic {
     get_store_commerce_diagnostic_for_platform(app).await
+}
+
+/// Opens Microsoft's purchase UI for the Mote Pro durable add-on.
+///
+/// The add-on's Store ID is not hard-coded: it is discovered through the same
+/// associated-products query the diagnostic runs, so a re-created add-on cannot
+/// leave a stale identifier compiled into the app.
+#[cfg(target_os = "windows")]
+pub async fn purchase_mote_pro(app: tauri::AppHandle) -> Result<PurchaseOutcome, String> {
+    use windows::core::HSTRING;
+    use windows::Services::Store::{StoreContext, StorePurchaseStatus};
+
+    let report = get_store_commerce_diagnostic_for_platform(app).await;
+
+    let store_id = report
+        .products
+        .iter()
+        .find(|product| {
+            product
+                .in_app_offer_token
+                .eq_ignore_ascii_case(MOTE_PRO_IN_APP_OFFER_TOKEN)
+        })
+        .map(|product| product.store_id.clone())
+        .ok_or_else(|| {
+            "Mote Pro is not offered by this Store account yet. The add-on must be published \
+             against a published parent package before it can be bought."
+                .to_string()
+        })?;
+
+    // GetDefault returns the context the diagnostic already initialised with the
+    // main window, which is what the purchase dialog needs to parent itself.
+    let context = StoreContext::GetDefault().map_err(|error| error.message())?;
+
+    let result = context
+        .RequestPurchaseAsync(&HSTRING::from(store_id))
+        .map_err(|error| error.message())?
+        .await
+        .map_err(|error| error.message())?;
+
+    let status = result.Status().map_err(|error| error.message())?;
+
+    Ok(match status {
+        StorePurchaseStatus::Succeeded | StorePurchaseStatus::AlreadyPurchased =>
+            PurchaseOutcome::Owned,
+        StorePurchaseStatus::NotPurchased => PurchaseOutcome::Declined,
+        // NetworkError, ServerError, and anything added later.
+        _ => PurchaseOutcome::Unavailable,
+    })
+}
+
+#[cfg(not(target_os = "windows"))]
+pub async fn purchase_mote_pro(_app: tauri::AppHandle) -> Result<PurchaseOutcome, String> {
+    Err("Mote Pro is sold through the Microsoft Store, which is Windows-only.".to_string())
 }
 
 #[cfg(not(target_os = "windows"))]

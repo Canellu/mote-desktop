@@ -97,6 +97,8 @@ pub fn run() {
             commands::store_commerce::get_store_commerce_diagnostic,
             commands::entitlements::get_entitlements,
             commands::entitlements::set_debug_entitlements,
+            commands::entitlements::refresh_entitlements,
+            commands::entitlements::purchase_pro,
             commands::host_sync::get_host_sync_overview,
             commands::host_sync::get_host_sync_preferences,
             commands::host_sync::set_host_sync_preferences,

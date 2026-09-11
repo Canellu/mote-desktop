@@ -1,5 +1,6 @@
 use tauri::{AppHandle, Manager};
 
+use crate::commands::store_commerce::{purchase_mote_pro, read_store_entitlements, PurchaseOutcome};
 use crate::services::entitlements::{EntitlementRuntime, EntitlementSnapshot};
 
 /// What the customer currently owns, in provider-neutral terms.
@@ -44,4 +45,32 @@ pub fn set_debug_entitlements(
         let _ = (app, snapshot);
         Err("entitlement overrides are unavailable in a release build".to_string())
     }
+}
+
+/// Re-reads entitlements from the commerce backend and folds the answer into the
+/// cache the synchronous authorization path reads.
+///
+/// This is also the restore path. Restoring a purchase on a new machine is not a
+/// separate transaction — it is this same read, once the customer is signed in
+/// to the Microsoft account that owns the add-on.
+#[tauri::command(rename = "refresh-entitlements")]
+pub async fn refresh_entitlements(app: AppHandle) -> EntitlementSnapshot {
+    let fresh = read_store_entitlements(app.clone()).await;
+
+    app.try_state::<EntitlementRuntime>()
+        .map(|runtime| runtime.apply_store_snapshot(fresh))
+        .unwrap_or(fresh)
+}
+
+/// Opens Microsoft's purchase UI for Mote Pro, then re-reads entitlements so the
+/// app reflects the purchase without a restart.
+///
+/// The returned outcome describes the dialog. What the customer actually owns
+/// comes from the refresh that follows it, never from the dialog's word alone —
+/// the Store license is the only thing that grants a capability.
+#[tauri::command(rename = "purchase-mote-pro")]
+pub async fn purchase_pro(app: AppHandle) -> Result<PurchaseOutcome, String> {
+    let outcome = purchase_mote_pro(app.clone()).await?;
+    refresh_entitlements(app).await;
+    Ok(outcome)
 }
