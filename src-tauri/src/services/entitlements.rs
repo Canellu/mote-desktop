@@ -103,7 +103,7 @@ pub struct AuthorizationError {
 }
 
 impl AuthorizationError {
-    fn required(capability: Capability, product: EntitlementProduct) -> Self {
+    pub(crate) fn required(capability: Capability, product: EntitlementProduct) -> Self {
         let code = match product {
             EntitlementProduct::Pro => AuthorizationErrorCode::ProRequired,
             EntitlementProduct::Household => AuthorizationErrorCode::HouseholdRequired,
@@ -116,7 +116,7 @@ impl AuthorizationError {
         }
     }
 
-    fn unavailable(capability: Capability, product: EntitlementProduct) -> Self {
+    pub(crate) fn unavailable(capability: Capability, product: EntitlementProduct) -> Self {
         Self {
             code: AuthorizationErrorCode::EntitlementUnavailable,
             capability,

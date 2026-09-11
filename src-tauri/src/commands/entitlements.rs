@@ -1,7 +1,9 @@
 use tauri::{AppHandle, Manager};
 
 use crate::commands::store_commerce::{purchase_mote_pro, read_store_entitlements, PurchaseOutcome};
-use crate::services::entitlements::{EntitlementRuntime, EntitlementSnapshot};
+use crate::services::entitlements::{
+    AuthorizationError, Capability, EntitlementRuntime, EntitlementSnapshot,
+};
 
 /// What the customer currently owns, in provider-neutral terms.
 ///
@@ -73,4 +75,30 @@ pub async fn purchase_pro(app: AppHandle) -> Result<PurchaseOutcome, String> {
     let outcome = purchase_mote_pro(app.clone()).await?;
     refresh_entitlements(app).await;
     Ok(outcome)
+}
+
+/// Refuses unless this installation is entitled to `capability`.
+///
+/// The refusal carries serialized `AuthorizationError` JSON rather than prose,
+/// because the interface has to tell "you do not own this" apart from "we could
+/// not check". One offers a purchase and the other offers a retry, and showing
+/// a purchase prompt to somebody who already paid is much the worse mistake.
+///
+/// Commands here return `Result<_, String>`, so the structure travels inside
+/// the string rather than changing every signature in the crate.
+pub fn require(app: &AppHandle, capability: Capability) -> Result<(), String> {
+    let Some(runtime) = app.try_state::<EntitlementRuntime>() else {
+        // Unreachable in a built app, and still refuses rather than opening the
+        // gate, because a missing runtime is not proof of a purchase.
+        return Err(serialize_refusal(AuthorizationError::unavailable(
+            capability,
+            capability.required_product(),
+        )));
+    };
+
+    runtime.authorize(capability).map_err(serialize_refusal)
+}
+
+fn serialize_refusal(error: AuthorizationError) -> String {
+    serde_json::to_string(&error).unwrap_or_else(|_| error.to_string())
 }

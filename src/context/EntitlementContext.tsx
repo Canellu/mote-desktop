@@ -33,8 +33,19 @@ interface EntitlementContextValue {
    * one would hand out Pro whenever the commerce adapter had a bad day.
    */
   hasPro: boolean;
-  /** Re-reads the snapshot, e.g. after a purchase or restore completes. */
+  /** Re-reads the cached snapshot. Cheap; does not talk to the Store. */
   refresh: () => Promise<void>;
+  /**
+   * Asks the commerce backend again and folds the answer in. This is also the
+   * restore path: restoring on a new machine is this read, once the customer is
+   * signed in to the account that owns the add-on.
+   */
+  syncFromStore: () => Promise<void>;
+  /**
+   * Opens Microsoft's purchase flow, then re-reads. Resolves true only when the
+   * customer owns Pro afterwards — the dialog's word is not the entitlement.
+   */
+  purchasePro: () => Promise<boolean>;
   /**
    * Development override, or `null` in a release build. The Rust side compiles
    * the mutable provider out of release entirely, so this is not merely hidden.
@@ -66,6 +77,32 @@ export const EntitlementProvider: React.FC<{ children: ReactNode }> = ({
     void refresh();
   }, [refresh]);
 
+  const syncFromStore = useCallback(async () => {
+    try {
+      setSnapshot(await invoke<EntitlementSnapshot>("refresh-entitlements"));
+    } catch {
+      // Leave the last known state alone. A failed check is not a downgrade,
+      // and the Rust cache applies the same rule on its side.
+    }
+  }, []);
+
+  const purchasePro = useCallback(async () => {
+    try {
+      await invoke("purchase-mote-pro");
+    } catch {
+      // A cancelled or failed dialog still falls through to the read below,
+      // which is the only thing that decides what the customer owns.
+    }
+
+    try {
+      const next = await invoke<EntitlementSnapshot>("refresh-entitlements");
+      setSnapshot(next);
+      return next.pro === "active";
+    } catch {
+      return false;
+    }
+  }, []);
+
   const setDebugPro = useCallback(
     async (active: boolean) => {
       try {
@@ -89,9 +126,11 @@ export const EntitlementProvider: React.FC<{ children: ReactNode }> = ({
       snapshot,
       hasPro: snapshot.pro === "active",
       refresh,
+      syncFromStore,
+      purchasePro,
       setDebugPro: allowDebugOverride ? setDebugPro : null,
     }),
-    [snapshot, refresh, setDebugPro],
+    [snapshot, refresh, syncFromStore, purchasePro, setDebugPro],
   );
 
   return (
@@ -113,6 +152,8 @@ export const useEntitlements = (): EntitlementContextValue => {
       snapshot: UNAVAILABLE,
       hasPro: false,
       refresh: async () => {},
+      syncFromStore: async () => {},
+      purchasePro: async () => false,
       setDebugPro: null,
     }
   );

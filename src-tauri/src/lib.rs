@@ -139,6 +139,17 @@ pub fn run() {
             commands::widget::reset_widget_position,
         ])
         .setup(|app| {
+            // Entitlements start Unknown, and Unknown refuses, so a paid feature
+            // stays shut until the Store answers. Ask on launch rather than
+            // waiting for the first person to open a gated screen, or the app
+            // would look like it had revoked a purchase for a moment.
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    commands::entitlements::refresh_entitlements(handle).await;
+                });
+            }
+
             #[cfg(desktop)]
             {
                 let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))?;

@@ -1,3 +1,4 @@
+import { describeCommandError } from "@/lib/entitlement-errors";
 import { useEntertainmentStore } from "@/stores/EntertainmentStore";
 import type {
   HostSyncOverview,
@@ -40,7 +41,7 @@ export const useHostSync = () => {
         useEntertainmentStore.getState().setPcStatus(next.status);
       })
       .catch((error) => {
-        if (mounted.current) setLoadError(String(error));
+        if (mounted.current) setLoadError(describeCommandError(error));
       })
       .finally(() => {
         if (mounted.current) setIsLoading(false);
@@ -63,7 +64,7 @@ export const useHostSync = () => {
       try {
         await invoke("set-host-sync-preferences", { preferences: next });
       } catch (error) {
-        setActionError(String(error));
+        setActionError(describeCommandError(error));
         void refresh();
       }
     },
@@ -77,7 +78,7 @@ export const useHostSync = () => {
       await action();
       return true;
     } catch (error) {
-      setActionError(String(error));
+      setActionError(describeCommandError(error));
       return false;
     } finally {
       setIsUpdating(false);
