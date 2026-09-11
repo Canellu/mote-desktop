@@ -7,6 +7,7 @@ import { HomeMapView } from "@/features/home-map/HomeMapView";
 import { HomeViewSwitch } from "@/features/home-map/components/HomeViewSwitch";
 import {
   homeSearchMatchesBridge,
+  mapFeatureEnabled,
   resolveHomeView,
   readMapSelection,
   writeHomeView,
@@ -59,8 +60,11 @@ export const HomeRoute: React.FC = () => {
   const { bridgeId } = useHue();
   const search = useSearch({ from: "/" });
   const scopedSearch = homeSearchMatchesBridge(search, bridgeId) ? search : {};
-  const selection =
-    scopedSearch.mapPreview || scopedSearch.floorId !== undefined
+  // Only the map reads a selection, so a gated build skips the stored lookup
+  // rather than touching preferences for a screen it will never show.
+  const selection = !mapFeatureEnabled
+    ? {}
+    : scopedSearch.mapPreview || scopedSearch.floorId !== undefined
       ? scopedSearch
       : readMapSelection(bridgeId);
   const view = isEditLayoutMode
@@ -83,27 +87,31 @@ export const HomeRoute: React.FC = () => {
   return (
     <div className="flex h-full min-h-0 flex-col">
       {/* One header row for both views, with the same padding and the same
-        place in the layout, so the switch never moves as the view changes. */}
-      <div
-        className={`flex shrink-0 items-center gap-4 px-12 pt-6 ${
-          view === "map" ? "pb-4" : "pb-6"
-        }`}
-      >
-        <HomeViewSwitch
-          value={view}
-          onChange={changeView}
-          disabled={isEditLayoutMode}
-        />
-        {view === "map" && (
-          <div
-            ref={setMapActions}
-            role="toolbar"
-            aria-label="Map actions"
-            className="ml-auto flex min-w-0 items-center gap-2"
+        place in the layout, so the switch never moves as the view changes.
+        With the map gated out there is nothing to switch between, so the row
+        goes too rather than leaving an empty band above the dashboard. */}
+      {mapFeatureEnabled && (
+        <div
+          className={`flex shrink-0 items-center gap-4 px-12 pt-6 ${
+            view === "map" ? "pb-4" : "pb-6"
+          }`}
+        >
+          <HomeViewSwitch
+            value={view}
+            onChange={changeView}
+            disabled={isEditLayoutMode}
           />
-        )}
-      </div>
-      {view === "map" ? (
+          {view === "map" && (
+            <div
+              ref={setMapActions}
+              role="toolbar"
+              aria-label="Map actions"
+              className="ml-auto flex min-w-0 items-center gap-2"
+            />
+          )}
+        </div>
+      )}
+      {mapFeatureEnabled && view === "map" ? (
         <HomeMapView
           key={bridgeId ?? "no-bridge"}
           bridgeId={bridgeId}
@@ -167,7 +175,11 @@ export const HomeRoute: React.FC = () => {
           fade
           hideScrollbar
           className="min-h-0 flex-1"
-          viewportClassName="px-12 pb-6"
+          // Without the header row above it the dashboard owns its own top
+          // padding, so the content never sits flush against the title bar.
+          viewportClassName={
+            mapFeatureEnabled ? "px-12 pb-6" : "px-12 pt-6 pb-6"
+          }
         >
           <HomeScreen
             roomZones={roomZones}

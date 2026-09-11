@@ -8,6 +8,7 @@ import React, {
   type ReactNode,
 } from "react";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
+import { mapFeatureEnabled } from "@/features/home-map/homeView";
 import { homeMapStore } from "@/features/home-map/useHomeMapStore";
 
 export interface HueSession {
@@ -174,7 +175,9 @@ export const HueProvider: React.FC<HueProviderProps> = ({ children }) => {
 
   useEffect(() => {
     // Maps stay available offline; a bridge switch hides the previous selection
-    // while its in-flight saves continue under the original bridge ID.
+    // while its in-flight saves continue under the original bridge ID. A build
+    // without the map has no reader for any of it, so it does not load.
+    if (!mapFeatureEnabled) return;
     void homeMapStore
       .getState()
       .activateBridge(isLoading ? null : session.bridgeId);

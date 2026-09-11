@@ -3,6 +3,7 @@ import { sampleHomeMap } from "../src/features/home-map/sampleMap";
 import { validateHomeMap } from "../src/features/home-map/validation";
 import {
   homeSearchMatchesBridge,
+  mapFeatureEnabled,
   readMapSelection,
   writeMapSelection,
   resolveHomeView,
@@ -22,7 +23,10 @@ describe("Home Map view", () => {
     };
     expect(homeSearchMatchesBridge(search, "bridge-a")).toBe(true);
     expect(homeSearchMatchesBridge(search, "bridge-b")).toBe(false);
-    expect(resolveHomeView(search, "bridge-a")).toBe("map");
+    // A build with the map gated off answers "dashboard" for every search.
+    expect(resolveHomeView(search, "bridge-a")).toBe(
+      mapFeatureEnabled ? "map" : "dashboard",
+    );
     expect(resolveHomeView(search, "bridge-b")).toBe("dashboard");
     expect(homeSearchMatchesBridge({ viewBridge: "preview" }, null)).toBe(true);
   });

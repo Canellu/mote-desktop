@@ -1,5 +1,13 @@
 export type HomeView = "dashboard" | "map";
 
+/**
+ * The map is still being built, so it does not ship: a release build resolves
+ * Home to the dashboard, never offers the view switch, and drops the map's
+ * navigation state from the URL. Development keeps the whole feature live.
+ * Delete this gate — and the checks that read it — when the map ships.
+ */
+export const mapFeatureEnabled = import.meta.env.DEV;
+
 export interface HomeViewSearch {
   view?: HomeView;
   viewBridge?: string;
@@ -12,7 +20,12 @@ export interface HomeViewSearch {
   mapCreate?: boolean;
 }
 
-export function validateHomeViewSearch(
+/**
+ * Bounds and narrows the map's navigation values. Kept separate from the route
+ * validator because stored selections are read back through it too, and those
+ * still need checking in a build that never routes to the map.
+ */
+function sanitizeHomeViewSearch(
   search: Record<string, unknown>,
 ): HomeViewSearch {
   const text = (value: unknown) =>
@@ -30,6 +43,14 @@ export function validateHomeViewSearch(
     mapEdit: search.mapEdit === true ? true : undefined,
     mapCreate: search.mapCreate === true ? true : undefined,
   };
+}
+
+export function validateHomeViewSearch(
+  search: Record<string, unknown>,
+): HomeViewSearch {
+  // Every field here is map navigation state, so a gated build accepts none of
+  // it from the URL: a typed `?view=map` simply lands on the dashboard.
+  return mapFeatureEnabled ? sanitizeHomeViewSearch(search) : {};
 }
 
 export function readHomeView(bridgeId: string | null): HomeView {
@@ -61,7 +82,7 @@ export function readMapSelection(
       localStorage.getItem(`mote-map-selection:${bridgeId}`) ?? "null",
     );
     if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-    const { floorId, areaId } = validateHomeViewSearch(
+    const { floorId, areaId } = sanitizeHomeViewSearch(
       value as Record<string, unknown>,
     );
     return { floorId, areaId };
@@ -97,6 +118,9 @@ export function resolveHomeView(
   search: HomeViewSearch,
   bridgeId: string | null,
 ): HomeView {
+  // The route and the header both ask here, so the gate answers once for both
+  // and a "map" preference left behind by a development build stays inert.
+  if (!mapFeatureEnabled) return "dashboard";
   return (
     (homeSearchMatchesBridge(search, bridgeId) ? search.view : undefined) ??
     readHomeView(bridgeId)

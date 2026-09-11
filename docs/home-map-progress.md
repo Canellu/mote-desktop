@@ -6,6 +6,11 @@ The [UX plan](./home-map-plan.md) defines the intended complete experience.
 Each chunk gets its own focused verification and commit. Existing unrelated
 working-tree changes are excluded from these commits.
 
+The feature is unfinished, so it does not ship: `mapFeatureEnabled` in
+`src/features/home-map/homeView.ts` keeps the view switch, the map view, and its
+navigation state out of release builds. Development builds are unchanged. Remove
+the gate and the checks that read it when Map ships.
+
 ## Completed chunks
 
 | Chunk | Deliverable                                                                                                    | Status   |
