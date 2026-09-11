@@ -1,3 +1,4 @@
+use crate::services::entitlements::Capability;
 use std::{
     collections::HashSet,
     fs,
@@ -584,6 +585,12 @@ pub fn set_widget_pinned(
     widget_id: Option<String>,
     pinned: bool,
 ) -> Result<(), String> {
+    // Only switching it on is gated. Turning it off must always work, or a
+    // lapsed purchase would strand a widget pinned to a spot forever.
+    if pinned {
+        crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
+    }
+
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let mut settings = read_widget_settings(&app)?;
     let widget = settings
@@ -627,6 +634,12 @@ pub fn set_widget_always_on_top(
     widget_id: Option<String>,
     always_on_top: bool,
 ) -> Result<(), String> {
+    // As with pinning, only raising the window is paid. Lowering it again is
+    // always allowed so nothing can be left stuck above everything else.
+    if always_on_top {
+        crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
+    }
+
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let mut settings = read_widget_settings(&app)?;
     let widget = settings
@@ -664,6 +677,18 @@ pub fn get_widget_controls(
         .unwrap_or_default())
 }
 
+/// The Free composition allowance, in one place: a widget may hold one control,
+/// and that control may point at one thing.
+///
+/// A room, zone, or light each count as one target, so "the living room" is
+/// within it. What is paid is holding more than one control, or a card that
+/// acts on several targets at once. Deliberately lenient at the edge — a toggle
+/// card with a single target is treated as free, because the matrix describes
+/// the paid case as a *multi-target* toggle group.
+fn exceeds_free_composition(controls: &[StoredWidgetControl]) -> bool {
+    controls.len() > 1 || controls.iter().any(|control| control.targets.len() > 1)
+}
+
 #[tauri::command(rename = "set-widget-controls")]
 pub fn set_widget_controls(
     app: tauri::AppHandle,
@@ -672,6 +697,12 @@ pub fn set_widget_controls(
 ) -> Result<(), String> {
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let controls = sanitize_controls(controls);
+
+    // Checked after sanitizing, so the count reflects what would actually be
+    // stored rather than whatever the caller sent.
+    if exceeds_free_composition(&controls) {
+        crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
+    }
 
     let mut settings = read_widget_settings(&app)?;
     let widget = settings

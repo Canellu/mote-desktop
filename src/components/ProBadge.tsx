@@ -1,4 +1,5 @@
 import { useEntitlements } from "@/context/EntitlementContext";
+import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,60 +23,94 @@ const proSurface = cn(
   "before:bg-[linear-gradient(to_bottom,oklch(1_0_0/0.6),oklch(1_0_0/0))]",
 );
 
-/** Unentitled, and only ever seen in a development build. */
+/**
+ * The Free mark, and next to it the way out of it.
+ *
+ * Deliberately not muted. A tier badge nobody notices sells nothing, so "Free"
+ * stays quiet and readable while "Get Pro" is given the accent colour, an
+ * underline on hover, and a real hit area. It is the only place in the chrome
+ * that asks for money, so it should look like something you may click, not like
+ * a disabled label.
+ */
 const freeSurface = cn(
-  "rounded-full border border-dashed border-muted-foreground/50 px-2.5 py-px",
-  "text-[0.8125rem] leading-5 font-medium tracking-tight text-muted-foreground",
+  "rounded-full border px-2.5 py-px",
+  "border-foreground/15 bg-foreground/5",
+  "text-[0.8125rem] leading-5 font-medium tracking-tight text-foreground/70",
 );
 
 /**
  * Says which tier the running app is in, beside the product name.
  *
- * In a release build it is inert and appears only once Pro is actually owned, so
- * it can never imply an entitlement the customer does not have. In development
- * it is always present and clicking it swaps the whole app between Free and Pro
- * — the mark is the switch, so the state and the control for it cannot disagree.
+ * On Free it also carries the upgrade path. On Pro it is just the mark. In a
+ * development build the mark itself toggles the tier, so both states can be
+ * seen without a Store purchase.
  */
 export const ProBadge: React.FC<{ className?: string }> = ({ className }) => {
   const { hasPro, setDebugPro } = useEntitlements();
+  const { requestPro } = useProUpgrade();
 
-  if (!setDebugPro) {
-    if (!hasPro) return null;
+  // The title bar starts a window drag from its own mousedown, so every control
+  // here has to stop the press or clicking it throws the window across the
+  // desktop instead of doing its job.
+  const stopDrag = {
+    onMouseDown: (event: React.MouseEvent) => event.stopPropagation(),
+    onPointerDown: (event: React.PointerEvent) => event.stopPropagation(),
+  };
 
-    return <span className={cn(proSurface, className)}>Pro</span>;
-  }
+  const mark = hasPro ? (
+    <span className={proSurface}>Pro</span>
+  ) : (
+    <span className={freeSurface}>Free</span>
+  );
 
   return (
-    <button
-      type="button"
-      // The title bar drags the window from its own mousedown, so the press has
-      // to stop here or every click on the badge throws the window across the
-      // desktop instead of toggling the tier.
-      onMouseDown={(event) => event.stopPropagation()}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.stopPropagation();
-        void setDebugPro(!hasPro);
-      }}
-      aria-pressed={hasPro}
-      title={
-        hasPro
-          ? "Development build: Pro is on. Click for Free."
-          : "Development build: Free tier. Click for Pro."
-      }
-      className={cn(
-        // A bare wrapper: no box of its own, so the pill is the only thing that
-        // paints. Anything else here shows up as a plate behind the badge.
-        "inline-flex appearance-none rounded-full border-0 bg-transparent p-0",
-        "outline-none transition-[filter,opacity] duration-150",
-        "focus-visible:ring-2 focus-visible:ring-ring/50",
-        hasPro ? "hover:brightness-[1.06]" : "opacity-80 hover:opacity-100",
-        className,
+    <span className={cn("flex items-center gap-2", className)}>
+      {setDebugPro ? (
+        <button
+          type="button"
+          {...stopDrag}
+          onClick={(event) => {
+            event.stopPropagation();
+            void setDebugPro(!hasPro);
+          }}
+          aria-pressed={hasPro}
+          title={
+            hasPro
+              ? "Development build: Pro is on. Click for Free."
+              : "Development build: Free tier. Click for Pro."
+          }
+          className={cn(
+            // A bare wrapper: no box of its own, so the pill is the only thing
+            // that paints. Anything else here shows up as a plate behind it.
+            "inline-flex appearance-none rounded-full border-0 bg-transparent p-0",
+            "outline-none transition-[filter] duration-150",
+            "focus-visible:ring-2 focus-visible:ring-ring/50",
+            "hover:brightness-[1.06]",
+          )}
+        >
+          {mark}
+        </button>
+      ) : (
+        mark
       )}
-    >
-      <span className={hasPro ? proSurface : freeSurface}>
-        {hasPro ? "Pro" : "Free"}
-      </span>
-    </button>
+
+      {!hasPro && (
+        <button
+          type="button"
+          {...stopDrag}
+          onClick={(event) => {
+            event.stopPropagation();
+            requestPro("general");
+          }}
+          className={cn(
+            "rounded-md px-1 py-0.5 text-[0.8125rem] leading-5 font-semibold",
+            "text-primary underline-offset-4 hover:underline",
+            "outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+          )}
+        >
+          Get Pro
+        </button>
+      )}
+    </span>
   );
 };

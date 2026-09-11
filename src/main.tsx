@@ -4,6 +4,7 @@ import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "./components/ui/sonner";
 import { EntitlementProvider } from "./context/EntitlementContext";
+import { ProUpgradeProvider } from "./features/pro/ProUpgradeProvider";
 import { HueProvider } from "./context/HueContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { WidgetScreen } from "./features/widget-screen/WidgetScreen";
@@ -57,10 +58,12 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
           </>
         ) : (
           <EntitlementProvider>
-            <HueProvider>
-              <App />
-              <Toaster />
-            </HueProvider>
+            <ProUpgradeProvider>
+              <HueProvider>
+                <App />
+                <Toaster />
+              </HueProvider>
+            </ProUpgradeProvider>
           </EntitlementProvider>
         )}
       </ErrorBoundary>

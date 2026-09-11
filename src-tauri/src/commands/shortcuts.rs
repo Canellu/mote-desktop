@@ -1,3 +1,4 @@
+use crate::services::entitlements::Capability;
 use crate::services::hue_client::{HueClient, HueLight};
 use serde::Serialize;
 use std::{
@@ -80,6 +81,11 @@ fn desired_states(
         .collect()
 }
 
+/// Global shortcuts are a Pro capability, and this is where that is decided.
+///
+/// The gate sits on execution rather than on registering the hotkey, because
+/// registration happens in the webview and a modified frontend could skip it.
+/// Nothing touches a light until this check passes.
 #[tauri::command(rename = "execute-shortcut")]
 pub async fn execute_shortcut(
     app: AppHandle,
@@ -89,6 +95,8 @@ pub async fn execute_shortcut(
     action: String,
     brightness: Option<f64>,
 ) -> Result<(), String> {
+    crate::commands::entitlements::require(&app, Capability::GlobalShortcuts)?;
+
     let mut toggles = TOGGLES.lock().await;
     let client = HueClient::new()?;
     let bridge = client.get_stored_bridge(&app)?;

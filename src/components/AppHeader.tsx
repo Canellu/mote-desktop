@@ -6,6 +6,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { useEntitlements } from "@/context/EntitlementContext";
+import { useProUpgrade } from "@/features/pro/proUpgrade";
 import {
   Select,
   SelectContent,
@@ -195,6 +197,23 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onCreateSection,
 }) => {
   const isCustomLayout = groupingMode === "custom";
+  const { hasPro } = useEntitlements();
+  const { requestPro } = useProUpgrade();
+
+  /**
+   * The custom layout is the one paid capability with no backend to defend it —
+   * it lives in localStorage, so this check is the whole gate. That is weaker
+   * than the Rust gates and deliberately so: the thing being protected is a
+   * personal arrangement of cards on one machine, and moving it server-side to
+   * harden it would buy very little.
+   */
+  const chooseGroupingMode = (mode: HomeGroupingMode) => {
+    if (mode === "custom" && !hasPro) {
+      requestPro("dashboard_custom_layout");
+      return;
+    }
+    onGroupingModeChange(mode);
+  };
   const reduceMotion = useReducedMotion();
   const [renamingTitle, setRenamingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(title ?? "");
@@ -438,7 +457,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                   <Select
                     value={groupingMode}
                     onValueChange={(value) =>
-                      onGroupingModeChange(value as HomeGroupingMode)
+                      chooseGroupingMode(value as HomeGroupingMode)
                     }
                   >
                     <SelectTrigger
@@ -466,7 +485,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                       {/* ...whereas Custom is a separate, hand-arranged layout. */}
                       <SelectGroup>
                         <SelectLabel>Arrange yourself</SelectLabel>
-                        <SelectItem value="custom">Custom layout</SelectItem>
+                        <SelectItem value="custom">
+                          Custom layout{hasPro ? "" : " — Pro"}
+                        </SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>

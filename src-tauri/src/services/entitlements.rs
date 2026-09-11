@@ -16,14 +16,17 @@ pub enum Capability {
     /// per widget is paid. `Widgets` read as though the feature itself were
     /// paid, which is what the website ended up publishing.
     AdvancedWidgets,
+    /// System-wide hotkeys that drive lights from anywhere in Windows.
+    GlobalShortcuts,
 }
 
 impl Capability {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 5] = [
         Self::MultipleBridges,
         Self::DashboardCustomLayout,
         Self::PcSync,
         Self::AdvancedWidgets,
+        Self::GlobalShortcuts,
     ];
 
     pub const fn required_product(self) -> EntitlementProduct {
@@ -31,7 +34,8 @@ impl Capability {
             Self::MultipleBridges
             | Self::DashboardCustomLayout
             | Self::PcSync
-            | Self::AdvancedWidgets => EntitlementProduct::Pro,
+            | Self::AdvancedWidgets
+            | Self::GlobalShortcuts => EntitlementProduct::Pro,
         }
     }
 }
@@ -507,6 +511,21 @@ mod tests {
         });
 
         assert_eq!(after.pro, EntitlementState::Inactive);
+    }
+
+    #[test]
+    fn global_shortcuts_are_a_paid_capability() {
+        // Shortcuts shipped before they had a tier. Pin the decision so it is not
+        // quietly re-litigated by a later edit to the enum.
+        assert_eq!(
+            Capability::GlobalShortcuts.required_product(),
+            EntitlementProduct::Pro
+        );
+        assert_eq!(
+            serde_json::to_value(Capability::GlobalShortcuts).unwrap(),
+            serde_json::json!("global_shortcuts")
+        );
+        assert!(Capability::ALL.contains(&Capability::GlobalShortcuts));
     }
 
     #[test]
