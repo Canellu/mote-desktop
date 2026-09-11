@@ -14,11 +14,12 @@ const proSurface = cn(
   "text-amber-950",
   "bg-[linear-gradient(135deg,oklch(0.93_0.12_98)_0%,oklch(0.86_0.16_82)_42%,oklch(0.76_0.17_64)_100%)]",
   "ring-1 ring-white/45 ring-inset",
-  // Specular band over the top half, and a soft sheen sweeping the diagonal.
+  // Specular band over the top half. A second diagonal sheen was tried here and
+  // removed: at `-left-1/3 w-1/3` it resolved to the strip immediately left of
+  // the pill, which `overflow-hidden` clipped away entirely, and the rotation
+  // never applied either. It rendered nothing and only read as intent.
   "before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-1/2",
   "before:bg-[linear-gradient(to_bottom,oklch(1_0_0/0.6),oklch(1_0_0/0))]",
-  "after:pointer-events-none after:absolute after:-inset-y-2 after:-left-1/3 after:w-1/3 after:-rotate-12",
-  "after:bg-[linear-gradient(to_right,oklch(1_0_0/0),oklch(1_0_0/0.55),oklch(1_0_0/0))]",
 );
 
 /** Unentitled, and only ever seen in a development build. */
