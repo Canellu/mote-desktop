@@ -4,6 +4,7 @@ import { ArrowLeft, Minus, Square, X } from "lucide-react";
 import React from "react";
 import logo from "../assets/rectangle.svg";
 import { ProBadge } from "./ProBadge";
+import { PaywallVariantSwitcher } from "@/features/pro/PaywallVariantSwitcher";
 
 interface TitleBarProps {
   /** Dev-only: when set, shows a "back to wizard" control in the title bar. */
@@ -96,6 +97,10 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onDevBack, actions }) => {
           header: it describes the build, not whatever screen is open. */}
         <ProBadge className="ml-0.5" />
       </div>
+      {/* Centred on the bar rather than placed between the two clusters, so it
+        does not move when either side changes width. Development-only. */}
+      <PaywallVariantSwitcher className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+
       <div className="flex items-stretch">
         {actions}
         <button
