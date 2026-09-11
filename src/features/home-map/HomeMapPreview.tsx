@@ -28,10 +28,12 @@ const exampleModes = {
 type ExampleMode = keyof typeof exampleModes;
 
 export default function HomeMapPreview({
+  actionsSlot,
   floorId,
   areaId,
   onSelect,
 }: {
+  actionsSlot: HTMLElement | null;
   floorId?: string;
   areaId?: string;
   onSelect: (floorId: string, areaId: string | null) => void;
@@ -272,6 +274,7 @@ export default function HomeMapPreview({
       </div>
       <HomeMapScreen
         map={shown}
+        actionsSlot={actionsSlot}
         selectedFloorId={floorId}
         selectedAreaId={areaId}
         onSelect={onSelect}

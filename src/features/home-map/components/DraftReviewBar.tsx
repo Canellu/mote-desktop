@@ -23,7 +23,7 @@ export function DraftReviewBar({
 }) {
   const busy = entry.saving || entry.pendingAction !== null || hueRunning;
   return (
-    <div className="mx-6 mt-6 rounded-xl border border-border bg-muted/40 px-4 py-3">
+    <div className="mx-12 mb-4 rounded-xl border border-border bg-muted/40 px-4 py-3">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <p className="flex min-w-0 items-center gap-2 text-sm">
           <PencilRuler

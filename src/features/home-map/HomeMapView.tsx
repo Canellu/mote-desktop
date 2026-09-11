@@ -35,6 +35,7 @@ const Preview = import.meta.env.DEV
 
 export function HomeMapView({
   bridgeId,
+  actionsSlot,
   floorId,
   areaId,
   preview,
@@ -50,6 +51,8 @@ export function HomeMapView({
   onDashboard,
 }: {
   bridgeId: string | null;
+  /** Header-row element this map's own actions render into. */
+  actionsSlot: HTMLElement | null;
   floorId?: string;
   areaId?: string;
   preview: boolean;
@@ -146,7 +149,12 @@ export function HomeMapView({
   if (preview && Preview)
     return (
       <Suspense fallback={<p role="status">Loading example map…</p>}>
-        <Preview floorId={floorId} areaId={areaId} onSelect={onSelect} />
+        <Preview
+          actionsSlot={actionsSlot}
+          floorId={floorId}
+          areaId={areaId}
+          onSelect={onSelect}
+        />
       </Suspense>
     );
   if (creating && bridgeId && ready)
@@ -229,6 +237,7 @@ export function HomeMapView({
         <HomeMapScreen
           key={map.id}
           map={map}
+          actionsSlot={actionsSlot}
           editing={editing}
           onEditingChange={onEditingChange}
           onSave={() => void saveMap()}

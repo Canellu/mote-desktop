@@ -8,6 +8,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { MapPopover } from "./components/MapPopover";
 import { MeasurementDisplayMenu } from "./components/MeasurementDisplayMenu";
@@ -102,6 +103,11 @@ export interface HomeMapScreenProps {
   saveError?: string | null;
   canUndo?: boolean;
   busy?: boolean;
+  /**
+   * Header-row element the map's own actions render into, so the floor menu
+   * and the edit controls share the row with the Dashboard/Map switch.
+   */
+  actionsSlot?: HTMLElement | null;
   /** Reviewed Hue changes waiting for the next save. */
   hueQueue?: QueuedHueOperation[];
   hueRunning?: boolean;
@@ -112,6 +118,7 @@ export interface HomeMapScreenProps {
 
 export function HomeMapScreen({
   map,
+  actionsSlot,
   selectedFloorId,
   selectedAreaId,
   roomZones,
@@ -623,114 +630,105 @@ export function HomeMapScreen({
     </DropdownMenu>
   );
 
+  /**
+   * Floor and map actions live in the Home header row, in line with the
+   * Dashboard/Map switch, so the map keeps one row of chrome above the plan.
+   */
+  const actions = (
+    <>
+      {floorMenu}
+      {editing && (
+        <MapPopover
+          title="Rename floor"
+          trigger={
+            <Button variant="ghost" size="icon-sm" aria-label="Rename floor">
+              <PencilRuler />
+            </Button>
+          }
+        >
+          <Input
+            key={floor.id + floor.name}
+            aria-label="Floor name"
+            defaultValue={floor.name}
+            onBlur={(event) => {
+              if (
+                event.target.value.trim() &&
+                event.target.value !== floor.name
+              )
+                applyMapEdit(renameFloor(map, floor.id, event.target.value));
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.currentTarget.blur();
+            }}
+          />
+        </MapPopover>
+      )}
+      {preview && (
+        <span className="text-xs text-muted-foreground">Example home</span>
+      )}
+      {editing ? (
+        <>
+          {hueQueue.length > 0 && (
+            <MapPopover
+              title="Hue changes"
+              trigger={
+                <Button size="sm" variant="outline">
+                  Review changes · {hueQueue.length}
+                </Button>
+              }
+            >
+              <HueChangeReview
+                queue={hueQueue}
+                lights={lighting.lights}
+                roomZones={roomZones}
+                running={hueRunning}
+                onRemove={(id) => onRemoveHueOperation?.(id)}
+              />
+            </MapPopover>
+          )}
+          {onDeleteMap && (
+            <DeleteMapButton
+              mapName={map.name}
+              busy={busy}
+              onDelete={onDeleteMap}
+            />
+          )}
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy || !hasChanges}
+            onClick={onRevert}
+          >
+            Revert changes
+          </Button>
+          <Button size="sm" disabled={busy} onClick={onSave}>
+            Save
+          </Button>
+        </>
+      ) : (
+        onEditFloor && (
+          <Button
+            size="sm"
+            onClick={() => {
+              resetEditorSelection();
+              setTool("move");
+              onEditingChange?.(true);
+            }}
+          >
+            <PencilRuler />
+            Edit
+          </Button>
+        )
+      )}
+    </>
+  );
+
   return (
     <section
       aria-label={editing ? "Home map editor" : "Home map"}
       className="relative flex h-full min-h-0 w-full flex-col overflow-hidden"
     >
-      <div
-        role="toolbar"
-        aria-label="Map actions"
-        className="z-20 flex min-h-14 shrink-0 flex-wrap items-center gap-2 border-b border-border bg-background px-6 py-2"
-      >
-        {floorMenu}
-        {editing && (
-          <MapPopover
-            title="Rename floor"
-            trigger={
-              <Button variant="ghost" size="icon-sm" aria-label="Rename floor">
-                <PencilRuler />
-              </Button>
-            }
-          >
-            <Input
-              key={floor.id + floor.name}
-              aria-label="Floor name"
-              defaultValue={floor.name}
-              onBlur={(event) => {
-                if (
-                  event.target.value.trim() &&
-                  event.target.value !== floor.name
-                )
-                  applyMapEdit(renameFloor(map, floor.id, event.target.value));
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur();
-              }}
-            />
-          </MapPopover>
-        )}
-        {preview && (
-          <span className="text-xs text-muted-foreground">Example home</span>
-        )}
-        <div className="flex-1" />
-        {editing ? (
-          <>
-            {hueQueue.length > 0 && (
-              <MapPopover
-                title="Hue changes"
-                trigger={
-                  <Button size="sm" variant="outline">
-                    Review changes · {hueQueue.length}
-                  </Button>
-                }
-              >
-                <HueChangeReview
-                  queue={hueQueue}
-                  lights={lighting.lights}
-                  roomZones={roomZones}
-                  running={hueRunning}
-                  onRemove={(id) => onRemoveHueOperation?.(id)}
-                />
-              </MapPopover>
-            )}
-            {onDeleteMap && (
-              <DeleteMapButton
-                mapName={map.name}
-                busy={busy}
-                onDelete={onDeleteMap}
-              />
-            )}
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy || !hasChanges}
-              onClick={onRevert}
-            >
-              Revert changes
-            </Button>
-            <Button size="sm" disabled={busy} onClick={onSave}>
-              Save
-            </Button>
-          </>
-        ) : (
-          <>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={floorOffDisabled}
-              title={floorScope.disabledReason ?? undefined}
-              onClick={turnFloorOff}
-            >
-              <Power />
-              All off
-            </Button>
-            {onEditFloor && (
-              <Button
-                size="sm"
-                onClick={() => {
-                  resetEditorSelection();
-                  setTool("move");
-                  onEditingChange?.(true);
-                }}
-              >
-                <PencilRuler />
-                Edit
-              </Button>
-            )}
-          </>
-        )}
-      </div>
+      {actionsSlot && createPortal(actions, actionsSlot)}
       <div className="relative min-h-0 flex-1">
         <MapEditorCanvas
           floor={floor}
@@ -840,10 +838,27 @@ export function HomeMapScreen({
             }
           />
         )}
+        {/* Every control that acts on the plan itself floats in one corner,
+          clear of the plan and of the editor's tool bar. */}
         <div
-          className="absolute right-6 bottom-6 z-20 flex items-center gap-1 rounded-xl border border-border bg-background p-1"
-          aria-label="Map display"
+          className="absolute top-6 right-6 z-20 flex items-center gap-1 rounded-xl border border-border bg-background p-1"
+          aria-label="Map controls"
         >
+          {!editing && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={floorOffDisabled}
+                title={floorScope.disabledReason ?? undefined}
+                onClick={turnFloorOff}
+              >
+                <Power />
+                All off
+              </Button>
+              <div className="mx-0.5 h-5 w-px bg-border" />
+            </>
+          )}
           <MeasurementDisplayMenu
             settings={measurementDisplay}
             showLights={showLights}

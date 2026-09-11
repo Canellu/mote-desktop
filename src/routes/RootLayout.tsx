@@ -472,34 +472,19 @@ const ShellHeader: React.FC = () => {
 export const RootLayout: React.FC = () => {
   const viewportRef = useRef<HTMLDivElement>(null);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const mapBridgeId = useHue().bridgeId;
-  const mapEditorOpen = useRouterState({
-    select: (state) => {
-      const search = state.location.search as {
-        mapEdit?: boolean;
-        mapCreate?: boolean;
-      };
-      return (
-        search.mapEdit === true ||
-        search.mapCreate === true ||
-        resolveHomeView(
-          state.location.search as HomeViewSearch,
-          mapBridgeId,
-        ) === "map"
-      );
-    },
-  });
+  // Home pins its own view-switch header and scrolls the content under it, so
+  // it owns both the scroll and the padding for either view.
   const routeOwnsScroll =
     pathname === "/settings" ||
-    (pathname === "/" && mapEditorOpen) ||
+    pathname === "/" ||
     (pathname.startsWith("/settings/") &&
       (pathname.endsWith("-wizard") ||
         pathname.startsWith("/settings/entertainment-placement/")));
-  // The placement editor and the map editor draw a full-bleed canvas with a
-  // floating side panel, so the shared viewport padding would frame them in.
+  // The placement editor and Home draw to the viewport edge, so the shared
+  // padding would frame them in.
   const routeIsFullBleed =
     pathname.startsWith("/settings/entertainment-placement/") ||
-    (pathname === "/" && mapEditorOpen);
+    pathname === "/";
   const navigate = useNavigate();
   const inspectorPaneOpen = useRouterState({
     select: (state) =>

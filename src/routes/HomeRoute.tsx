@@ -1,5 +1,7 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
+import { useState } from "react";
 import { useShallow } from "zustand/react/shallow";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useHue } from "@/context/HueContext";
 import { HomeMapView } from "@/features/home-map/HomeMapView";
 import { HomeViewSwitch } from "@/features/home-map/components/HomeViewSwitch";
@@ -52,6 +54,8 @@ export const HomeRoute: React.FC = () => {
     })),
   );
   const navigate = useNavigate();
+  // The map renders its own actions into the shared header row.
+  const [mapActions, setMapActions] = useState<HTMLDivElement | null>(null);
   const { bridgeId } = useHue();
   const search = useSearch({ from: "/" });
   const scopedSearch = homeSearchMatchesBridge(search, bridgeId) ? search : {};
@@ -77,20 +81,33 @@ export const HomeRoute: React.FC = () => {
   }
 
   return (
-    <div
-      className={view === "map" ? "flex h-full min-h-0 flex-col" : "space-y-6"}
-    >
-      <div className={view === "map" ? "shrink-0 px-6 py-2" : undefined}>
+    <div className="flex h-full min-h-0 flex-col">
+      {/* One header row for both views, with the same padding and the same
+        place in the layout, so the switch never moves as the view changes. */}
+      <div
+        className={`flex shrink-0 items-center gap-4 px-12 pt-6 ${
+          view === "map" ? "pb-4" : "pb-6"
+        }`}
+      >
         <HomeViewSwitch
           value={view}
           onChange={changeView}
           disabled={isEditLayoutMode}
         />
+        {view === "map" && (
+          <div
+            ref={setMapActions}
+            role="toolbar"
+            aria-label="Map actions"
+            className="ml-auto flex min-w-0 items-center gap-2"
+          />
+        )}
       </div>
       {view === "map" ? (
         <HomeMapView
           key={bridgeId ?? "no-bridge"}
           bridgeId={bridgeId}
+          actionsSlot={mapActions}
           floorId={selection.floorId}
           areaId={selection.areaId}
           preview={scopedSearch.mapPreview === true}
@@ -146,28 +163,35 @@ export const HomeRoute: React.FC = () => {
           onDashboard={() => changeView("dashboard")}
         />
       ) : (
-        <HomeScreen
-          roomZones={roomZones}
-          lights={lights}
-          isLoading={isLoading}
-          error={error}
-          layout={isEditLayoutMode ? draftLayout : displayLayout}
-          editing={isEditLayoutMode}
-          hueEventRevision={hueEventRevision}
-          onLayoutChange={setDraftLayout}
-          onOpenSpace={openSpace}
-          onAllLightsToggle={setAllLightsState}
-          onRoomZoneToggle={(roomZone, on) =>
-            setRoomZoneState(roomZone, on, null)
-          }
-          onRoomZoneBrightness={(roomZone, pct, phase) =>
-            setRoomZoneState(roomZone, pct > 0, pct, phase)
-          }
-          isCreatingSection={isCreatingSection}
-          onCreateSection={createLayoutSection}
-          onCloseCreateSection={closeCreateSection}
-          onRenameSection={renameLayoutSection}
-        />
+        <ScrollArea
+          fade
+          hideScrollbar
+          className="min-h-0 flex-1"
+          viewportClassName="px-12 pb-6"
+        >
+          <HomeScreen
+            roomZones={roomZones}
+            lights={lights}
+            isLoading={isLoading}
+            error={error}
+            layout={isEditLayoutMode ? draftLayout : displayLayout}
+            editing={isEditLayoutMode}
+            hueEventRevision={hueEventRevision}
+            onLayoutChange={setDraftLayout}
+            onOpenSpace={openSpace}
+            onAllLightsToggle={setAllLightsState}
+            onRoomZoneToggle={(roomZone, on) =>
+              setRoomZoneState(roomZone, on, null)
+            }
+            onRoomZoneBrightness={(roomZone, pct, phase) =>
+              setRoomZoneState(roomZone, pct > 0, pct, phase)
+            }
+            isCreatingSection={isCreatingSection}
+            onCreateSection={createLayoutSection}
+            onCloseCreateSection={closeCreateSection}
+            onRenameSection={renameLayoutSection}
+          />
+        </ScrollArea>
       )}
     </div>
   );
