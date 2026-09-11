@@ -1,9 +1,10 @@
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEntitlements } from "@/context/EntitlementContext";
 import { ProUpgradeContext, type ProFeature } from "@/features/pro/proUpgrade";
 import { cn } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
+import heroImage from "@/assets/pro-hero.webp";
 import {
   Check,
   Keyboard,
@@ -31,36 +32,32 @@ const LEAD: Record<ProFeature, string> = {
   general: "Everything Mote can do",
 };
 
-/**
- * What Pro includes, in the order somebody would care about it. An icon each,
- * because six lines of plain text is a list nobody finishes reading.
- */
+/** What Pro includes, in the order somebody would care about it. */
 const INCLUDED = [
   {
     icon: Tv,
     title: "PC Sync",
-    detail: "Lights follow video, games, or whatever is playing on your PC.",
+    detail: "Lights follow video, games, or whatever is playing.",
   },
   {
     icon: Keyboard,
     title: "Global shortcuts",
-    detail: "One key combination changes a light from anywhere in Windows.",
+    detail: "Change a light from anywhere in Windows.",
   },
   {
     icon: Sparkles,
     title: "Richer widgets",
-    detail:
-      "Several controls in one widget, and pick its theme, size, and place.",
+    detail: "Several controls in one, your theme and size.",
   },
   {
     icon: LayoutGrid,
     title: "Your own dashboard",
-    detail: "Arrange the home screen the way your home is actually laid out.",
+    detail: "Arrange home the way your home really is.",
   },
   {
     icon: Router,
     title: "Every bridge",
-    detail: "Save more than one Hue Bridge and switch between them.",
+    detail: "Save more than one, switch whenever.",
   },
 ];
 
@@ -73,52 +70,44 @@ interface ProOffer {
 type Phase = "offer" | "working" | "unavailable" | "done";
 
 /**
- * The hero. Coloured light on a dark ground — the product photographed as the
- * thing it does, built from gradients rather than a bitmap so it stays sharp on
- * any display, costs no bytes in the bundle, and never looks like a screenshot
- * of an older version of the app.
+ * The buy button, which is not a plain Button on purpose.
+ *
+ * It is the one control in the app asking for money, so it gets a warm gradient,
+ * a sheen that sweeps across on hover, a lift, and a real press. The sheen is a
+ * translated pseudo-element rather than an animated gradient because transform
+ * is the only property here that the compositor can run without repainting the
+ * button on every frame.
  */
-const Hero: React.FC<{ onClose: () => void }> = ({ onClose }) => (
-  <div className="relative h-44 shrink-0 overflow-hidden bg-[oklch(0.16_0.02_280)]">
-    <div
-      aria-hidden
-      className="absolute inset-0"
-      style={{
-        backgroundImage: [
-          // Three lamps washing a wall, plus a cool spill from off-frame. The
-          // centres sit just inside the bottom edge so the bloom is what shows,
-          // not the circle: placed any lower and only a faint rim bleeds in.
-          "radial-gradient(26rem 15rem at 14% 96%, oklch(0.70 0.26 14 / 0.95), transparent 66%)",
-          "radial-gradient(24rem 14rem at 46% 104%, oklch(0.80 0.20 58 / 0.95), transparent 64%)",
-          "radial-gradient(26rem 15rem at 84% 96%, oklch(0.66 0.24 294 / 0.95), transparent 66%)",
-          "radial-gradient(20rem 12rem at 72% 2%, oklch(0.78 0.17 196 / 0.55), transparent 70%)",
-        ].join(","),
-      }}
-    />
-    {/* A soft ceiling glow, so the colour reads as light in a room rather than
-      as four coloured circles. */}
-    <div
-      aria-hidden
-      className="absolute inset-x-0 top-0 h-24 bg-[linear-gradient(to_bottom,oklch(1_0_0/0.10),transparent)]"
-    />
-    <div
-      aria-hidden
-      className="absolute inset-x-0 bottom-0 h-16 bg-[linear-gradient(to_top,var(--color-popover),transparent)]"
-    />
-
-    <button
-      type="button"
-      onClick={onClose}
-      aria-label="Close"
-      className={cn(
-        "absolute top-3 right-3 grid size-8 place-items-center rounded-full",
-        "bg-black/35 text-white/90 backdrop-blur transition-colors hover:bg-black/55",
-        "outline-none focus-visible:ring-2 focus-visible:ring-white/60",
-      )}
-    >
-      <X size={16} />
-    </button>
-  </div>
+const BuyButton: React.FC<{
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+}> = ({ children, onClick, disabled }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={cn(
+      "group relative isolate w-full overflow-hidden rounded-2xl px-6 py-3.5",
+      "text-base font-semibold tracking-tight text-amber-950",
+      "bg-[linear-gradient(110deg,oklch(0.88_0.15_86)_0%,oklch(0.82_0.19_58)_45%,oklch(0.75_0.20_28)_100%)]",
+      "shadow-[0_10px_30px_-12px_oklch(0.72_0.19_50/0.9),inset_0_1px_0_oklch(1_0_0/0.45)]",
+      "transition-[transform,box-shadow,filter] duration-200 ease-out",
+      "hover:-translate-y-0.5 hover:brightness-[1.04]",
+      "hover:shadow-[0_16px_38px_-12px_oklch(0.72_0.19_50/0.95),inset_0_1px_0_oklch(1_0_0/0.55)]",
+      "active:translate-y-0 active:scale-[0.985] active:brightness-[0.98]",
+      "outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+      "disabled:pointer-events-none disabled:opacity-60",
+      // The sheen: parked off the left edge, swept across on hover.
+      "before:pointer-events-none before:absolute before:inset-y-0 before:-left-full before:w-1/2 before:-skew-x-12",
+      "before:bg-[linear-gradient(to_right,transparent,oklch(1_0_0/0.55),transparent)]",
+      "before:transition-transform before:duration-700 before:ease-out",
+      "group-hover:before:translate-x-[300%] hover:before:translate-x-[300%]",
+      "motion-reduce:transition-none motion-reduce:before:hidden motion-reduce:hover:translate-y-0",
+    )}
+  >
+    <span className="relative z-10">{children}</span>
+  </button>
 );
 
 export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
@@ -166,107 +155,161 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
       {children}
 
       <Dialog open={feature !== null} onOpenChange={(open) => !open && close()}>
-        {/* Bounded and scrollable: the list is long enough that on a short
-          window the hero was pushed off the top edge and the buy button off the
-          bottom. The hero stays put and the body scrolls under it. */}
         <DialogContent
           showCloseButton={false}
-          className="flex max-h-[min(90vh,46rem)] flex-col overflow-hidden p-0 sm:max-w-[30rem]"
+          className={cn(
+            "overflow-hidden border-white/10 p-0 text-white",
+            "max-h-[min(92vh,44rem)] sm:max-w-[46rem]",
+          )}
         >
-          <Hero onClose={close} />
+          {/* Light on water, behind everything. The panel below sits on it. */}
+          <img
+            src={heroImage}
+            alt=""
+            aria-hidden
+            className="absolute inset-0 -z-20 size-full object-cover"
+          />
+          {/* Light enough to still see the water. The panel carries its own
+            contrast, so the scrim only has to keep the heading and the footnote
+            legible — an even 90% wash just threw the photograph away. */}
+          <div
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-[linear-gradient(165deg,oklch(0.14_0.03_280/0.30)_0%,oklch(0.12_0.03_280/0.55)_45%,oklch(0.10_0.02_280/0.82)_100%)]"
+          />
+          {/* The title and price sit directly on the photograph rather than on
+            the panel, and the brightest reflections run across exactly that
+            band. This gives them ground without dimming the rest. */}
+          <div
+            aria-hidden
+            className="absolute inset-x-0 top-0 -z-10 h-40 bg-[linear-gradient(to_bottom,oklch(0.09_0.02_280/0.72),transparent)]"
+          />
 
-          <div className="grid gap-5 overflow-y-auto px-6 pt-1 pb-6">
-            <div className="grid gap-1.5">
-              <DialogTitle className="font-heading text-2xl font-semibold">
-                {phase === "done"
-                  ? "Mote Pro is yours"
-                  : LEAD[feature ?? "general"]}
-              </DialogTitle>
+          <button
+            type="button"
+            onClick={close}
+            aria-label="Close"
+            className={cn(
+              "absolute top-4 right-4 z-20 grid size-9 place-items-center rounded-full",
+              "bg-white/10 text-white/85 backdrop-blur-md transition-colors hover:bg-white/20",
+              "outline-none focus-visible:ring-2 focus-visible:ring-white/70",
+            )}
+          >
+            <X size={17} />
+          </button>
 
-              <div className="flex items-baseline gap-2">
-                {/* The price comes from the Store, in the customer's own
-                  currency. Nothing is hard-coded: a base price in NOK is one of
-                  240 conversions, so a number typed here would be wrong almost
-                  everywhere. When the Store cannot answer, the value still
-                  stands on its own. */}
-                {offer?.formattedPrice ? (
-                  <>
-                    <span className="text-2xl font-semibold tracking-tight">
-                      {offer.formattedPrice}
+          {/* ScrollArea, not overflow-auto: a native bar would be OS-styled and
+            would reflow the panel the moment it appeared. With the two-column
+            list this fits without scrolling on any ordinary window, so the bar
+            is a fallback rather than the normal state. */}
+          <ScrollArea
+            className="max-h-[min(92vh,44rem)]"
+            viewportClassName="p-8"
+          >
+            <div className="grid gap-6">
+              <header className="grid gap-2 pr-12">
+                <DialogTitle className="font-heading text-[2rem] leading-tight font-semibold text-balance">
+                  {phase === "done"
+                    ? "Mote Pro is yours"
+                    : LEAD[feature ?? "general"]}
+                </DialogTitle>
+
+                <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                  {/* From the Store, in this customer's currency. A base price
+                    in NOK is one of 240 conversions, so a number written here
+                    would be wrong nearly everywhere. */}
+                  {offer?.formattedPrice ? (
+                    <>
+                      <span className="text-3xl font-semibold tracking-tight">
+                        {offer.formattedPrice}
+                      </span>
+                      <span className="text-sm text-white/70">
+                        paid once, not a subscription
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-sm text-white/70">
+                      A single purchase. Not a subscription.
                     </span>
-                    <span className="text-sm text-muted-foreground">
-                      once — not a subscription
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-sm text-muted-foreground">
-                    A single purchase. Not a subscription.
-                  </span>
+                  )}
+                </div>
+              </header>
+
+              {/* The frosted panel. */}
+              <div
+                className={cn(
+                  "rounded-2xl border border-white/15 bg-white/[0.07] p-5",
+                  "shadow-[inset_0_1px_0_oklch(1_0_0/0.18)] backdrop-blur-xl",
                 )}
+              >
+                <ul className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                  {INCLUDED.map(({ icon: Icon, title, detail }) => (
+                    <li key={title} className="flex gap-3">
+                      <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-white/12 text-white">
+                        <Icon size={16} />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-semibold">
+                          {title}
+                        </span>
+                        <span className="block text-sm leading-6 text-white/70">
+                          {detail}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {phase === "unavailable" && (
+                <p className="rounded-xl border border-white/15 bg-white/[0.07] px-4 py-3 text-sm leading-6 text-white/80 backdrop-blur-xl">
+                  The purchase did not go through, so nothing was charged. If
+                  you already own Mote Pro, checking again will find it.
+                </p>
+              )}
+
+              <div className="grid gap-3">
+                {phase === "done" ? (
+                  <BuyButton onClick={close}>
+                    <span className="inline-flex items-center gap-2">
+                      <Check size={18} />
+                      Done
+                    </span>
+                  </BuyButton>
+                ) : phase === "unavailable" ? (
+                  <BuyButton onClick={() => void retry()}>
+                    Check again
+                  </BuyButton>
+                ) : (
+                  <BuyButton
+                    onClick={() => void buy()}
+                    disabled={phase === "working"}
+                  >
+                    {phase === "working"
+                      ? "Opening the Store…"
+                      : "Get Mote Pro"}
+                  </BuyButton>
+                )}
+
+                <button
+                  type="button"
+                  onClick={close}
+                  className={cn(
+                    "mx-auto rounded-lg px-3 py-1.5 text-sm font-medium text-white/65",
+                    "transition-colors hover:text-white",
+                    "outline-none focus-visible:ring-2 focus-visible:ring-white/60",
+                  )}
+                >
+                  Not now
+                </button>
+
+                <p className="text-center text-xs leading-5 text-white/50">
+                  Bought and refunded through the Microsoft Store. Already paid
+                  on another PC? Sign in with the same account and it restores
+                  itself.
+                </p>
               </div>
             </div>
-
-            <ul className="grid gap-3.5">
-              {INCLUDED.map(({ icon: Icon, title, detail }) => (
-                <li key={title} className="flex gap-3">
-                  <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <Icon size={16} />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-semibold">{title}</span>
-                    <span className="block text-sm leading-6 text-muted-foreground">
-                      {detail}
-                    </span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-
-            {phase === "unavailable" && (
-              <p className="rounded-lg bg-muted px-3 py-2 text-sm leading-6 text-muted-foreground">
-                The purchase did not go through, so nothing was charged. If you
-                already own Mote Pro, checking again will find it.
-              </p>
-            )}
-          </div>
-
-          {/* Outside the scroll area on purpose. The way to buy should not be
-            something you have to scroll to find. */}
-          <div className="grid shrink-0 gap-2 border-t border-border/60 px-6 pt-4 pb-5">
-            {phase === "done" ? (
-              <Button size="lg" onClick={close}>
-                <Check size={18} />
-                Done
-              </Button>
-            ) : phase === "unavailable" ? (
-              <>
-                <Button size="lg" onClick={() => void retry()}>
-                  Check again
-                </Button>
-                <Button variant="ghost" onClick={close}>
-                  Not now
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  size="lg"
-                  onClick={() => void buy()}
-                  disabled={phase === "working"}
-                >
-                  {phase === "working" ? "Opening the Store…" : "Get Mote Pro"}
-                </Button>
-                <Button variant="ghost" onClick={close}>
-                  Not now
-                </Button>
-              </>
-            )}
-
-            <p className="text-center text-xs leading-5 text-muted-foreground">
-              Bought and refunded through the Microsoft Store. Already paid on
-              another PC? Sign in with the same account and it restores itself.
-            </p>
-          </div>
+          </ScrollArea>
         </DialogContent>
       </Dialog>
     </ProUpgradeContext.Provider>

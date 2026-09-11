@@ -124,6 +124,27 @@ When adding or changing UI, keep behavior close to the feature unless it is
 clearly shared, and avoid updating this file with detailed component lists that
 will drift during active feature work.
 
+### Scrolling
+
+Anywhere content _may_ overflow, use `ScrollArea` from
+`@/components/ui/scroll-area` rather than `overflow-y-auto` or any other native
+scroll. The app is a desktop webview with its own chrome, and a native scrollbar
+appears as an OS-styled bar that ignores the theme and changes the layout width
+when it appears. `ScrollArea` overlays instead, so nothing reflows.
+
+A scrollable region should also be a last resort rather than a default. Size the
+container so the content fits when there is room, and let it scroll only when
+there is not — a panel that always shows a scrollbar is usually a panel that is
+too small, not one that needed scrolling.
+
+### Third-party imagery
+
+Any bitmap shipped in `src/assets/` must come from a source whose licence
+permits commercial use, and the licence must be recorded in
+`src/assets/ATTRIBUTION.md` with the source URL and author. This is a paid
+product; an image lifted from an image board or a search result is a liability,
+not a shortcut.
+
 ## Styling And Theming
 
 `src/App.css` is the single stylesheet. It imports Tailwind and the shadcn layer,
@@ -220,6 +241,7 @@ The backend emits `hue-event` carrying `Vec<HueEventUpdate>`. Updates include:
   resource id, not the room/zone resource id.
 
 <!-- graft:start -->
+
 ## Graft — repo context graph
 
 This repo is indexed in `graft/`: small linked markdown nodes that explain each
@@ -259,4 +281,5 @@ re-read whole files.
 
 After big code changes, refresh the graph with `graft build` (deterministic,
 no API key, $0).
+
 <!-- graft:end -->
