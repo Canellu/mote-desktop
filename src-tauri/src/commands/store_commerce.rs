@@ -16,6 +16,57 @@ pub async fn read_store_entitlements(app: tauri::AppHandle) -> EntitlementSnapsh
         .entitlements
 }
 
+/// What the Store says Mote Pro costs here, in this customer's market.
+///
+/// The price is never hard-coded. A base price in NOK is one of 240 market
+/// conversions, so the only correct figure is the one the Store itself formats
+/// for the signed-in account — currency, separators and all.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProOffer {
+    /// Localized product title, or None when the Store could not answer.
+    title: Option<String>,
+    /// Localized, currency-formatted price, e.g. "kr 149,00". None when unknown.
+    formatted_price: Option<String>,
+    /// Whether the customer already owns it, per the Store's own collection.
+    owned: bool,
+}
+
+impl ProOffer {
+    const fn unknown() -> Self {
+        Self {
+            title: None,
+            formatted_price: None,
+            owned: false,
+        }
+    }
+}
+
+/// Reads the localized Mote Pro offer, reusing the diagnostic's product query.
+///
+/// Returns unknowns rather than an error when the Store cannot answer: a
+/// paywall with no price is still a usable paywall, and refusing to render one
+/// because a price lookup failed would be worse than showing the value without
+/// the number.
+pub async fn read_pro_offer(app: tauri::AppHandle) -> ProOffer {
+    let report = get_store_commerce_diagnostic_for_platform(app).await;
+
+    report
+        .products
+        .iter()
+        .find(|product| {
+            product
+                .in_app_offer_token
+                .eq_ignore_ascii_case(MOTE_PRO_IN_APP_OFFER_TOKEN)
+        })
+        .map(|product| ProOffer {
+            title: Some(product.title.clone()),
+            formatted_price: Some(product.formatted_price.clone()),
+            owned: product.in_user_collection,
+        })
+        .unwrap_or_else(ProOffer::unknown)
+}
+
 /// What Microsoft's purchase UI reported, flattened to something the interface
 /// can act on without learning the Store's vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

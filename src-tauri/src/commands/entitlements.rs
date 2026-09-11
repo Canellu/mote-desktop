@@ -1,6 +1,8 @@
 use tauri::{AppHandle, Manager};
 
-use crate::commands::store_commerce::{purchase_mote_pro, read_store_entitlements, PurchaseOutcome};
+use crate::commands::store_commerce::{
+    purchase_mote_pro, read_pro_offer, read_store_entitlements, ProOffer, PurchaseOutcome,
+};
 use crate::services::entitlements::{
     AuthorizationError, Capability, EntitlementRuntime, EntitlementSnapshot,
 };
@@ -101,4 +103,11 @@ pub fn require(app: &AppHandle, capability: Capability) -> Result<(), String> {
 
 fn serialize_refusal(error: AuthorizationError) -> String {
     serde_json::to_string(&error).unwrap_or_else(|_| error.to_string())
+}
+
+/// The localized Mote Pro offer for the paywall: title, price, and whether the
+/// Store already considers it owned.
+#[tauri::command(rename = "get-pro-offer")]
+pub async fn get_pro_offer(app: AppHandle) -> ProOffer {
+    read_pro_offer(app).await
 }

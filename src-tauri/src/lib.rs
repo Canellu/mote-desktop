@@ -99,6 +99,7 @@ pub fn run() {
             commands::entitlements::set_debug_entitlements,
             commands::entitlements::refresh_entitlements,
             commands::entitlements::purchase_pro,
+            commands::entitlements::get_pro_offer,
             commands::host_sync::get_host_sync_overview,
             commands::host_sync::get_host_sync_preferences,
             commands::host_sync::set_host_sync_preferences,
