@@ -197,7 +197,7 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
             aria-hidden
             className={cn(
               "absolute inset-0 -z-10",
-              "bg-[linear-gradient(165deg,oklch(1_0_0/0.18)_0%,oklch(1_0_0/0.42)_45%,oklch(1_0_0/0.80)_100%)]",
+              "bg-[linear-gradient(165deg,oklch(1_0_0/0.06)_0%,oklch(1_0_0/0.20)_50%,oklch(1_0_0/0.48)_100%)]",
               "dark:bg-[linear-gradient(165deg,oklch(0.14_0.03_280/0.18)_0%,oklch(0.12_0.03_280/0.46)_45%,oklch(0.10_0.02_280/0.80)_100%)]",
             )}
           />
@@ -208,7 +208,7 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
             aria-hidden
             className={cn(
               "absolute inset-x-0 top-0 -z-10 h-40",
-              "bg-[linear-gradient(to_bottom,oklch(1_0_0/0.62),transparent)]",
+              "bg-[linear-gradient(to_bottom,oklch(1_0_0/0.45),transparent)]",
               "dark:bg-[linear-gradient(to_bottom,oklch(0.09_0.02_280/0.72),transparent)]",
             )}
           />

@@ -20,4 +20,7 @@ which is the product described without a screenshot of it.
 - **Source**: <https://unsplash.com/photos/soft-pink-and-orange-clouds-in-a-pastel-sky-A3u8Ugv1EAw>
 - **Author**: Scott Goodwill on Unsplash
 - **Licence**: Unsplash License — as above.
-- **Modifications**: resized to 1600px wide and re-encoded as WebP.
+- **Modifications**: cropped to the upper band of cloud, lightly saturated,
+  resized to 1600px wide and re-encoded as WebP. The crop matters: the lower
+  third of the original is near-white sky, which filled half the dialog with
+  nothing once it was used as a background.
