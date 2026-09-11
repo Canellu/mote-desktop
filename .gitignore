@@ -31,3 +31,11 @@ docs/*.local.md
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 /graft/
+
+# Local visual QA state and generated comparison artifacts. Matches the rule in
+# the website repository: the durable design inputs are tracked, the review
+# captures they produce are regenerable and are not.
+.impeccable/*
+!.impeccable/design.json
+!.impeccable/surfaces/
+!.impeccable/surfaces/**
