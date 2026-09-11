@@ -3,6 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ArrowLeft, Minus, Square, X } from "lucide-react";
 import React from "react";
 import logo from "../assets/rectangle.svg";
+import { ProBadge } from "./ProBadge";
 
 interface TitleBarProps {
   /** Dev-only: when set, shows a "back to wizard" control in the title bar. */
@@ -85,8 +86,11 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onDevBack, actions }) => {
             Wizard
           </button>
         )}
-        <img src={logo} alt="Mote Desktop logo" className="h-5 w-5" />
-        Mote Desktop
+        <img src={logo} alt="Mote Desktop logo" className="h-6 w-6" />
+        <span className="text-base">Mote Desktop</span>
+        {/* The tier mark sits with the product name rather than the page
+          header: it describes the build, not whatever screen is open. */}
+        <ProBadge className="ml-0.5" />
       </div>
       <div className="flex items-stretch">
         {actions}

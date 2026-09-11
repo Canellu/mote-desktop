@@ -6,7 +6,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { ProBadge } from "@/components/ProBadge";
 import {
   Select,
   SelectContent,
@@ -322,10 +321,6 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
       )}
 
       <div className="relative flex items-center justify-end gap-2">
-        {/* Which tier the running app is in. Silent in a release build until Pro
-          is actually owned; in development it is also the switch between them. */}
-        <ProBadge className="mr-1 shrink-0" />
-
         {/* The outgoing cluster is popped out of flow (popLayout) and fades
           out while the incoming one fades in, so edit mode swaps cleanly. */}
         <AnimatePresence initial={false} mode="wait">
