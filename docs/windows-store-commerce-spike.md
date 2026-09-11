@@ -113,8 +113,14 @@ decision is recorded.
 - [ ] Confirm relaunch and restore behavior while signed into the purchasing
       Microsoft account.
 - [ ] Confirm the cached active license behavior while offline.
-- [ ] Confirm that no purchase flag stored in frontend state or localStorage can
-      grant Pro.
+- [x] Confirm that no purchase flag stored in frontend state or localStorage can
+      grant Pro. Audited 2026-09-11 by tracing every writer. In a release build
+      the only thing that writes the entitlement cache is `apply_store_snapshot`,
+      reached solely from `refresh-entitlements`, whose value comes from the
+      Store licence read. The mutable debug provider is
+      `#[cfg(any(test, debug_assertions))]` and is not compiled into release at
+      all, so `set-debug-entitlements` has nothing to set and returns an error.
+      Both gates run in Rust; the frontend `hasPro` only decides what is drawn.
 - [ ] Record which refund/revocation states can be exercised in the test
       environment and defer the rest explicitly to certification testing.
 
