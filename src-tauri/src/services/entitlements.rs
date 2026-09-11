@@ -11,7 +11,11 @@ pub enum Capability {
     MultipleBridges,
     DashboardCustomLayout,
     PcSync,
-    Widgets,
+    /// Named for what it gates rather than for the feature as a whole: creating
+    /// widgets is free, and only composition beyond one single-target control
+    /// per widget is paid. `Widgets` read as though the feature itself were
+    /// paid, which is what the website ended up publishing.
+    AdvancedWidgets,
 }
 
 impl Capability {
@@ -19,14 +23,15 @@ impl Capability {
         Self::MultipleBridges,
         Self::DashboardCustomLayout,
         Self::PcSync,
-        Self::Widgets,
+        Self::AdvancedWidgets,
     ];
 
     pub const fn required_product(self) -> EntitlementProduct {
         match self {
-            Self::MultipleBridges | Self::DashboardCustomLayout | Self::PcSync | Self::Widgets => {
-                EntitlementProduct::Pro
-            }
+            Self::MultipleBridges
+            | Self::DashboardCustomLayout
+            | Self::PcSync
+            | Self::AdvancedWidgets => EntitlementProduct::Pro,
         }
     }
 }
@@ -215,6 +220,65 @@ impl EntitlementProvider for DebugEntitlementProvider {
     }
 }
 
+/// What the Tauri app manages: the authorization service, plus — in a debug
+/// build only — the handle that can move it between Free and Pro.
+///
+/// One managed value rather than two so the mutable handle cannot outlive or
+/// drift from the service reading it. In a release build the field is not
+/// compiled at all, so there is no path to a development entitlement even if a
+/// command tried to take one.
+pub struct EntitlementRuntime {
+    service: EntitlementService,
+    #[cfg(debug_assertions)]
+    debug: Arc<DebugEntitlementProvider>,
+}
+
+impl EntitlementRuntime {
+    pub fn snapshot(&self) -> EntitlementSnapshot {
+        self.service.snapshot()
+    }
+
+    pub fn authorize(&self, capability: Capability) -> Result<(), AuthorizationError> {
+        self.service.authorize(capability)
+    }
+
+    #[cfg(debug_assertions)]
+    pub fn set_debug_snapshot(&self, snapshot: EntitlementSnapshot) {
+        self.debug.set_snapshot(snapshot);
+    }
+}
+
+impl Default for EntitlementRuntime {
+    fn default() -> Self {
+        #[cfg(debug_assertions)]
+        {
+            // Development opens on the Free tier deliberately. The unpaid path
+            // is the one that ships to everyone, so it should be the one a
+            // developer sees without asking for it.
+            let debug = Arc::new(DebugEntitlementProvider::new(EntitlementSnapshot {
+                pro: EntitlementState::Inactive,
+                household: EntitlementState::Inactive,
+            }));
+
+            Self {
+                service: EntitlementService::new(debug.clone()),
+                debug,
+            }
+        }
+
+        #[cfg(not(debug_assertions))]
+        {
+            // No commerce adapter is wired yet, so release reports Unknown. That
+            // is honest rather than permissive: `authorize` refuses on Unknown,
+            // which is why callers must not gate shipped features on it until a
+            // real adapter can answer. See docs/free-pro-feature-matrix.md.
+            Self {
+                service: EntitlementService::default(),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -258,11 +322,11 @@ mod tests {
     #[test]
     fn unknown_pro_returns_entitlement_unavailable() {
         let error = service_with(EntitlementState::Unknown)
-            .authorize(Capability::Widgets)
+            .authorize(Capability::AdvancedWidgets)
             .unwrap_err();
 
         assert_eq!(error.code, AuthorizationErrorCode::EntitlementUnavailable);
-        assert_eq!(error.capability, Capability::Widgets);
+        assert_eq!(error.capability, Capability::AdvancedWidgets);
         assert_eq!(error.required_product, EntitlementProduct::Pro);
     }
 
@@ -335,5 +399,47 @@ mod tests {
                 "requiredProduct": "pro"
             })
         );
+    }
+
+    #[test]
+    fn capability_name_survives_the_rename_for_ipc_callers() {
+        assert_eq!(
+            serde_json::to_value(Capability::AdvancedWidgets).unwrap(),
+            serde_json::json!("advanced_widgets")
+        );
+    }
+
+    #[test]
+    fn debug_runtime_opens_on_the_free_tier() {
+        // Development must not start entitled. A developer who never touches the
+        // override should be looking at what ships to everyone.
+        let runtime = EntitlementRuntime::default();
+
+        assert_eq!(runtime.snapshot().pro, EntitlementState::Inactive);
+        assert_eq!(
+            runtime.authorize(Capability::PcSync).unwrap_err().code,
+            AuthorizationErrorCode::ProRequired
+        );
+    }
+
+    #[test]
+    fn debug_runtime_override_grants_and_revokes_every_capability() {
+        let runtime = EntitlementRuntime::default();
+
+        runtime.set_debug_snapshot(EntitlementSnapshot {
+            pro: EntitlementState::Active,
+            household: EntitlementState::Inactive,
+        });
+        for capability in Capability::ALL {
+            assert_eq!(runtime.authorize(capability), Ok(()));
+        }
+
+        runtime.set_debug_snapshot(EntitlementSnapshot {
+            pro: EntitlementState::Inactive,
+            household: EntitlementState::Inactive,
+        });
+        for capability in Capability::ALL {
+            assert!(runtime.authorize(capability).is_err());
+        }
     }
 }

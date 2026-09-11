@@ -3,12 +3,14 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "./components/ui/sonner";
+import { EntitlementProvider } from "./context/EntitlementContext";
 import { HueProvider } from "./context/HueContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { WidgetScreen } from "./features/widget-screen/WidgetScreen";
 import { WidgetErrorScreen } from "./features/widget-screen/components/WidgetErrorScreen";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
+import { initializeShortcuts } from "./features/shortcuts/store";
 
 const searchParams = new URLSearchParams(window.location.search);
 const isWidgetUrl = searchParams.get("window") === "widget";
@@ -29,6 +31,8 @@ const widgetId =
     : undefined);
 
 const isWidgetWindow = isWidgetUrl || Boolean(widgetId);
+
+if (!isWidgetWindow) void initializeShortcuts();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
@@ -52,10 +56,12 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
             <Toaster />
           </>
         ) : (
-          <HueProvider>
-            <App />
-            <Toaster />
-          </HueProvider>
+          <EntitlementProvider>
+            <HueProvider>
+              <App />
+              <Toaster />
+            </HueProvider>
+          </EntitlementProvider>
         )}
       </ErrorBoundary>
     </ThemeProvider>

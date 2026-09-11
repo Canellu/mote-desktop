@@ -1,6 +1,7 @@
 pub mod app_settings;
 pub mod bridges;
 pub mod discovery;
+pub mod entitlements;
 pub mod events;
 pub mod grouped_lights;
 pub mod home_map;
@@ -9,6 +10,8 @@ pub mod lights;
 pub mod rooms;
 pub mod scenes;
 pub mod settings;
+pub mod shortcuts;
+pub mod store_commerce;
 pub mod sync_box;
 pub mod widget;
 pub mod zones;

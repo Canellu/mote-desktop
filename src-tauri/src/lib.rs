@@ -15,6 +15,7 @@ pub fn run() {
             let _ = commands::app_settings::show_main_window(app);
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(
             // Let the plugin restore size/position, but not visibility — the
@@ -31,6 +32,7 @@ pub fn run() {
                 .with_filter(|label| label == "main")
                 .build(),
         )
+        .manage(services::entitlements::EntitlementRuntime::default())
         .manage(commands::events::EventStreamState::default())
         .manage(commands::home_map::HomeMapStorageState::default())
         .manage(services::entertainment::engine::HostSyncEngine::default())
@@ -39,6 +41,7 @@ pub fn run() {
                 .expect("failed to create Sync Box HTTP client"),
         )
         .invoke_handler(tauri::generate_handler![
+            commands::shortcuts::execute_shortcut,
             commands::app_settings::get_app_settings,
             commands::app_settings::set_close_button_behavior,
             commands::app_settings::set_auto_start,
@@ -91,6 +94,9 @@ pub fn run() {
             commands::settings::assign_device_to_room,
             commands::settings::assign_device_to_zone,
             commands::settings::create_hue_room,
+            commands::store_commerce::get_store_commerce_diagnostic,
+            commands::entitlements::get_entitlements,
+            commands::entitlements::set_debug_entitlements,
             commands::host_sync::get_host_sync_overview,
             commands::host_sync::get_host_sync_preferences,
             commands::host_sync::set_host_sync_preferences,
