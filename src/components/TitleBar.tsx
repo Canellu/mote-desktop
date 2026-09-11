@@ -46,6 +46,10 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onDevBack, actions }) => {
   };
 
   const handleMouseDown = async (e: React.MouseEvent) => {
+    // React events from portaled dialogs still bubble through this component.
+    // Ignore them unless the pointer is actually inside the title bar DOM.
+    if (!e.currentTarget.contains(e.target as Node)) return;
+
     // Only react to the primary (left) button on non-button areas.
     if (e.button !== 0 || (e.target as HTMLElement).closest("button")) {
       return;
