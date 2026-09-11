@@ -1,8 +1,20 @@
 # Free, Pro, and Household feature matrix
 
-Status: **initial product decision updated; entitlement implementation pending**.
+Status: **entitlement implemented and partly enforced**.
 
-Last reviewed: **2026-09-01**.
+Last reviewed: **2026-09-11**.
+
+As of 2026-09-11 the entitlement service is registered as Tauri state, release
+builds read the Store licence through a cached provider, and purchase and
+restore are wired. `authorize` is applied to PC Sync (starting a session) and to
+saving a second bridge. The custom dashboard layout and advanced widget
+composition are defined below but not yet enforced.
+
+**No grandfathering.** The owner confirmed on 2026-09-11 that nobody has
+downloaded the app yet, so there is no installed base to protect and enforcement
+takes nothing away from anyone. This is the reason no first-seen timestamp is
+recorded; if that ever stops being true, it cannot be reconstructed after the
+fact, so revisit this before shipping enforcement to an installed base.
 
 This document defines the initial product boundary for functionality that exists
 today and establishes rules for future paid features. Store-specific product IDs
@@ -50,28 +62,49 @@ customization requires `advanced_widgets`.
 
 ## Production enforcement phase
 
-Do not begin this phase until the Microsoft Store commerce spike has proven
-package identity, durable-add-on discovery, purchase, restore, cached offline
-licensing, and refund/revocation behavior.
+The original gate on this phase — do not begin until the commerce spike has
+proven purchase, restore, cached offline licensing and refund behaviour — was
+written to protect an installed base. There is none: nobody has downloaded the
+app. The remaining risk is therefore shipping a build that refuses a capability
+somebody paid for, which is why the cached provider never downgrades on a failed
+read, and why the interface separates "you do not own this" from "we could not
+check".
 
-1. Register the provider-neutral entitlement service as managed Tauri state and
-   expose sanitized entitlement, purchase, and restore commands to React.
-2. Replace the placeholder `widgets` capability with `advanced_widgets` and
-   enforce the Free widget limits in every Rust command that can create, reopen,
-   or reconfigure widgets.
-3. Enforce `multiple_bridges` when pairing or retaining more than one saved
-   bridge. A downgrade keeps saved configuration but allows one selected Free
-   bridge to remain active.
-4. Enforce `dashboard_custom_layout` on entering layout-edit mode and on every
-   persistence write. Free mode always renders a standard grouping layout.
-5. Enforce `pc_sync` before starting Video, Games, Music, or color-test streams.
-   Status, requirements, purchase, restore, and safe stop operations remain
-   available without Pro.
-6. Add the React locked, purchase, restore, unknown-license, upgrade, downgrade,
-   and recovery states only after backend enforcement is complete.
-7. Test every paid command directly so a modified frontend cannot bypass the
-   tier boundary. Cover reinstall, offline, refund, downgrade, and preserved
-   configuration behavior for every capability.
+**Release ordering, which matters more than the steps below.** A build carrying
+enforcement must not reach the Store before the `mote-pro` add-on is published.
+Gated capabilities refuse until a Store licence says otherwise, and an
+unpublished add-on cannot be bought, so shipping in the wrong order hands every
+new customer an app that refuses PC Sync and offers no way to fix it. The
+listing update submitted on 2026-09-11 carries an unchanged package and is
+therefore safe; the next package submission is the one to hold.
+
+1. **Done (2026-09-11).** Register the provider-neutral entitlement service as
+   managed Tauri state and expose sanitized entitlement, purchase, and restore
+   commands to React. Restore is the same read as refresh, so it needed no
+   command of its own.
+2. **Renamed, not enforced.** The placeholder `widgets` capability is now
+   `advanced_widgets`. The Free composition limit — one single-target control per
+   widget — is not yet enforced in the Rust commands that create, reopen, or
+   reconfigure widgets.
+3. **Done (2026-09-11).** `multiple_bridges` is enforced on pairing when a bridge
+   is already saved. The check reads what is stored rather than the pairing
+   itself, so a Free customer can always pair, re-pair, and recover their one
+   bridge.
+4. **Not enforced.** `dashboard_custom_layout` on entering layout-edit mode and
+   on every persistence write.
+5. **Done (2026-09-11), narrower than first written.** `pc_sync` is enforced
+   before starting Video, Games and Music streams, and deliberately _not_ before
+   the colour test. The table above lists testing an entertainment area as a Free
+   action, and gating it would stop someone confirming their hardware works
+   before being asked to pay. Status, requirements, purchase, restore, and safe
+   stop remain available without Pro.
+6. **Partly done.** Refusals carry structured `AuthorizationError` JSON and the
+   frontend renders distinct copy for pro-required and unknown-licence. Locked,
+   upgrade, downgrade and recovery states are not built.
+7. **Not done.** Test every paid command directly so a modified frontend cannot
+   bypass the tier boundary. The static half is audited — see the commerce spike
+   — but reinstall, offline, refund and downgrade behaviour still need a packaged
+   Store build.
 
 ## Future functionality
 

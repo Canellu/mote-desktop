@@ -1,13 +1,18 @@
 # Microsoft Store listing copy
 
-Status: **submission draft; verify against the release candidate before use**.
+Status: **submitted; the live listing is the record**.
 
-Last reviewed: **2026-08-14**.
+Last reviewed: **2026-09-11**.
 
 This is the source-controlled English listing copy for the freemium Windows
 release. The first public release includes a useful Free tier and a one-time
-Mote Pro purchase. Do not submit until Store commerce, entitlement enforcement,
-and every Free/Pro release gate has passed.
+Mote Pro purchase.
+
+The parent listing was submitted to certification on 2026-09-11 and the
+`mote-pro` durable add-on followed the same day, both set to publish manually.
+Where this file and Partner Center disagree, Partner Center is what customers
+read: correct here first, then carry the change across, because this file is
+where the widget claims below came from in the first place.
 
 ## Product name
 
@@ -15,7 +20,7 @@ Mote Desktop
 
 ## Short description
 
-Control Philips Hue lights for free, with PC Sync, multiple widgets, and more in Mote Pro.
+Control Philips Hue lights for free, with PC Sync, advanced widgets, and more in Mote Pro.
 
 ## Description
 
@@ -24,11 +29,13 @@ hardware. The Free tier provides useful local control of lights, rooms, zones,
 scenes, devices, entertainment areas, and one Hue Bridge. It also includes the
 current controls for one Hue Play HDMI Sync Box.
 
-The Free tier includes one standard single-target desktop widget. Unlock Mote
-Pro with a one-time Microsoft Store purchase to use PC Sync, create up to three
-advanced multi-control widgets, customize and reorder the home dashboard, and
-save and switch among multiple Hue Bridges. PC Sync extends supported
-displays, games, and system audio to a compatible Hue entertainment area.
+The Free tier includes desktop widgets, each holding one room, zone, or light.
+The app does not limit how many are open. Unlock Mote Pro with a one-time
+Microsoft Store purchase to use PC Sync, put several controls or a multi-target
+toggle group in a single widget, choose each widget's theme, size and placement,
+customize and reorder the home dashboard, and save and switch among multiple Hue
+Bridges. PC Sync extends supported displays, games, and system audio to a
+compatible Hue entertainment area.
 
 Mote Desktop is designed for local control. Core Hue communication stays between
 your PC and compatible hardware on your local network. The first release does
@@ -87,8 +94,8 @@ Remote Hue cloud control is not included.
 
 Initial Microsoft Store release of Mote Desktop. Includes a useful Free tier for
 local Hue control, scenes, device and space management, Hue Play HDMI Sync Box
-control, one standard single-target desktop widget, and desktop preferences. A
-one-time Mote Pro purchase unlocks PC Sync, additional advanced widgets, custom
+control, single-target desktop widgets, and desktop preferences. A one-time Mote
+Pro purchase unlocks PC Sync, multi-control and customizable widgets, custom
 dashboard layouts, and multiple saved Hue Bridges.
 
 ## Legal and attribution

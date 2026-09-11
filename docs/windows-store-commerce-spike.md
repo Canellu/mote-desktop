@@ -1,10 +1,20 @@
 # Windows Store packaging and commerce spike
 
-Status: **MSIX selected; parent and hidden Mote Pro Store drafts prepared, with
-package submission, Store commerce, and packaged capability validation still in
-progress**.
+Status: **MSIX shipped and in the Store; the Mote Pro add-on is submitted and
+awaiting manual publish. Commerce is implemented but not yet exercised against a
+packaged build.**
 
-Last reviewed: **2026-09-02**.
+Last reviewed: **2026-09-11**.
+
+What changed on 2026-09-11: the parent listing went to certification, the
+`mote-pro` durable add-on was submitted (hidden, purchasable only from within
+the parent, NOK 149 base across 240 markets), and the app grew a cached Store
+entitlement provider, purchase and refresh commands, and enforcement on PC Sync
+and the second saved bridge.
+
+The guardrail below saying the add-on's audience "does not authorize submission
+or publication" was lifted by the owner on 2026-09-11. It is left in place as
+the record of what the spike originally assumed.
 
 ## Goal
 
@@ -12,9 +22,12 @@ Determine whether Mote Desktop should replace its current EXE/MSI + NSIS Store
 direction with MSIX so the Windows release can use a Microsoft Store durable
 add-on for the one-time Mote Pro purchase.
 
-This is a disposable technical spike, not production entitlement or paywall
-implementation. Do not gate user features until the spike passes and its package
-decision is recorded.
+This began as a disposable technical spike rather than production entitlement or
+paywall implementation, with a rule against gating user features until it passed.
+The package decision is now recorded — MSIX, shipped — and production entitlement
+lives in `src-tauri/src/services/entitlements.rs` rather than here. What remains
+in this file is the packaging and commerce record; read the feature matrix for
+what is actually gated.
 
 ## Questions the spike must answer
 
@@ -53,12 +66,13 @@ decision is recorded.
       current development host is available for initial checks.
 - [x] Windows SDK `makeappx.exe` and `signtool.exe` are installed for x64 under
       SDK version `10.0.19041.0`.
-- [ ] A published parent-app package suitable for Store-license testing. The
-      add-on cannot be submitted before the parent app is published.
+- [x] A published parent-app package suitable for Store-license testing. The
+      add-on cannot be submitted before the parent app is published; the parent
+      is live, which is what let the add-on go on 2026-09-11.
 - [x] A hidden durable **Mote Pro** add-on with the permanent internal product ID
-      `mote-pro`. Its first submission has a public audience but remains hidden
-      from Store discovery, unpublished, and purchasable only through the parent
-      app.
+      `mote-pro`, Store ID `9P3J5KCBFVQZ`. Submitted 2026-09-11 with a public
+      audience, hidden from Store discovery, purchasable only through the parent
+      app, and set to publish manually so it is not live until someone says so.
 
 ## Work checklist
 

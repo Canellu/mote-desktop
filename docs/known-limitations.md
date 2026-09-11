@@ -2,7 +2,7 @@
 
 Status: **release-candidate draft; update from acceptance testing**.
 
-Last reviewed: **2026-08-14**.
+Last reviewed: **2026-09-11**.
 
 - The first release supports Windows 10 and Windows 11 on x64 PCs only.
 - Hue control is local-network-first. The PC and Hue Bridge must normally be on
@@ -21,8 +21,14 @@ Last reviewed: **2026-08-14**.
   per-bridge Sync Box association is not included.
 - The app does not impose a limit on the number of widget windows. Multiple
   controls/targets and advanced widget customization require Pro.
-- Mote Pro is a one-time Microsoft Store purchase. PC Sync, advanced/additional
-  widgets, custom dashboard layouts, and multiple saved Hue Bridges require Pro.
+- Mote Pro is a one-time Microsoft Store purchase. PC Sync, advanced widget
+  composition, custom dashboard layouts, and multiple saved Hue Bridges require
+  Pro. As of 2026-09-11 only PC Sync and the second saved bridge are actually
+  enforced; widget composition and the custom dashboard layout are described as
+  paid but still work without Pro until their gates land.
+- Mote Pro cannot be bought yet. The durable add-on was submitted on 2026-09-11
+  and publishes manually, so until it is published the app has no Pro to sell
+  and every gated capability refuses.
 - Mote accounts, shared homes, cloud control, Household subscriptions, calendar
   rules, Pomodoro, presence automation, and public roadmap voting are not
   included.
