@@ -6,8 +6,8 @@ import type { ProFeature } from "@/features/pro/proUpgrade";
 export type PaywallVariant = "aurora" | "split" | "quiet" | "spotlight";
 
 export const PAYWALL_VARIANTS: { id: PaywallVariant; label: string }[] = [
-  { id: "aurora", label: "Aurora" },
   { id: "split", label: "Split" },
+  { id: "aurora", label: "Aurora" },
   { id: "quiet", label: "Quiet" },
   { id: "spotlight", label: "Spotlight" },
 ];
@@ -22,7 +22,7 @@ const readStored = (): PaywallVariant => {
   } catch {
     // Storage can be unavailable; the default is fine.
   }
-  return "aurora";
+  return "split";
 };
 
 interface VariantState {
