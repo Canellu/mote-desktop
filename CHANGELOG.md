@@ -5,6 +5,20 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.2.2] - 2026-09-13
+
+### Highlights
+
+- Mote tells you when a newer version is in the Microsoft Store. An **Update**
+  button appears in the title bar, and Settings, under About, can check for and
+  install it. Installing closes Mote while Windows updates it, and stops PC Sync
+  first.
+
+### Fixes
+
+- The taskbar and Start menu icon is now sharp and full size, instead of small
+  on a grey plate.
+
 ## [0.2.1] - 2026-09-13
 
 ### Fixes
