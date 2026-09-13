@@ -1,12 +1,22 @@
 # Windows Store packaging and commerce spike
 
-Status: **0.2.0.0 is live in the Store with Pro enforcement, and the Mote Pro
-add-on is live at NOK 149. Buying Pro failed in 0.2.0.0 because the purchase
-dialog was never attached to a window. 0.2.1.0 carries the fix, is in
-certification, and publishes automatically. Purchase, restore, and offline
-licensing are still unverified on a Store-installed build.**
+Status: **0.2.1.0 is live in the Store with Pro enforcement and the purchase
+window fix, and the Mote Pro add-on is live at NOK 149. 0.2.2.0, which adds the
+in-app update notice and a full-size taskbar icon, is in certification and
+publishes automatically. Purchase, restore, and offline licensing are still
+unverified on a Store-installed build.**
 
-Last reviewed: **2026-09-13**.
+Last reviewed: **2026-09-14**.
+
+What changed on 2026-09-14: 0.2.1.0 published. 0.2.2.0 went to certification
+as Submission 5 (`1152921505701881948`), carrying
+`MoteDesktop_0.2.2.0_x64.msix` (9,662,075 bytes, SHA-256
+`B9E5E02057EEC7658026EDDEF6567277D3F44BD721B85C38660D2A81EA29753B`, tag `v0.2.2`
+at `15c331c`). The package now carries targetsize unplated icons indexed in a
+single `resources.pri`, and the app checks the Store for updates through
+`check-store-update` and `install-store-update`. The update install also parents
+its UI to the main window, the same requirement the 0.2.0 purchase failure
+exposed.
 
 What changed later on 2026-09-13: 0.2.0.0 published and was installed from the
 Store. The gates and the paywall worked and the price loaded (kr 149,00), but
