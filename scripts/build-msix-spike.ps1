@@ -98,9 +98,17 @@ Copy-Item -LiteralPath $executablePath -Destination (Join-Path $stageRoot "mote-
 if ($IncludeCommerceDiagnostic) {
     Copy-Item -LiteralPath $commerceDiagnosticPath -Destination (Join-Path $stageRoot "store-commerce-spike.exe")
 }
-$assetNames = @("StoreLogo.png", "Square44x44Logo.png", "Square150x150Logo.png")
-foreach ($assetName in $assetNames) {
-    Copy-Item -LiteralPath (Join-Path $tauriRoot "icons/$assetName") -Destination (Join-Path $stageRoot "Assets/$assetName")
+# Every size and theme variant Windows asks for, generated from icons/icon.png.
+# A lone 44x44 logo is what made the taskbar draw Mote small on a grey plate:
+# the shell wants targetsize and altform-unplated variants, indexed in
+# resources.pri, to show a crisp full-size icon.
+$msixAssetsRoot = Join-Path $tauriRoot "msix/Assets"
+$msixAssets = @(Get-ChildItem -LiteralPath $msixAssetsRoot -Filter "*.png" -File)
+if ($msixAssets.Count -eq 0) {
+    throw "No MSIX assets found in '$msixAssetsRoot'."
+}
+foreach ($asset in $msixAssets) {
+    Copy-Item -LiteralPath $asset.FullName -Destination (Join-Path $stageRoot "Assets/$($asset.Name)")
 }
 
 $manifest = Get-Content -LiteralPath $templatePath -Raw
@@ -114,6 +122,23 @@ $manifestPath = Join-Path $stageRoot "AppxManifest.xml"
 
 # Parse before packaging so malformed substitutions fail with a useful error.
 $null = [xml](Get-Content -LiteralPath $manifestPath -Raw)
+
+# Index the qualified assets so Windows can resolve scale, targetsize and
+# unplated variants. Without resources.pri only exact file names resolve, and
+# the shell falls back to the plated 44x44 logo.
+$makePri = Join-Path (Split-Path -Parent $sdkTools.MakeAppx) "makepri.exe"
+if (-not (Test-Path -LiteralPath $makePri)) {
+    throw "makepri.exe was not found next to makeappx.exe at '$makePri'."
+}
+$priConfigPath = Join-Path $targetRoot "priconfig.xml"
+& $makePri createconfig /cf $priConfigPath /dq "en-US" /pv "10.0.0" /o
+if ($LASTEXITCODE -ne 0) {
+    throw "MakePri createconfig failed with exit code $LASTEXITCODE."
+}
+& $makePri new /pr $stageRoot /cf $priConfigPath /mn $manifestPath /of (Join-Path $stageRoot "resources.pri") /o
+if ($LASTEXITCODE -ne 0) {
+    throw "MakePri new failed with exit code $LASTEXITCODE."
+}
 
 New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
 $packagePath = Join-Path $targetRoot "MoteDesktop_${Version}_${Architecture}.msix"
