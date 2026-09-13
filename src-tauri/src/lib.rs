@@ -95,6 +95,8 @@ pub fn run() {
             commands::settings::assign_device_to_zone,
             commands::settings::create_hue_room,
             commands::store_commerce::get_store_commerce_diagnostic,
+            commands::store_commerce::check_store_update,
+            commands::store_commerce::install_store_update,
             commands::entitlements::get_entitlements,
             commands::entitlements::set_debug_entitlements,
             commands::entitlements::refresh_entitlements,

@@ -5,6 +5,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "./components/ui/sonner";
 import { EntitlementProvider } from "./context/EntitlementContext";
 import { ProUpgradeProvider } from "./features/pro/ProUpgradeProvider";
+import { StoreUpdateProvider } from "./features/updates/StoreUpdateContext";
 import { HueProvider } from "./context/HueContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { WidgetScreen } from "./features/widget-screen/WidgetScreen";
@@ -58,12 +59,14 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
           </>
         ) : (
           <EntitlementProvider>
-            <ProUpgradeProvider>
-              <HueProvider>
-                <App />
-                <Toaster />
-              </HueProvider>
-            </ProUpgradeProvider>
+            <StoreUpdateProvider>
+              <ProUpgradeProvider>
+                <HueProvider>
+                  <App />
+                  <Toaster />
+                </HueProvider>
+              </ProUpgradeProvider>
+            </StoreUpdateProvider>
           </EntitlementProvider>
         )}
       </ErrorBoundary>

@@ -212,11 +212,8 @@ pub async fn get_store_commerce_diagnostic(app: tauri::AppHandle) -> StoreCommer
 /// leave a stale identifier compiled into the app.
 #[cfg(target_os = "windows")]
 pub async fn purchase_mote_pro(app: tauri::AppHandle) -> Result<PurchaseOutcome, String> {
-    use tauri::Manager;
-    use windows::core::{Interface, HSTRING};
+    use windows::core::HSTRING;
     use windows::Services::Store::{StoreContext, StorePurchaseStatus};
-    use windows::Win32::Foundation::HWND;
-    use windows::Win32::UI::Shell::IInitializeWithWindow;
 
     let report = get_store_commerce_diagnostic_for_platform(app.clone()).await;
 
@@ -235,26 +232,10 @@ pub async fn purchase_mote_pro(app: tauri::AppHandle) -> Result<PurchaseOutcome,
                 .to_string()
         })?;
 
-    // The context has to be initialised with the main window here, on the very
-    // object RequestPurchaseAsync is called on. The association the diagnostic
-    // set does not carry over to a context obtained again from GetDefault, and
-    // without one the call fails with ERROR_INVALID_WINDOW_HANDLE (1400) before
-    // Microsoft's purchase dialog can open. 0.2.0 shipped exactly that failure:
-    // the Store event log shows RequestPurchaseAsync(9P3J5KCBFVQZ) rejected with
-    // "Invalid window handle", and nothing was charged.
+    // Initialise the very object RequestPurchaseAsync is called on; see
+    // initialize_with_main_window for why that cannot be skipped.
     let context = StoreContext::GetDefault().map_err(|error| error.message())?;
-    // Scoped so the window handle and the COM initializer, neither of which is
-    // Send, are dropped before this async command awaits the purchase.
-    {
-        let window = app
-            .get_webview_window("main")
-            .ok_or_else(|| "The main window is unavailable.".to_string())?;
-        let hwnd = window.hwnd().map_err(|error| error.to_string())?;
-        let initializer = context
-            .cast::<IInitializeWithWindow>()
-            .map_err(|error| error.message())?;
-        unsafe { initializer.Initialize(HWND(hwnd.0)) }.map_err(|error| error.message())?;
-    }
+    initialize_with_main_window(&context, &app)?;
 
     let result = context
         .RequestPurchaseAsync(&HSTRING::from(store_id))
@@ -271,6 +252,199 @@ pub async fn purchase_mote_pro(app: tauri::AppHandle) -> Result<PurchaseOutcome,
         // NetworkError, ServerError, and anything added later.
         _ => PurchaseOutcome::Unavailable,
     })
+}
+
+/// Parents Microsoft's Store UI to the main Mote window.
+///
+/// A desktop app has to initialise the exact `StoreContext` it calls a UI
+/// method on. The association does not carry over to a context obtained again
+/// from `GetDefault`, and without one the call fails with
+/// ERROR_INVALID_WINDOW_HANDLE (1400) before any dialog opens. 0.2.0 shipped that
+/// failure for purchases: the Store event log showed
+/// `RequestPurchaseAsync(9P3J5KCBFVQZ)` rejected with "Invalid window handle".
+///
+/// Synchronous on purpose. The window handle and the COM initializer are not
+/// `Send`, so they must not live across an await inside an async command.
+#[cfg(target_os = "windows")]
+fn initialize_with_main_window(
+    context: &windows::Services::Store::StoreContext,
+    app: &tauri::AppHandle,
+) -> Result<(), String> {
+    use tauri::Manager;
+    use windows::core::Interface;
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::Shell::IInitializeWithWindow;
+
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "The main window is unavailable.".to_string())?;
+    let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+    let initializer = context
+        .cast::<IInitializeWithWindow>()
+        .map_err(|error| error.message())?;
+    unsafe { initializer.Initialize(HWND(hwnd.0)) }.map_err(|error| error.message())
+}
+
+/// Whether the Microsoft Store has a newer Mote Desktop for this installation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoreUpdateStatus {
+    /// False when the app was not installed from the Store (a development build,
+    /// a sideloaded package). There is nothing to ask, so the interface stays
+    /// silent rather than reporting an error nobody can act on.
+    supported: bool,
+    available: bool,
+    /// Set per submission in Partner Center ("Make this update mandatory").
+    mandatory: bool,
+}
+
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+impl StoreUpdateStatus {
+    const fn unsupported() -> Self {
+        Self {
+            supported: false,
+            available: false,
+            mandatory: false,
+        }
+    }
+
+    const fn nothing_available() -> Self {
+        Self {
+            supported: true,
+            available: false,
+            mandatory: false,
+        }
+    }
+}
+
+/// How an install request ended, flattened for the interface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StoreUpdateOutcome {
+    /// Windows installed the update. Mote is normally closed by then, so the
+    /// interface rarely gets to see this.
+    Installed,
+    /// Nothing newer was waiting by the time the install was requested.
+    UpToDate,
+    /// The customer dismissed Microsoft's dialog.
+    Canceled,
+    /// Download or deployment failed: battery, Wi-Fi policy, or anything else.
+    Failed,
+}
+
+/// Asks the Store whether a newer package is published. Needs no window.
+#[tauri::command(rename = "check-store-update")]
+pub async fn check_store_update() -> StoreUpdateStatus {
+    check_store_update_for_platform().await
+}
+
+/// Downloads and installs the newer package through Microsoft's own UI.
+#[tauri::command(rename = "install-store-update")]
+pub async fn install_store_update(app: tauri::AppHandle) -> Result<StoreUpdateOutcome, String> {
+    install_store_update_for_platform(app).await
+}
+
+#[cfg(target_os = "windows")]
+async fn check_store_update_for_platform() -> StoreUpdateStatus {
+    use windows::Services::Store::StoreContext;
+
+    if !inspect_package().available {
+        return StoreUpdateStatus::unsupported();
+    }
+
+    // A failed check reads as "nothing available": a missing prompt is harmless,
+    // and a prompt for an update that is not there is not.
+    let Ok(context) = StoreContext::GetDefault() else {
+        return StoreUpdateStatus::nothing_available();
+    };
+    let Ok(operation) = context.GetAppAndOptionalStorePackageUpdatesAsync() else {
+        return StoreUpdateStatus::nothing_available();
+    };
+    let Ok(updates) = operation.await else {
+        return StoreUpdateStatus::nothing_available();
+    };
+
+    let available = updates.Size().unwrap_or(0) > 0;
+    let mandatory = (&updates)
+        .into_iter()
+        .any(|update| update.Mandatory().unwrap_or(false));
+
+    StoreUpdateStatus {
+        supported: true,
+        available,
+        mandatory,
+    }
+}
+
+#[cfg(target_os = "windows")]
+async fn install_store_update_for_platform(
+    app: tauri::AppHandle,
+) -> Result<StoreUpdateOutcome, String> {
+    use tauri::Manager;
+    use windows::core::Interface;
+    use windows::Services::Store::{StoreContext, StorePackageUpdate, StorePackageUpdateState};
+    use windows_collections::IIterable;
+
+    if !inspect_package().available {
+        return Err(
+            "Updates come from the Microsoft Store, and this copy was not installed from it."
+                .to_string(),
+        );
+    }
+
+    let context = StoreContext::GetDefault().map_err(|error| error.message())?;
+    initialize_with_main_window(&context, &app)?;
+
+    let updates = context
+        .GetAppAndOptionalStorePackageUpdatesAsync()
+        .map_err(|error| error.message())?
+        .await
+        .map_err(|error| error.message())?;
+
+    // Everything that touches the update list happens in this block, so the list
+    // is dropped before the install is awaited below.
+    let operation = {
+        let updates = updates;
+        if updates.Size().map_err(|error| error.message())? == 0 {
+            return Ok(StoreUpdateOutcome::UpToDate);
+        }
+
+        // Installing closes Mote. Stop a live PC Sync stream first so the lights
+        // are restored, rather than left frozen on the last frame it sent.
+        if let Some(engine) =
+            app.try_state::<crate::services::entertainment::engine::HostSyncEngine>()
+        {
+            engine.stop(&app);
+        }
+
+        let iterable = updates
+            .cast::<IIterable<StorePackageUpdate>>()
+            .map_err(|error| error.message())?;
+        context
+            .RequestDownloadAndInstallStorePackageUpdatesAsync(&iterable)
+            .map_err(|error| error.message())?
+    };
+
+    let result = operation.await.map_err(|error| error.message())?;
+    let state = result.OverallState().map_err(|error| error.message())?;
+
+    Ok(match state {
+        StorePackageUpdateState::Completed => StoreUpdateOutcome::Installed,
+        StorePackageUpdateState::Canceled => StoreUpdateOutcome::Canceled,
+        _ => StoreUpdateOutcome::Failed,
+    })
+}
+
+#[cfg(not(target_os = "windows"))]
+async fn check_store_update_for_platform() -> StoreUpdateStatus {
+    StoreUpdateStatus::unsupported()
+}
+
+#[cfg(not(target_os = "windows"))]
+async fn install_store_update_for_platform(
+    _app: tauri::AppHandle,
+) -> Result<StoreUpdateOutcome, String> {
+    Err("Store updates are Windows-only.".to_string())
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -598,6 +772,23 @@ fn format_hresult(code: windows::core::HRESULT) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn store_update_types_serialize_in_the_shape_the_interface_reads() {
+        let status = StoreUpdateStatus {
+            supported: true,
+            available: true,
+            mandatory: false,
+        };
+        assert_eq!(
+            serde_json::to_value(status).unwrap(),
+            serde_json::json!({ "supported": true, "available": true, "mandatory": false })
+        );
+        assert_eq!(
+            serde_json::to_value(StoreUpdateOutcome::UpToDate).unwrap(),
+            serde_json::json!("up_to_date")
+        );
+    }
 
     fn app_license(active: Option<bool>, succeeded: bool) -> AppLicenseDiagnostic {
         AppLicenseDiagnostic {

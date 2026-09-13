@@ -11,6 +11,7 @@ import { ErrorScreen } from "@/components/ErrorScreen";
 import { ComponentGallery } from "@/features/dev-gallery/ComponentGallery";
 import { DeviceGallery } from "@/features/dev-gallery/DeviceGallery";
 import { FeedbackButton } from "@/features/feedback/FeedbackButton";
+import { UpdateButton } from "@/features/updates/UpdateButton";
 import {
   sampleSyncBoxSession,
   SYNC_BOX_CONNECTED_DEV_VIEW_ID,
@@ -382,7 +383,12 @@ function App() {
             ? () => dev.selectView("success")
             : undefined
         }
-        actions={<FeedbackButton />}
+        actions={
+          <>
+            <UpdateButton />
+            <FeedbackButton />
+          </>
+        }
       />
       {dev.enabled && (
         <WizardDevToolbar

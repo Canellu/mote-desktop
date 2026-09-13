@@ -5,6 +5,7 @@ import { Check, Copy, ExternalLink, MessageSquareText } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FeedbackDialog } from "@/features/feedback/FeedbackDialog";
+import { StoreUpdateRow } from "@/features/updates/StoreUpdateRow";
 import {
   SettingsRow,
   SettingsSection,
@@ -87,6 +88,7 @@ export const AboutSupportTab = () => {
             Version {version}
           </span>
         </SettingsRow>
+        <StoreUpdateRow />
       </SettingsSection>
 
       <SettingsSection title="Help and legal">
