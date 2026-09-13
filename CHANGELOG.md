@@ -5,6 +5,14 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.2.1] - 2026-09-13
+
+### Fixes
+
+- Buying Mote Pro failed before Microsoft's purchase window could open, and
+  showed "The purchase did not go through". Nothing was charged. The purchase
+  window now opens.
+
 ## [0.2.0] - 2026-09-13
 
 ### Highlights

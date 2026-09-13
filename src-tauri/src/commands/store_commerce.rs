@@ -212,10 +212,13 @@ pub async fn get_store_commerce_diagnostic(app: tauri::AppHandle) -> StoreCommer
 /// leave a stale identifier compiled into the app.
 #[cfg(target_os = "windows")]
 pub async fn purchase_mote_pro(app: tauri::AppHandle) -> Result<PurchaseOutcome, String> {
-    use windows::core::HSTRING;
+    use tauri::Manager;
+    use windows::core::{Interface, HSTRING};
     use windows::Services::Store::{StoreContext, StorePurchaseStatus};
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::Shell::IInitializeWithWindow;
 
-    let report = get_store_commerce_diagnostic_for_platform(app).await;
+    let report = get_store_commerce_diagnostic_for_platform(app.clone()).await;
 
     let store_id = report
         .products
@@ -232,9 +235,26 @@ pub async fn purchase_mote_pro(app: tauri::AppHandle) -> Result<PurchaseOutcome,
                 .to_string()
         })?;
 
-    // GetDefault returns the context the diagnostic already initialised with the
-    // main window, which is what the purchase dialog needs to parent itself.
+    // The context has to be initialised with the main window here, on the very
+    // object RequestPurchaseAsync is called on. The association the diagnostic
+    // set does not carry over to a context obtained again from GetDefault, and
+    // without one the call fails with ERROR_INVALID_WINDOW_HANDLE (1400) before
+    // Microsoft's purchase dialog can open. 0.2.0 shipped exactly that failure:
+    // the Store event log shows RequestPurchaseAsync(9P3J5KCBFVQZ) rejected with
+    // "Invalid window handle", and nothing was charged.
     let context = StoreContext::GetDefault().map_err(|error| error.message())?;
+    // Scoped so the window handle and the COM initializer, neither of which is
+    // Send, are dropped before this async command awaits the purchase.
+    {
+        let window = app
+            .get_webview_window("main")
+            .ok_or_else(|| "The main window is unavailable.".to_string())?;
+        let hwnd = window.hwnd().map_err(|error| error.to_string())?;
+        let initializer = context
+            .cast::<IInitializeWithWindow>()
+            .map_err(|error| error.message())?;
+        unsafe { initializer.Initialize(HWND(hwnd.0)) }.map_err(|error| error.message())?;
+    }
 
     let result = context
         .RequestPurchaseAsync(&HSTRING::from(store_id))
