@@ -1,12 +1,21 @@
 # Windows Store packaging and commerce spike
 
-Status: **0.2.1.0 is live in the Store with Pro enforcement and the purchase
-window fix, and the Mote Pro add-on is live at NOK 149. 0.2.2.0, which adds the
-in-app update notice and a full-size taskbar icon, is in certification and
-publishes automatically. Purchase, restore, and offline licensing are still
-unverified on a Store-installed build.**
+Status: **0.2.2.0 is live in the Store with Pro enforcement, the purchase
+window fix, the in-app update notice, and a full-size taskbar icon, and the Mote
+Pro add-on is live at NOK 149. 0.2.3.0, which says when the Store was last
+checked and keeps the update buttons from resizing, is in certification and
+publishes automatically. Purchase, restore, offline licensing, and the update
+install are still unverified on a Store-installed build.**
 
 Last reviewed: **2026-09-14**.
+
+What changed later on 2026-09-14: 0.2.2.0 published and was installed from the
+Store, and the Settings Updates row appeared. 0.2.3.0 went to certification as
+Submission 6 (`1152921505701882278`), carrying `MoteDesktop_0.2.3.0_x64.msix`
+(9,673,019 bytes, SHA-256
+`04C23F4DD4F83B66F5BCFA5F8D18673333DEE13B90B4345A4E052E232659AACA`, tag `v0.2.3`
+at `f549e88`), set to publish as soon as it passes. It is the first release a
+0.2.2.0 install can see through the title-bar Update button.
 
 What changed on 2026-09-14: 0.2.1.0 published. 0.2.2.0 went to certification
 as Submission 5 (`1152921505701881948`), carrying
