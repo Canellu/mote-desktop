@@ -5,6 +5,16 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.2.3] - 2026-09-14
+
+### Improvements
+
+- Settings, under About, now says when Mote last checked the Microsoft Store
+  for updates, so being up to date and the Check for updates button no longer
+  read as a contradiction.
+- The Check for updates and Install update buttons keep their size while they
+  work, and show a spinner instead of shifting the layout.
+
 ## [0.2.2] - 2026-09-13
 
 ### Highlights
