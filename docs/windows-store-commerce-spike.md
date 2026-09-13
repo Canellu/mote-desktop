@@ -1,10 +1,22 @@
 # Windows Store packaging and commerce spike
 
-Status: **MSIX shipped and in the Store; the Mote Pro add-on is submitted and
-awaiting manual publish. Commerce is implemented but not yet exercised against a
-packaged build.**
+Status: **MSIX shipped and in the Store. The Mote Pro add-on is published and
+live at NOK 149, and 0.2.0.0, the first package carrying Pro enforcement, is in
+certification and set to publish automatically. Purchase, restore, and offline
+licensing have still not been exercised against a Store-installed build.**
 
-Last reviewed: **2026-09-11**.
+Last reviewed: **2026-09-13**.
+
+What changed on 2026-09-13: the `mote-pro` add-on was published and confirmed in
+the public catalog (Store ID `9P3J5KCBFVQZ`, NOK 149). The listing-only
+Submission 2 was published. Submission 3 (`1152921505701881246`) carries
+`MoteDesktop_0.2.0.0_x64.msix` (9,526,748 bytes, SHA-256
+`76EF491F9FACF1AC037D6C2BB7FE39D633BE43B6E63799FA9936D7E68D5D68EF`, tag `v0.2.0`
+at `ee95de8`). It was built with `scripts/build-msix-spike.ps1` under the Store
+identity, with a strip and LTO release profile, and without the commerce
+diagnostic. It went to certification set to publish as soon as it passes. The
+notes for certification now explain how to reach the paywall without Hue
+hardware. No purchase has been made against the live add-on.
 
 What changed on 2026-09-11: the parent listing went to certification, the
 `mote-pro` durable add-on was submitted (hidden, purchasable only from within

@@ -2,7 +2,7 @@
 
 Status: **entitlement implemented and partly enforced**.
 
-Last reviewed: **2026-09-11**.
+Last reviewed: **2026-09-13**.
 
 As of 2026-09-11 the entitlement service is registered as Tauri state, release
 builds read the Store licence through a cached provider, and purchase and
@@ -81,6 +81,11 @@ unpublished add-on cannot be bought, so shipping in the wrong order hands every
 new customer an app that refuses PC Sync and offers no way to fix it. The
 listing update submitted on 2026-09-11 carries an unchanged package and is
 therefore safe; the next package submission is the one to hold.
+
+**Status, 2026-09-13.** The ordering held. The add-on was published and
+confirmed live in the public catalog before 0.2.0.0, the first package carrying
+enforcement, was submitted. That package is in certification and publishes
+automatically when it passes.
 
 1. **Done (2026-09-11).** Register the provider-neutral entitlement service as
    managed Tauri state and expose sanitized entitlement, purchase, and restore
