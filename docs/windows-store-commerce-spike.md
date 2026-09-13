@@ -1,11 +1,29 @@
 # Windows Store packaging and commerce spike
 
-Status: **MSIX shipped and in the Store. The Mote Pro add-on is published and
-live at NOK 149, and 0.2.0.0, the first package carrying Pro enforcement, is in
-certification and set to publish automatically. Purchase, restore, and offline
-licensing have still not been exercised against a Store-installed build.**
+Status: **0.2.0.0 is live in the Store with Pro enforcement, and the Mote Pro
+add-on is live at NOK 149. Buying Pro failed in 0.2.0.0 because the purchase
+dialog was never attached to a window. 0.2.1.0 carries the fix, is in
+certification, and publishes automatically. Purchase, restore, and offline
+licensing are still unverified on a Store-installed build.**
 
 Last reviewed: **2026-09-13**.
+
+What changed later on 2026-09-13: 0.2.0.0 published and was installed from the
+Store. The gates and the paywall worked and the price loaded (kr 149,00), but
+buying ended with "The purchase did not go through". The Windows
+`Microsoft-Windows-Store/Operational` log recorded `RequestPurchaseAsync` for
+`9P3J5KCBFVQZ` rejected with `ERROR_INVALID_WINDOW_HANDLE` (1400).
+`purchase_mote_pro` took a `StoreContext` from `GetDefault` and never
+initialised it with the main window, and the association the diagnostic set
+does not carry over to it. Nothing was charged. `b09927b` initialises that exact
+context through `IInitializeWithWindow`. 0.2.1.0 (tag `v0.2.1`, 9,533,271 bytes,
+SHA-256 `4A49B6C0FE95941227919858EE906668F7506304DD34BF93B096FC3EEDF28A3C`) went
+to certification as Submission 4 (`1152921505701881766`), set to publish
+automatically.
+
+The lesson for this checklist: product and licence reads need no window, so a
+paywall that shows a price proves nothing about the purchase call. Only a
+Store-installed build that reaches Microsoft's purchase dialog does.
 
 What changed on 2026-09-13: the `mote-pro` add-on was published and confirmed in
 the public catalog (Store ID `9P3J5KCBFVQZ`, NOK 149). The listing-only
