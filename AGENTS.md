@@ -216,17 +216,29 @@ The backend emits `hue-event` carrying `Vec<HueEventUpdate>`. Updates include:
 
 ## Build-Time Configuration
 
-`MOTE_FEEDBACK_APP_TOKEN` must be set in the environment when building any
-release that should be able to send feedback. `commands::feedback` reads it
-through `option_env!`, so it is resolved at compile time, and `build.rs`
-declares `rerun-if-env-changed` so a changed value actually triggers a rebuild.
+`MOTE_FEEDBACK_APP_TOKEN` is read by `commands::feedback` through `option_env!`,
+so it is resolved at compile time, and `build.rs` declares
+`rerun-if-env-changed` so a changed value actually triggers a rebuild.
 
-Without it the app builds and runs normally but `submit-feedback` returns a
-message pointing the reporter at `support@motedesktop.com` instead. It is not a
-secret in any meaningful sense — a token inside a shipped binary can be
-extracted — so it is kept out of the repository only because both repositories
-are public. The value must match the `APP_TOKEN` secret on the `mote-api`
-Worker; see `mote-website/worker/README.md`.
+Put it in `.env.local` at the repository root, which the `.env*` rule keeps out
+of git. The `tauri` script runs through `scripts/with-env.ts`, which loads
+`.env.local` before starting Tauri, so `bun tauri dev` and `bun tauri build`
+pick it up without an export. A value already in the environment wins over the
+file, so CI can inject it as a secret instead.
+
+- **Debug builds** without it build and run normally. The script prints a
+  warning, and `submit-feedback` returns a message pointing the reporter at
+  `support@motedesktop.com`.
+- **Release builds** without it do not compile. A const assertion in
+  `commands::feedback` fails the build, because a release that silently cannot
+  send feedback would otherwise install fine and only fail for a customer.
+- **Plain `cargo` commands** bypass the script, so export the variable yourself
+  when running them.
+
+It is not a secret in any meaningful sense — a token inside a shipped binary can
+be extracted — so it is kept out of the repository only because both
+repositories are public. The value must match the `APP_TOKEN` secret on the
+`mote-api` Worker; see `mote-website/worker/README.md`.
 
 ## Storage
 
