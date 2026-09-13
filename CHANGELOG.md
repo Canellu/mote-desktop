@@ -5,11 +5,13 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.2.0] - 2026-09-13
+
 ### Highlights
 
-- **Mote Pro is real.** Entitlements are read from the Microsoft Store licence,
-  Pro can be bought from inside the app, and restoring on another machine is the
-  same read once you are signed in to the account that owns it.
+- **Mote Pro is available.** It is one purchase from inside the app, read from
+  your Microsoft Store licence, and restored on any PC signed in to the account
+  that bought it.
 - PC Sync now needs Pro to start a session. Creating an entertainment area,
   positioning it, and running the colour test stay free, so you can confirm your
   hardware works before paying.
@@ -21,25 +23,16 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
   widgets you keep. Several controls in one widget, multi-target toggle groups,
   pinning, and always-on-top need Pro.
 - A custom home dashboard layout needs Pro; the standard grouping modes do not.
-- Hitting a paid feature now opens a dialog that explains what Pro includes and
-  buys it, rather than only saying no.
-- The title bar shows which tier the app is running as. In a development build
-  that badge is also the switch between Free and Pro.
-- Initial Microsoft Store release preparation is in progress.
-- Reserved **Mote Desktop** as an EXE/MSI product in Microsoft Partner Center
-  under publisher display name **Anton Vo**.
-- Renamed the application and package identity to **Mote Desktop**, with
-  publisher **Anton Vo** and permanent identifier `com.motedesktop.mote`.
-- Completed the initial Store properties, declarations, certification notes,
-  system requirements, and all-ages IARC questionnaire for the planned
-  freemium release.
+- Reaching a paid feature opens a dialog that explains what Pro includes and
+  lets you buy it, rather than only saying no.
+- The title bar shows whether the app is running as Free or Pro.
+- **Send feedback from inside the app**, from the title bar or from Settings,
+  under Help and legal. Email addresses, bridge addresses, identifiers,
+  credentials, and file paths are removed before the report leaves your PC, an
+  email address is only needed if you want a reply, and every report gets a
+  reference you can quote to support.
 
 ### Known issues
 
-- Mote Pro cannot be bought yet. The add-on is submitted and publishes manually,
-  so gated features refuse until it is published. A build carrying enforcement
-  must not reach the Store before that happens.
-- The Windows purchase and restore flows have not been exercised against a
-  packaged Store build.
-- Signing identity, live support/privacy URLs, package, and final `1.0.0`
-  release scope have not been finalized.
+- This is the first release where Mote Pro can be bought, so purchase and
+  restore have not yet been exercised on a Store-installed build.

@@ -1,6 +1,6 @@
 [package]
 name = "mote-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Mote Desktop — desktop control for Philips Hue"
 authors = ["Anton Vo"]
 edition = "2021"
@@ -58,3 +58,13 @@ windows-sys = { version = "0.59", features = [
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "sync"] }
+
+# Release builds ship to the Microsoft Store as an MSIX, and the package has to
+# stay under the 10 MB Partner Center browser upload. Stripping symbols and
+# whole-program LTO shrink the binary without trading away runtime speed, which
+# PC Sync's capture and FFT paths need. panic stays at its default: aborting
+# would change how the entertainment engine's failures unwind.
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
