@@ -5,7 +5,11 @@ not a blocker for the first Microsoft Store release except for the release
 versioning and release-note foundation called out in
 [microsoft-store-release-plan.md](./microsoft-store-release-plan.md).
 
-Last reviewed: **2026-08-12**.
+Last reviewed: **2026-09-11**. The backend, schema, API, website surface, and
+delivery order proposed here are resolved in
+[feedback-and-roadmap-delivery-plan.md](./feedback-and-roadmap-delivery-plan.md).
+This plan keeps the product rules: categories, statuses, moderation, voting
+identity, and release-record requirements.
 
 ## Goal
 

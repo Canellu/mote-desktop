@@ -25,8 +25,10 @@ fallback shortlist is recorded in the Microsoft Store release plan.
 | [Free, Pro, and Household feature matrix](./free-pro-feature-matrix.md)                               | Initial product decision              | Current and future tier boundaries, capabilities, downgrade, offline, and grandfathering rules       |
 | [Windows Store packaging and commerce spike](./windows-store-commerce-spike.md)                       | MSIX selected; validation in progress | MSIX feasibility, Microsoft durable add-on proof, native capability smoke test, and package decision |
 | [Website launch](./website-launch-plan.md)                                                            | Planned                               | Public marketing, pricing, legal, support, domain, email DNS, and Cloudflare Pages deployment        |
-| [Feedback, analytics, and legal](./feedback-analytics-and-legal-plan.md)                              | Email feedback implemented            | Email feedback, proposed telemetry/hosted intake, optional contact email, and legal surfaces         |
+| [Feedback, analytics, and legal](./feedback-analytics-and-legal-plan.md)                              | Feedback shipped; telemetry proposed  | Feedback privacy model, proposed telemetry, optional contact email, and legal surfaces               |
 | [Feature voting, public roadmap, and release history](./feedback-roadmap-and-release-history-plan.md) | Future                                | Public feature requests, voting, roadmap statuses, What's New, and version-linked release history    |
+| [Feedback and public roadmap delivery](./feedback-and-roadmap-delivery-plan.md)                       | Feedback done; roadmap not started    | Feedback endpoint and app wiring as built, plus the roadmap backend, schema, surface, and phasing    |
+| [Bridgeless Hue control spike](./bridgeless-hue-control-spike.md)                                     | Research complete; closed for v1      | Whether Mote can control Hue without a Bridge over Bluetooth LE or Matter, and why v1 does not       |
 | [Automation runtime](./automation-runtime-plan.md)                                                    | Proposed shared prerequisite          | Task ownership, light snapshots, recovery, conflicts, tray execution, and notifications              |
 | [Calendar integration](./calendar-integration-plan.md)                                                | Proposed                              | Calendar accounts, event rules, and calendar UX                                                      |
 | [Pomodoro focus rituals](./pomodoro-focus-rituals-plan.md)                                            | Proposed                              | Focus-session state machine and UX                                                                   |
@@ -51,6 +53,12 @@ fallback shortlist is recorded in the Microsoft Store release plan.
 - Private feedback remains separate from the public roadmap. Public voting is
   post-launch and must not become an analytics identity; only its release-note
   and versioning foundation is part of the first Store release.
+- The two feedback plans own product and privacy rules. The feedback and public
+  roadmap delivery plan owns the backend choice, schema, API, website surface,
+  and delivery order, and does not restate those rules.
+- Bridgeless Hue control is closed for v1 by the bridgeless Hue control spike.
+  If it is ever reopened it belongs in the multi-provider plan as a Matter
+  adapter, not as a Hue-specific Bluetooth transport.
 - The v1 marketing website lives in a separate `mote-website` repository. Do
   not restructure the release-critical desktop repository into a monorepo merely
   to share marketing-site code.

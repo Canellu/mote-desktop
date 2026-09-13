@@ -1,7 +1,15 @@
 # Plan: Feedback, Privacy-Safe Analytics, and Legal Pages
 
-Status: **email feedback implemented; hosted ingestion and automatic telemetry
-proposed**.
+Status: **in-app feedback implemented and deployed on 2026-09-12; automatic
+telemetry still proposed**.
+
+The record was wrong until 2026-09-11, when this plan still claimed email
+feedback existed: the dialog discarded the message and showed a success toast,
+and no prepared-email action was ever built. It now posts to a hosted endpoint
+and returns a report ID. What was built, and what of this plan it does and does
+not yet satisfy, is recorded in
+[feedback-and-roadmap-delivery-plan.md](./feedback-and-roadmap-delivery-plan.md).
+This plan continues to own the privacy rules that implementation applies.
 
 Last reviewed: **2026-08-14**. Re-check privacy, Store, and vendor requirements
 before implementation and before each release.
