@@ -27,6 +27,7 @@ const FOCUS_RECHECK_MIN_GAP_MS = 60 * 60 * 1000;
  */
 export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
   const [status, setStatus] = useState<StoreUpdateStatus>(NO_STORE_UPDATE);
+  const [checkedAt, setCheckedAt] = useState<number | null>(null);
   const [installing, setInstalling] = useState(false);
   const lastCheck = useRef(0);
 
@@ -34,6 +35,7 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
     lastCheck.current = Date.now();
     try {
       setStatus(await checkStoreUpdate());
+      setCheckedAt(Date.now());
     } catch {
       // A failed check keeps the last known answer rather than hiding a real
       // update or inventing one.
@@ -86,8 +88,8 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
   }, [recheck]);
 
   const value = useMemo(
-    () => ({ status, installing, install, recheck }),
-    [status, installing, install, recheck],
+    () => ({ status, checkedAt, installing, install, recheck }),
+    [status, checkedAt, installing, install, recheck],
   );
 
   return (
