@@ -135,6 +135,16 @@ $priConfigPath = Join-Path $targetRoot "priconfig.xml"
 if ($LASTEXITCODE -ne 0) {
     throw "MakePri createconfig failed with exit code $LASTEXITCODE."
 }
+# The default configuration splits scale and language resources into separate
+# resources.*.pri files meant for resource packages. Mote ships one flat MSIX,
+# where those packs never install, so Windows would never see the 200% logos.
+# Keep every candidate in a single resources.pri.
+[xml]$priConfig = Get-Content -LiteralPath $priConfigPath -Raw
+$packaging = $priConfig.SelectSingleNode("/resources/packaging")
+if ($packaging) {
+    [void]$packaging.ParentNode.RemoveChild($packaging)
+    $priConfig.Save($priConfigPath)
+}
 & $makePri new /pr $stageRoot /cf $priConfigPath /mn $manifestPath /of (Join-Path $stageRoot "resources.pri") /o
 if ($LASTEXITCODE -ne 0) {
     throw "MakePri new failed with exit code $LASTEXITCODE."
