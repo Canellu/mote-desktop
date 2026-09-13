@@ -2,7 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ArrowLeft, Minus, Square, X } from "lucide-react";
 import React from "react";
-import logo from "../assets/rectangle.svg";
+// A small raster of the same image. rectangle.svg wraps a 1024px PNG in base64,
+// which added 1.46 MB to the bundle for a 24px mark and pushed the Store package
+// past Partner Center's 10 MB browser upload.
+import logo from "../assets/app-logo.png";
 import { ProBadge } from "./ProBadge";
 
 interface TitleBarProps {
