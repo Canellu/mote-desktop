@@ -3,28 +3,70 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import heroDark from "@/assets/pro-hero-dark.webp";
 import heroLight from "@/assets/pro-hero-light.webp";
 import { BuyButton } from "@/features/pro/BuyButton";
-import {
-  FOOTNOTE,
-  INCLUDED,
-  LEAD,
-  type PaywallProps,
-} from "@/features/pro/proVariants";
+import type { ProFeature } from "@/features/pro/proUpgrade";
+import type { ProPurchase } from "@/features/pro/useProPurchase";
 import { cn } from "@/lib/utils";
-import { Check, X } from "lucide-react";
+import { Check, Keyboard, LayoutGrid, Router, Sparkles, Tv, X } from "lucide-react";
+
+/** What the dialog leads with, so it answers the thing the customer just tried. */
+const LEAD: Record<ProFeature, string> = {
+  pc_sync: "PC Sync is part of Mote Pro",
+  multiple_bridges: "A second bridge is part of Mote Pro",
+  advanced_widgets: "This widget needs Mote Pro",
+  dashboard_custom_layout: "Your own layout is part of Mote Pro",
+  global_shortcuts: "Shortcuts are part of Mote Pro",
+  general: "Everything Mote can do",
+};
+
+/** What Pro includes, in the order somebody would care about it. */
+const INCLUDED = [
+  {
+    icon: Tv,
+    title: "PC Sync",
+    detail: "Lights follow video, games, or whatever is playing.",
+  },
+  {
+    icon: Keyboard,
+    title: "Global shortcuts",
+    detail: "Change a light from anywhere in Windows.",
+  },
+  {
+    icon: Sparkles,
+    title: "Richer widgets",
+    detail: "More than one control, and set its size and place.",
+  },
+  {
+    icon: LayoutGrid,
+    title: "Your own dashboard",
+    detail: "Arrange home the way your home really is.",
+  },
+  {
+    icon: Router,
+    title: "Every bridge",
+    detail: "Save more than one, switch whenever.",
+  },
+];
+
+const FOOTNOTE =
+  "Bought and refunded through the Microsoft Store. Already paid on another PC? Sign in with the same account and it restores itself.";
+
+interface ProPaywallProps {
+  feature: ProFeature;
+  purchase: ProPurchase;
+  onClose: () => void;
+}
 
 /**
- * Offer on the left, picture on the right.
+ * Offer on the left, photograph on the right.
  *
- * The opposite trade to Aurora: nothing sits on top of the photograph, so it is
- * shown whole and the reading side keeps the app's ordinary surface and
- * contrast.
- *
- * The content comes first in the markup, which is the order it should be read
- * in, and `order` puts the picture on top on a narrow window and to the right
- * on a wide one — where it would otherwise be squeezed into a strip nobody can
- * see.
+ * Nothing sits on top of the picture, so it is shown whole and the reading side
+ * keeps the app's ordinary surface and contrast. The content comes first in the
+ * markup, which is the order it should be read in, and `order` handles the
+ * arrangement: picture on top when the window is narrow, to the right when it is
+ * wide, where a side-by-side split would otherwise squeeze it into a strip
+ * nobody can see.
  */
-export const SplitPaywall: React.FC<PaywallProps> = ({
+export const ProPaywall: React.FC<ProPaywallProps> = ({
   feature,
   purchase,
   onClose,
@@ -42,10 +84,7 @@ export const SplitPaywall: React.FC<PaywallProps> = ({
 
   return (
     <div className="grid max-h-[min(92vh,44rem)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden md:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] md:grid-rows-1">
-      <ScrollArea
-        className="order-2 min-h-0 md:order-1"
-        viewportClassName="p-9"
-      >
+      <ScrollArea className="order-2 min-h-0 md:order-1" viewportClassName="p-9">
         <div className="grid gap-6">
           <header className="grid gap-2">
             <DialogTitle className="font-heading text-[1.75rem] leading-tight font-semibold text-balance">
@@ -96,8 +135,8 @@ export const SplitPaywall: React.FC<PaywallProps> = ({
               </div>
             ) : (
               <p className="text-sm leading-6 text-muted-foreground">
-                A one-time purchase. The Microsoft Store shows the price for
-                your region before you pay.
+                A one-time purchase. The Microsoft Store shows the price for your
+                region before you pay.
               </p>
             )}
 
@@ -131,14 +170,15 @@ export const SplitPaywall: React.FC<PaywallProps> = ({
               </button>
             </div>
 
-            <p className="text-xs leading-5 text-muted-foreground">
-              {FOOTNOTE}
-            </p>
+            <p className="text-xs leading-5 text-muted-foreground">{FOOTNOTE}</p>
           </div>
         </div>
       </ScrollArea>
 
       <div className="relative order-1 h-40 overflow-hidden md:order-2 md:h-auto">
+        {/* Dawn for the light theme, the aurora for the dark one. Swapped in CSS
+          rather than from a theme hook so it follows the `.dark` class with no
+          flash on toggle. */}
         <img
           src={heroLight}
           alt=""

@@ -4,12 +4,8 @@ import {
   registerProUpgradeOpener,
   type ProFeature,
 } from "@/features/pro/proUpgrade";
-import { usePaywallVariant } from "@/features/pro/proVariants";
+import { ProPaywall } from "@/features/pro/ProPaywall";
 import { useProPurchase } from "@/features/pro/useProPurchase";
-import { AuroraPaywall } from "@/features/pro/variants/AuroraPaywall";
-import { QuietPaywall } from "@/features/pro/variants/QuietPaywall";
-import { SplitPaywall } from "@/features/pro/variants/SplitPaywall";
-import { SpotlightPaywall } from "@/features/pro/variants/SpotlightPaywall";
 import { cn } from "@/lib/utils";
 import {
   useCallback,
@@ -19,19 +15,10 @@ import {
   type ReactNode,
 } from "react";
 
-/** Each design also wants a different dialog footprint. */
-const SHELL = {
-  aurora: "max-h-[min(92vh,48rem)] sm:max-w-[58rem]",
-  split: "max-h-[min(92vh,44rem)] sm:max-w-[54rem]",
-  quiet: "max-h-[min(92vh,44rem)] sm:max-w-[34rem]",
-  spotlight: "max-h-[min(92vh,46rem)] sm:max-w-[42rem]",
-} as const;
-
 export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
   const [feature, setFeature] = useState<ProFeature | null>(null);
-  const variant = usePaywallVariant((state) => state.variant);
   const purchase = useProPurchase(feature !== null);
 
   const requestPro = useCallback(
@@ -46,15 +33,6 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
 
   const value = useMemo(() => ({ requestPro }), [requestPro]);
 
-  const Paywall =
-    variant === "split"
-      ? SplitPaywall
-      : variant === "quiet"
-        ? QuietPaywall
-        : variant === "spotlight"
-          ? SpotlightPaywall
-          : AuroraPaywall;
-
   return (
     <ProUpgradeContext.Provider value={value}>
       {children}
@@ -65,10 +43,10 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
           className={cn(
             "overflow-hidden p-0 text-foreground",
             "border-black/10 dark:border-white/10",
-            SHELL[variant],
+            "max-h-[min(92vh,44rem)] sm:max-w-[54rem]",
           )}
         >
-          <Paywall
+          <ProPaywall
             feature={feature ?? "general"}
             purchase={purchase}
             onClose={close}
