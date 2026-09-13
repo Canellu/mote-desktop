@@ -116,6 +116,8 @@ pub fn run() {
             commands::sync_box::get_sync_box_state,
             commands::sync_box::set_sync_box_execution,
             commands::sync_box::set_sync_box_source_mode,
+            commands::feedback::preview_feedback,
+            commands::feedback::submit_feedback,
             commands::events::start_hue_events,
             commands::events::stop_hue_events,
             commands::widget::open_widget_window,

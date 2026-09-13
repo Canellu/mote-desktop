@@ -214,6 +214,20 @@ The backend emits `hue-event` carrying `Vec<HueEventUpdate>`. Updates include:
 `HueResourcesProvider` matches `grouped_light` updates by
 `id === roomZone.groupedLightId` and `light` updates by `id === light.id`.
 
+## Build-Time Configuration
+
+`MOTE_FEEDBACK_APP_TOKEN` must be set in the environment when building any
+release that should be able to send feedback. `commands::feedback` reads it
+through `option_env!`, so it is resolved at compile time, and `build.rs`
+declares `rerun-if-env-changed` so a changed value actually triggers a rebuild.
+
+Without it the app builds and runs normally but `submit-feedback` returns a
+message pointing the reporter at `support@motedesktop.com` instead. It is not a
+secret in any meaningful sense — a token inside a shipped binary can be
+extracted — so it is kept out of the repository only because both repositories
+are public. The value must match the `APP_TOKEN` secret on the `mote-api`
+Worker; see `mote-website/worker/README.md`.
+
 ## Storage
 
 - Bridge info: Tauri store file `hue-store.json`

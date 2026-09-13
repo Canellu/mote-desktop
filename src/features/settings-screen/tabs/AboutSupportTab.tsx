@@ -1,9 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Check, Copy, ExternalLink } from "lucide-react";
+import { Check, Copy, ExternalLink, MessageSquareText } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { FeedbackDialog } from "@/features/feedback/FeedbackDialog";
 import {
   SettingsRow,
   SettingsSection,
@@ -38,6 +39,7 @@ const ExternalLinkButton = ({
 export const AboutSupportTab = () => {
   const [version, setVersion] = useState("Loading…");
   const [copied, setCopied] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const copyResetRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -88,6 +90,21 @@ export const AboutSupportTab = () => {
       </SettingsSection>
 
       <SettingsSection title="Help and legal">
+        <SettingsRow
+          title="Send feedback"
+          description="Report a bug, suggest a feature, or say what would make Mote better. Nothing is sent until you press Send, and an email address is only needed if you want a reply."
+        >
+          <FeedbackDialog open={feedbackOpen} onOpenChange={setFeedbackOpen}>
+            <Button
+              variant="outline"
+              className="bg-background shadow-none hover:bg-background/75"
+              onClick={() => setFeedbackOpen(true)}
+            >
+              Send feedback
+              <MessageSquareText data-icon="inline-end" />
+            </Button>
+          </FeedbackDialog>
+        </SettingsRow>
         <SettingsRow
           title="Support"
           description="Setup help, troubleshooting, known requirements, and contact instructions."
