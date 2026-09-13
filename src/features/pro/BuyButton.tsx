@@ -29,10 +29,14 @@ export const BuyButton: React.FC<{
       "text-base font-semibold tracking-tight text-amber-950",
       "bg-[linear-gradient(110deg,oklch(0.88_0.15_86)_0%,oklch(0.82_0.19_58)_45%,oklch(0.75_0.20_28)_100%)]",
       "shadow-[0_10px_30px_-12px_oklch(0.72_0.19_50/0.9),inset_0_1px_0_oklch(1_0_0/0.45)]",
-      "transition-[transform,box-shadow,filter] duration-200 ease-out",
+      // Tailwind v4 lifts and presses through the `translate` and `scale`
+      // properties rather than `transform`, so both must be listed or they jump
+      // while the sheen glides. The lift shares the sheen's curve and settles as
+      // it crosses; the press alone stays quick, so a click still feels instant.
+      "transition-[translate,scale,box-shadow,filter] duration-500 ease-out",
       "hover:-translate-y-0.5 hover:brightness-[1.04]",
       "hover:shadow-[0_16px_38px_-12px_oklch(0.72_0.19_50/0.95),inset_0_1px_0_oklch(1_0_0/0.55)]",
-      "active:translate-y-0 active:scale-[0.985] active:brightness-[0.98]",
+      "active:translate-y-0 active:scale-[0.985] active:brightness-[0.98] active:duration-100",
       "outline-none focus-visible:ring-2 focus-visible:ring-white/70",
       "disabled:pointer-events-none disabled:opacity-60",
       "before:pointer-events-none before:absolute before:inset-y-0 before:-left-full before:w-1/2 before:-skew-x-12",
