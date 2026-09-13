@@ -43,7 +43,9 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
           className={cn(
             "overflow-hidden p-0 text-foreground",
             "border-black/10 dark:border-white/10",
-            "max-h-[min(92vh,44rem)] sm:max-w-[54rem]",
+            // The one row is what lets the paywall shrink to this cap, so its
+            // footer stays inside the dialog instead of being clipped by it.
+            "max-h-[min(92vh,44rem)] grid-rows-[minmax(0,1fr)] sm:max-w-[54rem]",
           )}
         >
           <ProPaywall
