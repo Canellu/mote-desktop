@@ -281,6 +281,25 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
+  const updateDesktopShortcut = async (enabled: boolean) => {
+    if (!appSettings || enabled === appSettings.desktopShortcut) return;
+    setIsSavingAppSettings(true);
+    setSettingsError(null);
+    try {
+      const nextSettings = await invoke<AppSettings>("set-desktop-shortcut", {
+        enabled,
+      });
+      setAppSettings(nextSettings);
+      toast.success("General settings updated");
+    } catch (error) {
+      setSettingsError(
+        String(error) || "Unable to update the desktop shortcut.",
+      );
+    } finally {
+      setIsSavingAppSettings(false);
+    }
+  };
+
   return (
     <Tabs
       value={activeTab}
@@ -452,6 +471,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     void updateCloseButtonBehavior(behavior)
                   }
                   onUpdateAutoStart={(enabled) => void updateAutoStart(enabled)}
+                  onUpdateDesktopShortcut={(enabled) =>
+                    void updateDesktopShortcut(enabled)
+                  }
                 />
               </TabsContent>
 

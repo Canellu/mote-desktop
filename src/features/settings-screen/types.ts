@@ -14,6 +14,8 @@ export interface AppSettings {
   closeButtonBehavior: CloseButtonBehavior;
   autoStart: boolean;
   autoStartSupported: boolean;
+  desktopShortcut: boolean;
+  desktopShortcutSupported: boolean;
 }
 
 export type RenameResource = (

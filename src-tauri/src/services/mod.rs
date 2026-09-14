@@ -1,3 +1,4 @@
+pub mod desktop_shortcut;
 pub mod entertainment;
 pub mod entitlements;
 pub mod hue_client;

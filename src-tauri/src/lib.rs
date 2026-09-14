@@ -45,6 +45,7 @@ pub fn run() {
             commands::app_settings::get_app_settings,
             commands::app_settings::set_close_button_behavior,
             commands::app_settings::set_auto_start,
+            commands::app_settings::set_desktop_shortcut,
             commands::app_settings::handle_main_window_close,
             commands::app_settings::minimize_main_window,
             commands::home_map::read_home_map,
@@ -244,6 +245,8 @@ pub fn run() {
             if !commands::app_settings::launched_via_autostart() {
                 let _ = commands::app_settings::show_main_window(app.handle());
             }
+
+            commands::app_settings::apply_desktop_shortcut_preference(app.handle());
 
             if let Err(_error) = commands::widget::restore_widget_window(app.handle()) {
                 #[cfg(debug_assertions)]

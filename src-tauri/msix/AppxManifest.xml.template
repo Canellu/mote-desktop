@@ -3,8 +3,9 @@
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
   xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
   xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop7="http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
-  IgnorableNamespaces="uap uap10 rescap">
+  IgnorableNamespaces="uap uap10 desktop7 rescap">
   <Identity
     Name="{{IDENTITY_NAME}}"
     Publisher="{{PUBLISHER}}"
@@ -37,6 +38,16 @@
         BackgroundColor="transparent"
         Square44x44Logo="Assets\Square44x44Logo.png"
         Square150x150Logo="Assets\Square150x150Logo.png" />
+      <Extensions>
+        <!-- A Store install otherwise only appears in Start. Settings can remove
+          or restore this shortcut by the same file name, so keep it in step with
+          services/desktop_shortcut.rs. -->
+        <desktop7:Extension Category="windows.shortcut">
+          <desktop7:Shortcut
+            File="[{Desktop}]\Mote Desktop.lnk"
+            Icon="[{Package}]\Assets\MoteDesktop.ico" />
+        </desktop7:Extension>
+      </Extensions>
     </Application>
   </Applications>
   <Capabilities>

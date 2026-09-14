@@ -18,18 +18,24 @@ pub struct AppSettings {
     close_button_behavior: CloseButtonBehavior,
     auto_start: bool,
     auto_start_supported: bool,
+    desktop_shortcut: bool,
+    desktop_shortcut_supported: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredAppSettings {
     close_button_behavior: CloseButtonBehavior,
+    /// Set when the desktop shortcut is switched off in Settings.
+    #[serde(default)]
+    desktop_shortcut_removed: bool,
 }
 
 impl Default for StoredAppSettings {
     fn default() -> Self {
         Self {
             close_button_behavior: CloseButtonBehavior::Exit,
+            desktop_shortcut_removed: false,
         }
     }
 }
@@ -54,6 +60,25 @@ pub fn set_close_button_behavior(
 pub fn set_auto_start(app: AppHandle, enabled: bool) -> Result<AppSettings, String> {
     set_auto_start_enabled(enabled)?;
     current_settings(&app)
+}
+
+#[tauri::command(rename = "set-desktop-shortcut")]
+pub fn set_desktop_shortcut(app: AppHandle, enabled: bool) -> Result<AppSettings, String> {
+    crate::services::desktop_shortcut::set(enabled)
+        .map_err(|error| private_error("Failed to update the desktop shortcut.", error))?;
+    let mut settings = read_stored_settings(&app)?;
+    settings.desktop_shortcut_removed = !enabled;
+    write_stored_settings(&app, &settings)?;
+    current_settings(&app)
+}
+
+/// Every Store update recreates the package's desktop shortcut, so a removal
+/// made in Settings is repeated at launch until the switch is turned back on.
+pub fn apply_desktop_shortcut_preference(app: &AppHandle) {
+    let removed = read_stored_settings(app).is_ok_and(|settings| settings.desktop_shortcut_removed);
+    if removed && crate::services::desktop_shortcut::exists() {
+        let _ = crate::services::desktop_shortcut::set(false);
+    }
 }
 
 /// The flag we append to the registry Run command so a login-triggered launch
@@ -122,6 +147,10 @@ fn current_settings(app: &AppHandle) -> Result<AppSettings, String> {
         close_button_behavior: stored.close_button_behavior,
         auto_start: get_auto_start_enabled()?,
         auto_start_supported: auto_start_supported(),
+        // Read fresh each time: the shortcut can be deleted from the desktop
+        // without Mote knowing.
+        desktop_shortcut: crate::services::desktop_shortcut::exists(),
+        desktop_shortcut_supported: crate::services::desktop_shortcut::supported(),
     })
 }
 

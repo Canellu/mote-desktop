@@ -147,6 +147,7 @@ export const GeneralTab = ({
   isSavingAppSettings,
   onUpdateCloseButtonBehavior,
   onUpdateAutoStart,
+  onUpdateDesktopShortcut,
 }: {
   themeMode: ThemeMode;
   onThemeModeChange: (themeMode: ThemeMode) => void;
@@ -155,6 +156,7 @@ export const GeneralTab = ({
   isSavingAppSettings: boolean;
   onUpdateCloseButtonBehavior: (behavior: CloseButtonBehavior) => void;
   onUpdateAutoStart: (enabled: boolean) => void;
+  onUpdateDesktopShortcut: (enabled: boolean) => void;
 }) => {
   const [feedbackPreferences, updateFeedbackPreferences] =
     useFeedbackPreferences();
@@ -214,6 +216,23 @@ export const GeneralTab = ({
                 !appSettings?.autoStartSupported
               }
               onCheckedChange={(checked) => onUpdateAutoStart(checked)}
+            />
+          </SettingsRow>
+
+          <SettingsRow
+            title="Desktop shortcut"
+            description="Keep a Mote Desktop shortcut on your Windows desktop."
+            keepControlInline
+          >
+            <Switch
+              aria-label="Keep a Mote Desktop shortcut on the desktop"
+              checked={appSettings?.desktopShortcut ?? false}
+              disabled={
+                isLoadingAppSettings ||
+                isSavingAppSettings ||
+                !appSettings?.desktopShortcutSupported
+              }
+              onCheckedChange={(checked) => onUpdateDesktopShortcut(checked)}
             />
           </SettingsRow>
         </SettingsSection>

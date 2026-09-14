@@ -43,8 +43,10 @@ windows = { version = "0.62.2", features = [
     "Foundation",
     "Services_Store",
     "Win32_Foundation",
+    "Win32_System_Com",
     "Win32_System_Recovery",
     "Win32_UI_Shell",
+    "Win32_UI_Shell_Common",
 ] }
 windows-collections = "0.3.2"
 windows-capture = "2.0.0"

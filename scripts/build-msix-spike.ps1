@@ -110,6 +110,8 @@ if ($msixAssets.Count -eq 0) {
 foreach ($asset in $msixAssets) {
     Copy-Item -LiteralPath $asset.FullName -Destination (Join-Path $stageRoot "Assets/$($asset.Name)")
 }
+# The manifest's desktop shortcut takes its icon from an .ico in the package.
+Copy-Item -LiteralPath (Join-Path $tauriRoot "icons/icon.ico") -Destination (Join-Path $stageRoot "Assets/MoteDesktop.ico")
 
 $manifest = Get-Content -LiteralPath $templatePath -Raw
 $manifest = $manifest.Replace("{{IDENTITY_NAME}}", [System.Security.SecurityElement]::Escape($IdentityName))
