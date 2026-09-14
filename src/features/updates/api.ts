@@ -19,3 +19,12 @@ export const checkStoreUpdate = () =>
 
 export const installStoreUpdate = () =>
   invoke<StoreUpdateOutcome>("install-store-update");
+
+/** Emitted by `install-store-update` once the download starts. */
+export const STORE_UPDATE_PROGRESS_EVENT = "store-update-progress";
+
+export interface StoreUpdateProgress {
+  phase: "downloading" | "installing";
+  /** Whole percent across both phases; the Store puts installing at 80 to 100. */
+  percent: number;
+}

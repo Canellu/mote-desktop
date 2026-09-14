@@ -58,7 +58,8 @@ const StableLabel = ({
  * to check.
  */
 export const StoreUpdateRow = () => {
-  const { status, checkedAt, installing, install, recheck } = useStoreUpdate();
+  const { status, checkedAt, installing, progress, install, recheck } =
+    useStoreUpdate();
   const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
 
@@ -80,11 +81,15 @@ export const StoreUpdateRow = () => {
 
   // "Up to date" is only as fresh as the last answer, so say when that was. It
   // is also what gives the check button a reason to be there.
-  const description = status.available
-    ? "A newer version is ready in the Microsoft Store."
-    : checkedAt
-      ? `You have the latest version. Last checked ${formatCheckedAt(checkedAt)}.`
-      : "The Microsoft Store also installs updates on its own.";
+  const description = progress
+    ? progress.phase === "downloading"
+      ? "Downloading the update. Mote will close and reopen to finish."
+      : "Installing the update. Mote will close and reopen when it is done."
+    : status.available
+      ? "A newer version is ready in the Microsoft Store."
+      : checkedAt
+        ? `You have the latest version. Last checked ${formatCheckedAt(checkedAt)}.`
+        : "The Microsoft Store also installs updates on its own.";
 
   return (
     <SettingsRow title="Updates" description={description}>
@@ -93,7 +98,7 @@ export const StoreUpdateRow = () => {
           <StableLabel
             busy={installing}
             idle="Install update"
-            busyLabel="Updating…"
+            busyLabel={progress ? `Updating ${progress.percent}%` : "Updating…"}
           />
         </Button>
       ) : (

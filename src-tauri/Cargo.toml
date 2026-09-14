@@ -49,6 +49,7 @@ windows = { version = "0.62.2", features = [
     "Win32_UI_Shell_Common",
 ] }
 windows-collections = "0.3.2"
+windows-future = "0.3.2"
 windows-capture = "2.0.0"
 windows-registry = "0.6"
 windows-sys = { version = "0.59", features = [

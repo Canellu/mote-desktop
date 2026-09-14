@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { StoreUpdateStatus } from "./api";
+import type { StoreUpdateProgress, StoreUpdateStatus } from "./api";
 
 export const NO_STORE_UPDATE: StoreUpdateStatus = {
   supported: false,
@@ -12,6 +12,8 @@ export interface StoreUpdateContextValue {
   /** When the Store last answered, in epoch milliseconds. Null until it has. */
   checkedAt: number | null;
   installing: boolean;
+  /** Null until the customer accepts Microsoft's dialog and the download starts. */
+  progress: StoreUpdateProgress | null;
   install: () => Promise<void>;
   recheck: () => Promise<void>;
 }
@@ -26,6 +28,7 @@ export const useStoreUpdate = (): StoreUpdateContextValue =>
     status: NO_STORE_UPDATE,
     checkedAt: null,
     installing: false,
+    progress: null,
     install: async () => {},
     recheck: async () => {},
   };

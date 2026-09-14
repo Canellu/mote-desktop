@@ -32,7 +32,8 @@ export const UpdateDialog = ({
         </AlertDialogTitle>
         <AlertDialogDescription>
           A newer Mote Desktop is ready in the Microsoft Store. Mote closes
-          while Windows installs it, and PC Sync stops first if it is running.
+          while Windows installs it and opens again when it is done. PC Sync
+          stops first if it is running.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>
@@ -50,7 +51,7 @@ export const UpdateDialog = ({
  * package, so a current or development build never shows it.
  */
 export const UpdateButton = () => {
-  const { status, installing, install } = useStoreUpdate();
+  const { status, installing, progress, install } = useStoreUpdate();
   const [open, setOpen] = useState(false);
 
   if (!status.supported || !status.available) return null;
@@ -79,7 +80,14 @@ export const UpdateButton = () => {
           ) : (
             <ArrowDownToLine size={15} strokeWidth={2.2} />
           )}
-          {installing ? "Updating…" : "Update"}
+          {/* Tabular digits keep the pill from twitching as the percent climbs. */}
+          <span className="tabular-nums">
+            {!installing
+              ? "Update"
+              : progress
+                ? `Updating ${progress.percent}%`
+                : "Updating…"}
+          </span>
         </span>
       </button>
       <UpdateDialog

@@ -380,10 +380,20 @@ async fn check_store_update_for_platform() -> StoreUpdateStatus {
 async fn install_store_update_for_platform(
     app: tauri::AppHandle,
 ) -> Result<StoreUpdateOutcome, String> {
-    use tauri::Manager;
+    use tauri::{Emitter, Manager};
     use windows::core::Interface;
-    use windows::Services::Store::{StoreContext, StorePackageUpdate, StorePackageUpdateState};
+    use windows::Services::Store::{
+        StoreContext, StorePackageUpdate, StorePackageUpdateState, StorePackageUpdateStatus,
+    };
     use windows_collections::IIterable;
+    use windows_future::AsyncOperationProgressHandler;
+
+    /// Read by `STORE_UPDATE_PROGRESS_EVENT` in `src/features/updates/api.ts`.
+    #[derive(Clone, Serialize)]
+    struct StoreUpdateProgress {
+        phase: &'static str,
+        percent: u8,
+    }
 
     if !inspect_package().available {
         return Err(
@@ -441,9 +451,34 @@ async fn install_store_update_for_platform(
         let iterable = updates
             .cast::<IIterable<StorePackageUpdate>>()
             .map_err(|error| error.message())?;
-        context
+        let operation = context
             .RequestDownloadAndInstallStorePackageUpdatesAsync(&iterable)
-            .map_err(|error| error.message())?
+            .map_err(|error| error.message())?;
+
+        // Microsoft's dialog comes first. Pending is skipped, so the interface
+        // only warns that Mote will close once the customer has accepted it.
+        let progress_app = app.clone();
+        operation
+            .SetProgress(&AsyncOperationProgressHandler::new(move |_, progress| {
+                let status: &StorePackageUpdateStatus = &progress;
+                let phase = match status.PackageUpdateState {
+                    StorePackageUpdateState::Downloading => "downloading",
+                    StorePackageUpdateState::Deploying => "installing",
+                    _ => return Ok(()),
+                };
+                // The download fills 0 to 0.8 of this value and the install
+                // the rest, so one number covers both phases.
+                let percent = (status.PackageDownloadProgress * 100.0)
+                    .round()
+                    .clamp(0.0, 100.0) as u8;
+                let _ = progress_app.emit(
+                    "store-update-progress",
+                    StoreUpdateProgress { phase, percent },
+                );
+                Ok(())
+            }))
+            .map_err(|error| error.message())?;
+        operation
     };
 
     let result = operation.await.map_err(|error| error.message())?;
