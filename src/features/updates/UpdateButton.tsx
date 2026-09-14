@@ -69,17 +69,18 @@ export const UpdateButton = () => {
           event.stopPropagation();
           setOpen(true);
         }}
-        className="flex h-full items-center justify-center gap-1.5 px-3 text-xs font-medium text-foreground transition-colors hover:bg-foreground/5 disabled:opacity-60 dark:hover:bg-foreground/10"
+        className="group flex h-full items-center justify-center px-1.5 outline-none disabled:opacity-60"
       >
-        {installing ? (
-          <Loader2 size={15} className="animate-spin" />
-        ) : (
-          <span className="relative flex">
+        {/* A filled pill, unlike its neighbours, so a pending update is
+          noticed rather than read as another title-bar control. */}
+        <span className="flex h-7 items-center gap-1.5 rounded-md bg-info px-2.5 text-xs font-medium text-info-foreground shadow-xs transition-colors group-hover:bg-info/85 group-focus-visible:ring-2 group-focus-visible:ring-ring">
+          {installing ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : (
             <ArrowDownToLine size={15} strokeWidth={2.2} />
-            <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-(--success)" />
-          </span>
-        )}
-        {installing ? "Updating…" : "Update"}
+          )}
+          {installing ? "Updating…" : "Update"}
+        </span>
       </button>
       <UpdateDialog
         open={open}
