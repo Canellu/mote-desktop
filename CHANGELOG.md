@@ -5,6 +5,21 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.2.4] - 2026-09-14
+
+### Improvements
+
+- The title bar's **Update** button is now a blue filled button, so a waiting
+  update stands out from the other title-bar controls.
+- Installing Mote from the Microsoft Store now puts a shortcut on your desktop,
+  and Settings, under General, has a **Desktop shortcut** switch to remove it or
+  add it back.
+
+### Fixes
+
+- Installing an update from the Microsoft Store no longer leaves Mote closed.
+  Windows reopens it once the update is installed.
+
 ## [0.2.3] - 2026-09-14
 
 ### Improvements

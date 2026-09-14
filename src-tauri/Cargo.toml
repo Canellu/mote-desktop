@@ -1,6 +1,6 @@
 [package]
 name = "mote-desktop"
-version = "0.2.3"
+version = "0.2.4"
 description = "Mote Desktop — desktop control for Philips Hue"
 authors = ["Anton Vo"]
 edition = "2021"
