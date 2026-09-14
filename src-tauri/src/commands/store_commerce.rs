@@ -417,6 +417,27 @@ async fn install_store_update_for_platform(
             engine.stop(&app);
         }
 
+        // A packaged desktop app is not relaunched after a Store update unless it
+        // registered for restart before Windows shut it down. The flags limit the
+        // registration to update restarts, so a crash or hang still just closes.
+        // The relaunch carries no arguments, so it opens the window even when this
+        // instance started hidden through `--autostart`.
+        {
+            use windows::core::PCWSTR;
+            use windows::Win32::System::Recovery::{
+                RegisterApplicationRestart, REGISTER_APPLICATION_RESTART_FLAGS, RESTART_NO_CRASH,
+                RESTART_NO_HANG, RESTART_NO_REBOOT,
+            };
+
+            let flags = REGISTER_APPLICATION_RESTART_FLAGS(
+                RESTART_NO_CRASH.0 | RESTART_NO_HANG.0 | RESTART_NO_REBOOT.0,
+            );
+            // Safety: a null command line is documented as valid and has no lifetime.
+            if let Err(error) = unsafe { RegisterApplicationRestart(PCWSTR::null(), flags) } {
+                eprintln!("could not register Mote to restart after the update: {error}");
+            }
+        }
+
         let iterable = updates
             .cast::<IIterable<StorePackageUpdate>>()
             .map_err(|error| error.message())?;
