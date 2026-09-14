@@ -1,13 +1,22 @@
 # Windows Store packaging and commerce spike
 
-Status: **0.2.3.0 is live in the Store with Pro enforcement, the purchase
-window fix, the in-app update notice and last-checked time, and a full-size
-taskbar icon, and the Mote Pro add-on is live at NOK 149. 0.2.4.0, which makes
-the Update button blue, adds a desktop shortcut, and reopens Mote after a Store
-update, is in certification and publishes automatically. Purchase, restore, and
-offline licensing are still unverified on a Store-installed build.**
+Status: **0.2.4.0 is live in the Store with Pro enforcement, the purchase
+window fix, the in-app update notice, a blue Update button, a desktop shortcut,
+and restart after a Store update, and the Mote Pro add-on is live at NOK 149.
+0.2.5.0, which shows update progress and says Mote will close and reopen, is in
+certification and publishes automatically. Purchase, restore, and offline
+licensing are still unverified on a Store-installed build.**
 
 Last reviewed: **2026-09-14**.
+
+What changed late on 2026-09-14: 0.2.4.0 published. 0.2.5.0 went to
+certification as Submission 8 (`1152921505701890472`), carrying
+`MoteDesktop_0.2.5.0_x64.msix` (9,760,140 bytes, SHA-256
+`08228F0C3016AEBABE5FB935A67D4C484DCDC1DF10D8E78FA527CDE5D248E05B`, tag `v0.2.5`
+at `102bfb4`), set to publish as soon as it passes. The install command now
+forwards `StorePackageUpdateStatus` progress as a `store-update-progress` event,
+skipping `Pending` so nothing warns about closing while Microsoft's dialog is
+open.
 
 What changed in the evening of 2026-09-14: 0.2.3.0 published. Installing it
 through the title-bar Update button worked but left Mote closed, because the app
