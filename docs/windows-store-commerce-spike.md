@@ -1,13 +1,25 @@
 # Windows Store packaging and commerce spike
 
-Status: **0.2.2.0 is live in the Store with Pro enforcement, the purchase
-window fix, the in-app update notice, and a full-size taskbar icon, and the Mote
-Pro add-on is live at NOK 149. 0.2.3.0, which says when the Store was last
-checked and keeps the update buttons from resizing, is in certification and
-publishes automatically. Purchase, restore, offline licensing, and the update
-install are still unverified on a Store-installed build.**
+Status: **0.2.3.0 is live in the Store with Pro enforcement, the purchase
+window fix, the in-app update notice and last-checked time, and a full-size
+taskbar icon, and the Mote Pro add-on is live at NOK 149. 0.2.4.0, which makes
+the Update button blue, adds a desktop shortcut, and reopens Mote after a Store
+update, is in certification and publishes automatically. Purchase, restore, and
+offline licensing are still unverified on a Store-installed build.**
 
 Last reviewed: **2026-09-14**.
+
+What changed in the evening of 2026-09-14: 0.2.3.0 published. Installing it
+through the title-bar Update button worked but left Mote closed, because the app
+never registered for restart; 0.2.4.0 calls `RegisterApplicationRestart` before
+requesting the install. 0.2.4.0 went to certification as Submission 7
+(`1152921505701889847`), carrying `MoteDesktop_0.2.4.0_x64.msix` (9,763,270
+bytes, SHA-256
+`0E615BE5F53DC21E99E9349139D94DED37D1C4601370A59F5B1F6B2B910064F8`, tag `v0.2.4`
+at `bf95645`), set to publish as soon as it passes. The package now declares a
+`desktop7:Shortcut`. A locally registered test identity confirmed that install
+creates it without a `.lnk` in the package, uninstall removes it, and an update
+recreates it after it was deleted.
 
 What changed later on 2026-09-14: 0.2.2.0 published and was installed from the
 Store, and the Settings Updates row appeared. 0.2.3.0 went to certification as
