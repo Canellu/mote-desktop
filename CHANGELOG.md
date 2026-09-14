@@ -5,6 +5,15 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.2.5] - 2026-09-14
+
+### Improvements
+
+- While an update installs, the **Update** button counts up to 100%, and a
+  notice says Mote is about to close and will reopen.
+- The update confirmation now says Mote opens again once Windows has installed
+  the update.
+
 ## [0.2.4] - 2026-09-14
 
 ### Improvements
