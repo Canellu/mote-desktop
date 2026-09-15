@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Tv,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -58,6 +59,13 @@ export const settingsTabs = [
     group: "app",
     description: "Choose global keyboard shortcuts for lights and scenes.",
     icon: Keyboard,
+  },
+  {
+    value: "automations",
+    label: "Automations",
+    group: "app",
+    description: "Let lights react to calls and to this PC locking.",
+    icon: Workflow,
   },
   {
     value: "widget",

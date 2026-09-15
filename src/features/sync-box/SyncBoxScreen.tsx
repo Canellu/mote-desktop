@@ -127,7 +127,7 @@ export const SyncBoxScreen = ({
     return (
       <>
         {(loadError || session?.error) && (
-          <div className="mx-auto flex max-w-2xl items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive">
+          <div className="mx-auto flex max-w-2xl items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <p>{loadError ?? session?.error}</p>
           </div>
@@ -210,7 +210,7 @@ export const SyncBoxConnectedView = ({
 
   if (!state) {
     return (
-      <div className="mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive">
+      <div className="mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
         <span>
           {loadError ?? session.error ?? "Unable to read Sync Box state."}
         </span>
@@ -337,7 +337,7 @@ export const SyncBoxConnectedView = ({
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-5 pb-8">
       {(state.device.overheating || state.device.undervolt) && (
-        <div className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
           <p>
             {state.device.overheating
@@ -347,7 +347,7 @@ export const SyncBoxConnectedView = ({
         </div>
       )}
       {error && (
-        <div className="rounded-2xl bg-destructive/10 p-4 text-sm text-destructive">
+        <div className="rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
           {error}
         </div>
       )}
@@ -410,7 +410,7 @@ export const SyncBoxConnectedView = ({
               here.
             </p>
           ) : !hueConnected ? (
-            <p className="text-sm text-destructive">
+            <p className="text-sm text-(--destructive-text)">
               Connect the Sync Box to its Hue Bridge to start syncing.
             </p>
           ) : streamConflict ? (

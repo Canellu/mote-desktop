@@ -30,18 +30,29 @@ const categories = [
   { kind: "scene", label: "Scenes", icon: Palette },
 ] as const;
 
+const allKinds = categories.map((category) => category.kind);
+
 export function ShortcutTargetPicker({
   targets,
   value,
   fallbackName,
   onChange,
+  kinds = allKinds,
+  labelledBy = "shortcut-target-label",
 }: {
   targets: ShortcutTarget[];
   value: string;
   fallbackName: string;
   onChange: (target: ShortcutTarget) => void;
+  /** The categories offered, for a caller that cannot use every kind. */
+  kinds?: readonly ShortcutTarget["kind"][];
+  /** Id of the visible label, when more than one picker is on screen. */
+  labelledBy?: string;
 }) {
   const id = useId();
+  const shownCategories = categories.filter((category) =>
+    kinds.includes(category.kind),
+  );
   const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
@@ -58,7 +69,7 @@ export function ShortcutTargetPicker({
   const selected = targets.find(
     (target) => `${target.kind}:${target.id}` === value,
   );
-  const sections = categories.flatMap(({ kind, label, icon }) => {
+  const sections = shownCategories.flatMap(({ kind, label, icon }) => {
     const items = filtered.filter((target) => target.kind === kind);
     if (kind !== "scene") return [{ key: kind, label, icon, items }];
     const groups = new Map<string, ShortcutTarget[]>();
@@ -89,7 +100,7 @@ export function ShortcutTargetPicker({
         role="group"
         aria-label="Filter control type"
       >
-        {[{ kind: "all", label: "All" }, ...categories].map(
+        {[{ kind: "all", label: "All" }, ...shownCategories].map(
           ({ kind, label }) => (
             <Button
               key={kind}
@@ -143,7 +154,7 @@ export function ShortcutTargetPicker({
         key={`${category}:${query}`}
         className="max-h-64 overflow-y-auto overscroll-contain rounded-xl border border-border bg-background p-1"
         role="group"
-        aria-labelledby="shortcut-target-label"
+        aria-labelledby={labelledBy}
       >
         {sections.map(({ key: sectionKey, label, icon: Icon, items }) => {
           if (!items.length) return null;
@@ -245,7 +256,9 @@ export function ShortcutTargetPicker({
         Selected:{" "}
         {selected
           ? `${selected.name}${selected.context ? ` · ${selected.context}` : ""}`
-          : `${fallbackName} (unavailable)`}
+          : value
+            ? `${fallbackName} (unavailable)`
+            : "None"}
       </p>
     </div>
   );

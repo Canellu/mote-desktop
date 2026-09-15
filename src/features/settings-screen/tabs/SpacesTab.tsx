@@ -436,7 +436,7 @@ const MembershipEditor = ({
         <DialogFooter className="shrink-0 flex-row flex-wrap items-center justify-end border-t border-border/60 pt-4 sm:justify-between">
           <div className="mr-auto min-w-0 text-sm">
             {error ? (
-              <p className="break-words text-destructive">{error}</p>
+              <p className="break-words text-(--destructive-text)">{error}</p>
             ) : isDirty ? (
               <p className="text-muted-foreground">
                 {changeSummary(

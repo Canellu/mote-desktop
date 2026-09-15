@@ -743,7 +743,9 @@ const EditableLightRow = ({
                 disabled={isSaving}
               />
 
-              {error && <p className="text-sm text-destructive">{error}</p>}
+              {error && (
+                <p className="text-sm text-(--destructive-text)">{error}</p>
+              )}
               <div className="flex justify-end">
                 <Button
                   type="button"
@@ -1064,7 +1066,9 @@ const SwitchConfigEditor = ({
         aria-label="Switch input configuration JSON"
         spellCheck={false}
       />
-      {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
+      {error && (
+        <p className="mt-2 text-sm text-(--destructive-text)">{error}</p>
+      )}
     </div>
   );
 };

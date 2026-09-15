@@ -253,7 +253,10 @@ export function WallEditor({
       )}
 
       {error && (
-        <p role="alert" className="text-sm wrap-anywhere text-destructive">
+        <p
+          role="alert"
+          className="text-sm wrap-anywhere text-(--destructive-text)"
+        >
           {error}
         </p>
       )}

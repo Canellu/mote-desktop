@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useStoreUpdate } from "./useStoreUpdate";
-import { UpdateDialog } from "./UpdateButton";
 
 /** Long enough to read, so a fast check does not flash its busy label. */
 const MIN_CHECKING_MS = 600;
@@ -53,14 +52,13 @@ const StableLabel = ({
 );
 
 /**
- * Settings entry point, so an update dismissed from the title bar is still one
- * click away. Hidden outside a Microsoft Store install, where there is nothing
- * to check.
+ * Settings entry point, so an update is still one click away when the title
+ * bar is out of mind. Hidden outside a Microsoft Store install, where there is
+ * nothing to check.
  */
 export const StoreUpdateRow = () => {
-  const { status, checkedAt, installing, progress, install, recheck } =
+  const { status, checkedAt, phase, percent, download, restart, recheck } =
     useStoreUpdate();
-  const [open, setOpen] = useState(false);
   const [checking, setChecking] = useState(false);
 
   // Settings can open before the provider's first scheduled check.
@@ -79,26 +77,40 @@ export const StoreUpdateRow = () => {
     setChecking(false);
   };
 
+  const busy = phase === "downloading" || phase === "restarting";
+
   // "Up to date" is only as fresh as the last answer, so say when that was. It
   // is also what gives the check button a reason to be there.
-  const description = progress
-    ? progress.phase === "downloading"
-      ? "Downloading the update. Mote will close and reopen to finish."
-      : "Installing the update. Mote will close and reopen when it is done."
-    : status.available
-      ? "A newer version is ready in the Microsoft Store."
-      : checkedAt
-        ? `You have the latest version. Last checked ${formatCheckedAt(checkedAt)}.`
-        : "The Microsoft Store also installs updates on its own.";
+  const description =
+    phase === "downloading"
+      ? "Downloading the update. You can keep using Mote while it does."
+      : phase === "ready"
+        ? "The update is downloaded. Restart Mote to finish installing it."
+        : phase === "restarting"
+          ? "Mote is closing to install the update and opens again when it is done."
+          : status.available
+            ? "A newer version is ready in the Microsoft Store."
+            : checkedAt
+              ? `You have the latest version. Last checked ${formatCheckedAt(checkedAt)}.`
+              : "The Microsoft Store also installs updates on its own.";
 
   return (
     <SettingsRow title="Updates" description={description}>
-      {status.available ? (
-        <Button disabled={installing} onClick={() => setOpen(true)}>
+      {status.available || phase !== "idle" ? (
+        <Button
+          disabled={busy}
+          onClick={() => void (phase === "ready" ? restart() : download())}
+        >
           <StableLabel
-            busy={installing}
-            idle="Install update"
-            busyLabel={progress ? `Updating ${progress.percent}%` : "Updating…"}
+            busy={busy}
+            idle={phase === "ready" ? "Restart to update" : "Download update"}
+            busyLabel={
+              phase === "restarting"
+                ? "Restarting…"
+                : percent === null
+                  ? "Downloading…"
+                  : `Downloading ${percent}%`
+            }
           />
         </Button>
       ) : (
@@ -115,15 +127,6 @@ export const StoreUpdateRow = () => {
           />
         </Button>
       )}
-      <UpdateDialog
-        open={open}
-        onOpenChange={setOpen}
-        mandatory={status.mandatory}
-        onInstall={() => {
-          setOpen(false);
-          void install();
-        }}
-      />
     </SettingsRow>
   );
 };

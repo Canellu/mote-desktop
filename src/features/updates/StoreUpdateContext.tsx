@@ -10,50 +10,59 @@ import {
 import { toast } from "sonner";
 import {
   checkStoreUpdate,
+  downloadStoreUpdate,
   installStoreUpdate,
   STORE_UPDATE_PROGRESS_EVENT,
   type StoreUpdateProgress,
   type StoreUpdateStatus,
 } from "./api";
-import { NO_STORE_UPDATE, StoreUpdateContext } from "./useStoreUpdate";
+import {
+  NO_STORE_UPDATE,
+  StoreUpdateContext,
+  type StoreUpdatePhase,
+} from "./useStoreUpdate";
 
 /** Startup is busy enough; the first Store query can wait a moment. */
 const FIRST_CHECK_DELAY_MS = 15_000;
 const RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 /** Refocusing the window re-checks, but not more often than this. */
 const FOCUS_RECHECK_MIN_GAP_MS = 60 * 60 * 1000;
-const PROGRESS_TOAST_ID = "store-update-progress";
 
-const progressToast = {
-  downloading: {
-    title: "Downloading the update",
-    description: "Mote will close and reopen to finish.",
-  },
-  installing: {
-    title: "Installing the update",
-    description: "Mote will close in a moment and reopen when it is done.",
-  },
-} satisfies Record<
-  StoreUpdateProgress["phase"],
-  { title: string; description: string }
->;
+const errorMessage = (error: unknown, fallback: string) =>
+  typeof error === "string" && error.trim() ? error : fallback;
 
 /**
  * One owner for the Store update state, so the title bar and Settings show the
  * same answer and never query the Store twice for it. Everything that talks to
  * the Store lives in Rust; this only schedules the questions.
+ *
+ * An update takes two steps. The download runs while Mote stays open, and only
+ * the restart that installs it closes the app, when the customer chooses to.
  */
 export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
   const [status, setStatus] = useState<StoreUpdateStatus>(NO_STORE_UPDATE);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
-  const [installing, setInstalling] = useState(false);
-  const [progress, setProgress] = useState<StoreUpdateProgress | null>(null);
+  const [phase, setPhaseState] = useState<StoreUpdatePhase>("idle");
+  const [percent, setPercent] = useState<number | null>(null);
   const lastCheck = useRef(0);
+  // The callbacks read this rather than state, so a phase set a moment ago is
+  // seen before the next render.
+  const phaseRef = useRef<StoreUpdatePhase>("idle");
+
+  const setPhase = useCallback((next: StoreUpdatePhase) => {
+    phaseRef.current = next;
+    setPhaseState(next);
+  }, []);
 
   const recheck = useCallback(async () => {
+    // A check answered mid-update could report nothing waiting and take the
+    // button away from the update it is working on.
+    if (phaseRef.current !== "idle") return;
     lastCheck.current = Date.now();
     try {
-      setStatus(await checkStoreUpdate());
+      const next = await checkStoreUpdate();
+      if (phaseRef.current !== "idle") return;
+      setStatus(next);
       setCheckedAt(Date.now());
     } catch {
       // A failed check keeps the last known answer rather than hiding a real
@@ -81,56 +90,73 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [recheck]);
 
-  const install = useCallback(async () => {
-    setInstalling(true);
+  const restart = useCallback(async () => {
+    if (phaseRef.current !== "ready") return;
+    setPhase("restarting");
+    try {
+      const outcome = await installStoreUpdate();
+      // "installed" rarely arrives, because Windows closes Mote to install it.
+      if (outcome === "up_to_date") {
+        setPhase("idle");
+        toast.success("Mote Desktop is already up to date");
+        await recheck();
+      } else if (outcome === "canceled") {
+        setPhase("ready");
+      } else if (outcome === "failed") {
+        setPhase("ready");
+        toast.error(
+          "The update could not be installed. You can also update from the Microsoft Store.",
+        );
+      }
+    } catch (error) {
+      setPhase("ready");
+      toast.error(errorMessage(error, "The update could not be installed."));
+    }
+  }, [recheck, setPhase]);
+
+  const download = useCallback(async () => {
+    if (phaseRef.current !== "idle") return;
+    setPhase("downloading");
+    setPercent(null);
     let unlisten: UnlistenFn | undefined;
     try {
-      // Progress only starts once the customer accepts Microsoft's dialog, so
-      // the first event is also the moment to warn that Mote is about to close.
-      let shownPhase: StoreUpdateProgress["phase"] | null = null;
       unlisten = await listen<StoreUpdateProgress>(
         STORE_UPDATE_PROGRESS_EVENT,
-        ({ payload }) => {
-          setProgress(payload);
-          if (payload.phase === shownPhase) return;
-          shownPhase = payload.phase;
-          const { title, description } = progressToast[payload.phase];
-          toast.loading(title, {
-            id: PROGRESS_TOAST_ID,
-            description,
-            duration: Infinity,
-          });
-        },
+        ({ payload }) => setPercent(payload.percent),
       );
 
-      const outcome = await installStoreUpdate();
+      const outcome = await downloadStoreUpdate();
+      if (outcome === "downloaded") {
+        setPhase("ready");
+        toast.success("The update is ready", {
+          description: "Restart Mote to finish installing it.",
+          action: { label: "Restart", onClick: () => void restart() },
+        });
+        return;
+      }
+
+      setPhase("idle");
       if (outcome === "up_to_date") {
         toast.success("Mote Desktop is already up to date");
         await recheck();
       } else if (outcome === "failed") {
         toast.error(
-          "The update could not be installed. You can also update from the Microsoft Store.",
+          "The update could not be downloaded. You can also update from the Microsoft Store.",
         );
       }
-      // "installed" rarely arrives, because Windows closes Mote to install it,
-      // and "canceled" means the customer chose to dismiss Microsoft's dialog.
+      // "canceled" means the customer dismissed Microsoft's dialog.
     } catch (error) {
-      toast.error(
-        typeof error === "string" && error.trim()
-          ? error
-          : "The update could not be installed.",
-      );
+      setPhase("idle");
+      toast.error(errorMessage(error, "The update could not be downloaded."));
     } finally {
       unlisten?.();
-      toast.dismiss(PROGRESS_TOAST_ID);
-      setProgress(null);
-      setInstalling(false);
+      setPercent(null);
     }
-  }, [recheck]);
+  }, [recheck, restart, setPhase]);
 
   const value = useMemo(
-    () => ({ status, checkedAt, installing, progress, install, recheck }),
-    [status, checkedAt, installing, progress, install, recheck],
+    () => ({ status, checkedAt, phase, percent, download, restart, recheck }),
+    [status, checkedAt, phase, percent, download, restart, recheck],
   );
 
   return (

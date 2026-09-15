@@ -152,7 +152,7 @@ export function MapRoomControls({
 
       {error && (
         <div role="alert" className="space-y-2 text-sm">
-          <p className="wrap-anywhere text-destructive">{error}</p>
+          <p className="wrap-anywhere text-(--destructive-text)">{error}</p>
           {lighting.onRefresh && (
             <Button
               size="sm"

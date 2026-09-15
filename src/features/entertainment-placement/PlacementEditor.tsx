@@ -522,7 +522,7 @@ export const PlacementEditor = ({ areaId }: { areaId: string }) => {
 
   if (loadError || !area) {
     return (
-      <div className="mx-auto flex max-w-2xl items-center gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive">
+      <div className="mx-auto flex max-w-2xl items-center gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
         <TriangleAlert className="size-4 shrink-0" />
         <span>{loadError ?? "Unable to load the entertainment area."}</span>
       </div>
@@ -678,8 +678,7 @@ export const PlacementEditor = ({ areaId }: { areaId: string }) => {
 
         <div className="flex shrink-0 items-center justify-between gap-2 px-5 pb-1">
           <p className="font-heading text-xs font-medium text-muted-foreground">
-            Lights{" "}
-            <span className="text-muted-foreground/60">{pins.length}</span>
+            Lights <span className="text-muted-foreground">{pins.length}</span>
           </p>
           <Button
             type="button"

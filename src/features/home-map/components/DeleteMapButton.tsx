@@ -65,7 +65,7 @@ export function DeleteMapButton({
             variant="ghost"
             disabled={busy || deleting}
             aria-label="Delete map"
-            className="shrink-0 text-destructive hover:text-destructive"
+            className="shrink-0 text-(--destructive-text) hover:text-(--destructive-text)"
           />
         }
       >
@@ -83,7 +83,10 @@ export function DeleteMapButton({
           </AlertDialogDescription>
         </AlertDialogHeader>
         {error && (
-          <p role="alert" className="text-sm wrap-anywhere text-destructive">
+          <p
+            role="alert"
+            className="text-sm wrap-anywhere text-(--destructive-text)"
+          >
             {error}
           </p>
         )}

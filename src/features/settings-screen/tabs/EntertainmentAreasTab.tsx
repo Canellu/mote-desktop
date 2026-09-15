@@ -104,7 +104,7 @@ export const EntertainmentAreasTab = ({ lights }: { lights: HueLight[] }) => {
         </div>
       ) : error ? (
         <div className="space-y-3 py-4 text-center">
-          <p className="text-sm text-destructive">{error}</p>
+          <p className="text-sm text-(--destructive-text)">{error}</p>
           <Button
             type="button"
             variant="outline"

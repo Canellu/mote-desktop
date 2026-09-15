@@ -90,7 +90,7 @@ export const AccessorySection: React.FC<{
           </span>
           <span className="flex shrink-0 items-center gap-2">
             {!accessory.reachable && (
-              <span className="text-xs font-medium text-destructive">
+              <span className="text-xs font-medium text-(--destructive-text)">
                 Offline
               </span>
             )}
@@ -133,9 +133,7 @@ export const AccessorySection: React.FC<{
           <SectionGrip />
           <p className="text-sm font-medium text-muted-foreground">
             {title}{" "}
-            <span className="text-muted-foreground/60">
-              {accessories.length}
-            </span>
+            <span className="text-muted-foreground">{accessories.length}</span>
           </p>
         </div>
         {headerAction}

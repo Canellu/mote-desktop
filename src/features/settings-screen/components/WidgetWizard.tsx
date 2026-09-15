@@ -619,7 +619,7 @@ export const WidgetWizard = ({
                   Arrange your controls and style the desktop frame before the
                   widget opens.
                 </p>
-                <p className="text-xs text-muted-foreground/80">
+                <p className="text-xs text-muted-foreground">
                   All settings can be changed after the widget is created.
                 </p>
               </div>
@@ -751,7 +751,7 @@ const TargetSection = ({
           )}
         />
         <span>{title}</span>
-        <span className="text-xs tabular-nums text-muted-foreground/70">
+        <span className="text-xs tabular-nums text-muted-foreground">
           {count}
         </span>
       </button>
@@ -1034,7 +1034,7 @@ const TogglesConfigRow = ({
           type="button"
           size="sm"
           variant="ghost"
-          className="mr-3 shrink-0 text-destructive hover:text-destructive"
+          className="mr-3 shrink-0 text-(--destructive-text) hover:text-(--destructive-text)"
           onClick={onRemove}
         >
           <Trash2 size={15} />

@@ -458,7 +458,7 @@ export const EntertainmentAreaWizard = ({
                 Checking light capabilities…
               </p>
             ) : capabilityError ? (
-              <p className="py-12 text-center text-sm text-destructive">
+              <p className="py-12 text-center text-sm text-(--destructive-text)">
                 {capabilityError}
               </p>
             ) : capabilities.length === 0 ? (

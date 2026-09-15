@@ -175,7 +175,7 @@ export const DeviceScanDialog: React.FC<DeviceScanDialogProps> = ({
             )}
           </div>
         ) : error ? (
-          <p className="rounded-xl bg-destructive/10 px-3 py-3 text-sm text-destructive">
+          <p className="rounded-xl bg-destructive/10 px-3 py-3 text-sm text-(--destructive-text)">
             {error}
           </p>
         ) : found.length === 0 ? (
@@ -275,7 +275,7 @@ const FoundDeviceRow = ({
         </div>
 
         {placement?.status === "done" ? (
-          <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-green-600 dark:text-green-500">
+          <span className="flex shrink-0 items-center gap-1.5 text-sm font-medium text-(--success-text)">
             <Check size={16} />
             {placement.label}
           </span>
@@ -352,7 +352,9 @@ const FoundDeviceRow = ({
       )}
 
       {placement?.status === "error" && (
-        <p className="mt-2 text-sm text-destructive">{placement.error}</p>
+        <p className="mt-2 text-sm text-(--destructive-text)">
+          {placement.error}
+        </p>
       )}
     </div>
   );

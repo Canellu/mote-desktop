@@ -106,7 +106,7 @@ fn set_target(link: &windows::Win32::UI::Shell::IShellLinkW) -> windows::core::R
 }
 
 #[cfg(target_os = "windows")]
-fn package_family_name() -> Option<String> {
+pub(crate) fn package_family_name() -> Option<String> {
     let id = windows::ApplicationModel::Package::Current()
         .ok()?
         .Id()

@@ -87,7 +87,7 @@ export function LightTrayPanel({
                   {/* Fixtures in one Hue space are placed together, so that
                     space names the run instead of repeating on every row. */}
                   {groups.length > 1 && (
-                    <p className="mb-0.5 pl-2 text-[11px] text-muted-foreground/80">
+                    <p className="mb-0.5 pl-2 text-[11px] text-muted-foreground">
                       {group.label}
                     </p>
                   )}

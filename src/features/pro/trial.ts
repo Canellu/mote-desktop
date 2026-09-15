@@ -10,6 +10,19 @@ export function formatDaysLeft(days: number): string {
   return days === 1 ? "1 day left" : `${days} days left`;
 }
 
+/**
+ * How much of the trial is still to run, from 0 to 1. Measured in whole days,
+ * so it moves with the day count beside it rather than creeping by the hour.
+ */
+export function trialShareLeft(
+  daysLeft: number,
+  startedAt: number,
+  endsAt: number,
+): number {
+  const length = Math.max(1, Math.round((endsAt - startedAt) / DAY_MS));
+  return Math.min(1, Math.max(0, daysLeft / length));
+}
+
 /** Days left at which a reminder fires, once each. */
 export const TRIAL_REMINDER_DAYS: readonly number[] = [3, 1];
 

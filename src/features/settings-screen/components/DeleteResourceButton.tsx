@@ -67,7 +67,7 @@ export const DeleteResourceButton = ({
           <AlertDialogTitle>Delete {label}?</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="text-sm text-(--destructive-text)">{error}</p>}
         <AlertDialogFooter>
           <AlertDialogCancel size="xl" disabled={isDeleting}>
             Cancel

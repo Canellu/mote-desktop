@@ -150,7 +150,7 @@ export const SyncBoxOnboardingWizard = ({
                           {syncBox.apiLevel}
                         </p>
                         {!syncBox.supported && (
-                          <p className="mt-2 text-xs font-medium text-destructive">
+                          <p className="mt-2 text-xs font-medium text-(--destructive-text)">
                             Firmware update required
                           </p>
                         )}

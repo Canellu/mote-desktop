@@ -364,7 +364,9 @@ export const DeviceDiscoveryScreen: React.FC<DeviceDiscoveryScreenProps> = ({
               {found.length} found · {unassignedCount} need room assignment
             </span>
             {(error || saveError) && (
-              <span className="text-destructive">{error ?? saveError}</span>
+              <span className="text-(--destructive-text)">
+                {error ?? saveError}
+              </span>
             )}
           </div>
         </section>

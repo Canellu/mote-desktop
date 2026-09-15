@@ -81,7 +81,7 @@ export const SceneCard: React.FC<{
             aria-label={`Open ${scene.name} details`}
             title="Open scene details"
             className={cn(
-              "text-muted-foreground/75 hover:bg-foreground/10 hover:text-foreground",
+              "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
               activeBackground &&
                 "text-foreground/75 hover:bg-white/20 hover:text-foreground",
             )}

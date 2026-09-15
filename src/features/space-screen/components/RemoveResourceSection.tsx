@@ -107,7 +107,7 @@ export const RemoveResourceSection: React.FC<RemoveResourceSectionProps> = ({
           </Button>
         )}
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="text-sm text-(--destructive-text)">{error}</p>}
 
         <AlertDialogFooter>
           <AlertDialogCancel size="xl" disabled={isBusy} variant="ghost">

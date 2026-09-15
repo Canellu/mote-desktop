@@ -37,7 +37,7 @@ export const EnablePcSyncCard = ({
       {error && (
         <div
           role="alert"
-          className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive"
+          className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)"
         >
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           <p>{error}</p>

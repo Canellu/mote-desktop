@@ -2,6 +2,10 @@ mod commands;
 // Public so the hardware spike example (examples/pc_sync_spike.rs) can drive
 // the entertainment stack directly without the Tauri shell.
 pub mod services;
+#[cfg(target_os = "windows")]
+mod session_end;
+#[cfg(target_os = "windows")]
+mod session_events;
 
 use tauri::{
     menu::{Menu, MenuItem},
@@ -33,6 +37,7 @@ pub fn run() {
                 .build(),
         )
         .manage(services::entitlements::EntitlementRuntime::default())
+        .manage(services::automations::runtime::AutomationRuntime::default())
         .manage(commands::events::EventStreamState::default())
         .manage(commands::home_map::HomeMapStorageState::default())
         .manage(services::entertainment::engine::HostSyncEngine::default())
@@ -42,6 +47,9 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             commands::shortcuts::execute_shortcut,
+            commands::automations::get_automation_settings,
+            commands::automations::set_automation_settings,
+            commands::automations::get_automation_status,
             commands::app_settings::get_app_settings,
             commands::app_settings::set_close_button_behavior,
             commands::app_settings::set_auto_start,
@@ -97,6 +105,7 @@ pub fn run() {
             commands::settings::create_hue_room,
             commands::store_commerce::get_store_commerce_diagnostic,
             commands::store_commerce::check_store_update,
+            commands::store_commerce::download_store_update,
             commands::store_commerce::install_store_update,
             commands::entitlements::get_entitlements,
             commands::entitlements::set_debug_entitlements,
@@ -161,6 +170,8 @@ pub fn run() {
                     commands::entitlements::refresh_entitlements(handle).await;
                 });
             }
+
+            services::automations::runtime::start(app.handle());
 
             #[cfg(desktop)]
             {
@@ -245,6 +256,11 @@ pub fn run() {
                         }
                     }
                 }
+
+                // Without this, Windows waits about 30 seconds for Mote to close
+                // before a Store update can install.
+                session_end::exit_when_session_ends(app.handle());
+                session_events::watch(app.handle());
             }
             // The main window is configured `visible: false`; show it now unless
             // this was a login launch, which should start quietly in the tray.
@@ -270,6 +286,12 @@ pub fn run() {
                     app_handle.try_state::<services::entertainment::engine::HostSyncEngine>()
                 {
                     engine.shutdown_blocking(services::entertainment::engine::EXIT_CLEANUP_TIMEOUT);
+                }
+                if let Some(automations) =
+                    app_handle.try_state::<services::automations::runtime::AutomationRuntime>()
+                {
+                    automations
+                        .shutdown_blocking(services::automations::runtime::EXIT_CLEANUP_TIMEOUT);
                 }
             }
         });

@@ -234,7 +234,7 @@ const ControlRow = ({
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="shrink-0 text-destructive hover:text-destructive"
+                  className="shrink-0 text-(--destructive-text) hover:text-(--destructive-text)"
                 />
               }
             >

@@ -71,7 +71,7 @@ export function DraftReviewBar({
         <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border pt-3">
           <p
             role="alert"
-            className="min-w-0 wrap-anywhere text-sm text-destructive"
+            className="min-w-0 wrap-anywhere text-sm text-(--destructive-text)"
           >
             {entry.error}
           </p>

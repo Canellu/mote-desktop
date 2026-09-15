@@ -20,15 +20,20 @@ pub enum Capability {
     AdvancedWidgets,
     /// System-wide hotkeys that drive lights from anywhere in Windows.
     GlobalShortcuts,
+    /// Lights that react to this PC: the on-air light during calls, and the
+    /// away automation when the PC locks or sleeps. Setting one up is free;
+    /// starting it is gated.
+    LocalAutomation,
 }
 
 impl Capability {
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::MultipleBridges,
         Self::DashboardCustomLayout,
         Self::PcSync,
         Self::AdvancedWidgets,
         Self::GlobalShortcuts,
+        Self::LocalAutomation,
     ];
 
     pub const fn required_product(self) -> EntitlementProduct {
@@ -37,7 +42,8 @@ impl Capability {
             | Self::DashboardCustomLayout
             | Self::PcSync
             | Self::AdvancedWidgets
-            | Self::GlobalShortcuts => EntitlementProduct::Pro,
+            | Self::GlobalShortcuts
+            | Self::LocalAutomation => EntitlementProduct::Pro,
         }
     }
 }
@@ -612,6 +618,19 @@ mod tests {
             serde_json::json!("global_shortcuts")
         );
         assert!(Capability::ALL.contains(&Capability::GlobalShortcuts));
+    }
+
+    #[test]
+    fn automations_are_a_paid_capability() {
+        assert_eq!(
+            Capability::LocalAutomation.required_product(),
+            EntitlementProduct::Pro
+        );
+        assert_eq!(
+            serde_json::to_value(Capability::LocalAutomation).unwrap(),
+            serde_json::json!("local_automation")
+        );
+        assert!(Capability::ALL.contains(&Capability::LocalAutomation));
     }
 
     #[test]

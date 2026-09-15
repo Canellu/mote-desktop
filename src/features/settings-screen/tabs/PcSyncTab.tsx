@@ -64,7 +64,7 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
     return (
       <div
         role="alert"
-        className="flex items-center justify-between gap-4 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive"
+        className="flex items-center justify-between gap-4 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)"
       >
         <span>{loadError ?? "Unable to read PC sync settings."}</span>
         <Button variant="outline" onClick={() => void refresh()}>
@@ -123,7 +123,7 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
       {(actionError || overview.areasError) && (
         <div
           role="alert"
-          className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive"
+          className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)"
         >
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           <p>{actionError ?? overview.areasError}</p>

@@ -542,7 +542,7 @@ export const RoomCanvas3D = ({
 
       <p
         className={cn(
-          "pointer-events-none absolute right-3 bottom-2 text-[10px] font-medium tracking-wide text-muted-foreground/60 uppercase",
+          "pointer-events-none absolute right-3 bottom-2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase",
           overlayInsetClassName,
         )}
       >
@@ -635,7 +635,7 @@ export const RoomCanvas3D = ({
         <span
           key={label}
           style={projectToCanvas(position, camera)}
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 text-[10px] font-medium tracking-wide text-muted-foreground/65 uppercase"
+          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase"
         >
           {label}
         </span>

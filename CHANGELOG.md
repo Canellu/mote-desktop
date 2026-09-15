@@ -5,6 +5,19 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Highlights
+
+- **On-air light (Mote Pro).** Choose a light, and it turns red, or another
+  color you pick, while an app uses your microphone or camera, then goes back to
+  how it was when the call ends. It works with any calling app, a browser tab
+  included. An app that keeps the microphone open outside calls can be ignored.
+- **Lights that follow you stepping away (Mote Pro).** When you lock this PC or
+  it goes to sleep, Mote turns off or dims the lights you choose and puts them
+  back when you unlock it. A light someone changed in the meantime is left as
+  it is.
+- Both live under Settings, App, Automations, and can be set up before Pro is
+  unlocked.
+
 ## [0.3.0] - 2026-09-15
 
 ### Highlights

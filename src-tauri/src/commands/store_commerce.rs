@@ -317,14 +317,16 @@ impl StoreUpdateStatus {
     }
 }
 
-/// How an install request ended, flattened for the interface.
+/// How a download or install request ended, flattened for the interface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum StoreUpdateOutcome {
+    /// The package is downloaded and waits for the install. Mote is still open.
+    Downloaded,
     /// Windows installed the update. Mote is normally closed by then, so the
     /// interface rarely gets to see this.
     Installed,
-    /// Nothing newer was waiting by the time the install was requested.
+    /// Nothing newer was waiting by the time the request was made.
     UpToDate,
     /// The customer dismissed Microsoft's dialog.
     Canceled,
@@ -338,7 +340,14 @@ pub async fn check_store_update() -> StoreUpdateStatus {
     check_store_update_for_platform().await
 }
 
-/// Downloads and installs the newer package through Microsoft's own UI.
+/// Downloads the newer package without installing it, so Mote stays open and
+/// usable while it arrives.
+#[tauri::command(rename = "download-store-update")]
+pub async fn download_store_update(app: tauri::AppHandle) -> Result<StoreUpdateOutcome, String> {
+    download_store_update_for_platform(app).await
+}
+
+/// Installs the downloaded package. Windows closes Mote to do it and reopens it.
 #[tauri::command(rename = "install-store-update")]
 pub async fn install_store_update(app: tauri::AppHandle) -> Result<StoreUpdateOutcome, String> {
     install_store_update_for_platform(app).await
@@ -376,14 +385,109 @@ async fn check_store_update_for_platform() -> StoreUpdateStatus {
     }
 }
 
+/// Which half of an update a Store call performs.
+#[cfg(target_os = "windows")]
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum UpdateStep {
+    Download,
+    /// Downloads whatever is still missing first, which after `Download` is nothing.
+    Install,
+}
+
+#[cfg(target_os = "windows")]
+fn require_store_install() -> Result<(), String> {
+    if inspect_package().available {
+        Ok(())
+    } else {
+        Err(
+            "Updates come from the Microsoft Store, and this copy was not installed from it."
+                .to_string(),
+        )
+    }
+}
+
+#[cfg(target_os = "windows")]
+async fn download_store_update_for_platform(
+    app: tauri::AppHandle,
+) -> Result<StoreUpdateOutcome, String> {
+    use windows::Services::Store::{StoreContext, StorePackageUpdateState};
+
+    require_store_install()?;
+    let context = StoreContext::GetDefault().map_err(|error| error.message())?;
+    initialize_with_main_window(&context, &app)?;
+
+    Ok(
+        match run_store_update(&context, &app, UpdateStep::Download).await? {
+            None => StoreUpdateOutcome::UpToDate,
+            Some(StorePackageUpdateState::Completed) => StoreUpdateOutcome::Downloaded,
+            Some(StorePackageUpdateState::Canceled) => StoreUpdateOutcome::Canceled,
+            Some(_) => StoreUpdateOutcome::Failed,
+        },
+    )
+}
+
 #[cfg(target_os = "windows")]
 async fn install_store_update_for_platform(
     app: tauri::AppHandle,
 ) -> Result<StoreUpdateOutcome, String> {
-    use tauri::{Emitter, Manager};
+    use windows::Services::Store::{StoreContext, StorePackageUpdateState};
+
+    require_store_install()?;
+    let context = StoreContext::GetDefault().map_err(|error| error.message())?;
+    initialize_with_main_window(&context, &app)?;
+
+    Ok(
+        match run_store_update(&context, &app, UpdateStep::Install).await? {
+            None => StoreUpdateOutcome::UpToDate,
+            Some(StorePackageUpdateState::Completed) => StoreUpdateOutcome::Installed,
+            Some(StorePackageUpdateState::Canceled) => StoreUpdateOutcome::Canceled,
+            Some(_) => StoreUpdateOutcome::Failed,
+        },
+    )
+}
+
+/// Runs one step, silently when the Store allows it. None means nothing newer
+/// is waiting.
+///
+/// A silent call skips Microsoft's dialog, but only works while "Update apps
+/// automatically" is on and the network is not metered. When it ends any way
+/// other than finished or cancelled, the step runs again with the dialog, which
+/// can tell the customer what stood in the way.
+#[cfg(target_os = "windows")]
+async fn run_store_update(
+    context: &windows::Services::Store::StoreContext,
+    app: &tauri::AppHandle,
+    step: UpdateStep,
+) -> Result<Option<windows::Services::Store::StorePackageUpdateState>, String> {
+    use windows::Services::Store::StorePackageUpdateState;
+
+    let silent = context
+        .CanSilentlyDownloadStorePackageUpdates()
+        .unwrap_or(false);
+    let state = run_store_update_once(context, app, step, silent).await?;
+
+    if silent
+        && !matches!(
+            state,
+            None | Some(StorePackageUpdateState::Completed | StorePackageUpdateState::Canceled)
+        )
+    {
+        return run_store_update_once(context, app, step, false).await;
+    }
+    Ok(state)
+}
+
+#[cfg(target_os = "windows")]
+async fn run_store_update_once(
+    context: &windows::Services::Store::StoreContext,
+    app: &tauri::AppHandle,
+    step: UpdateStep,
+    silent: bool,
+) -> Result<Option<windows::Services::Store::StorePackageUpdateState>, String> {
+    use tauri::Emitter;
     use windows::core::Interface;
     use windows::Services::Store::{
-        StoreContext, StorePackageUpdate, StorePackageUpdateState, StorePackageUpdateStatus,
+        StorePackageUpdate, StorePackageUpdateState, StorePackageUpdateStatus,
     };
     use windows_collections::IIterable;
     use windows_future::AsyncOperationProgressHandler;
@@ -391,19 +495,8 @@ async fn install_store_update_for_platform(
     /// Read by `STORE_UPDATE_PROGRESS_EVENT` in `src/features/updates/api.ts`.
     #[derive(Clone, Serialize)]
     struct StoreUpdateProgress {
-        phase: &'static str,
         percent: u8,
     }
-
-    if !inspect_package().available {
-        return Err(
-            "Updates come from the Microsoft Store, and this copy was not installed from it."
-                .to_string(),
-        );
-    }
-
-    let context = StoreContext::GetDefault().map_err(|error| error.message())?;
-    initialize_with_main_window(&context, &app)?;
 
     let updates = context
         .GetAppAndOptionalStorePackageUpdatesAsync()
@@ -412,88 +505,112 @@ async fn install_store_update_for_platform(
         .map_err(|error| error.message())?;
 
     // Everything that touches the update list happens in this block, so the list
-    // is dropped before the install is awaited below.
+    // is dropped before the operation is awaited below.
     let operation = {
         let updates = updates;
         if updates.Size().map_err(|error| error.message())? == 0 {
-            return Ok(StoreUpdateOutcome::UpToDate);
+            return Ok(None);
         }
-
-        // Installing closes Mote. Stop a live PC Sync stream first so the lights
-        // are restored, rather than left frozen on the last frame it sent.
-        if let Some(engine) =
-            app.try_state::<crate::services::entertainment::engine::HostSyncEngine>()
-        {
-            engine.stop(&app);
-        }
-
-        // A packaged desktop app is not relaunched after a Store update unless it
-        // registered for restart before Windows shut it down. The flags limit the
-        // registration to update restarts, so a crash or hang still just closes.
-        // The relaunch carries no arguments, so it opens the window even when this
-        // instance started hidden through `--autostart`.
-        {
-            use windows::core::PCWSTR;
-            use windows::Win32::System::Recovery::{
-                RegisterApplicationRestart, REGISTER_APPLICATION_RESTART_FLAGS, RESTART_NO_CRASH,
-                RESTART_NO_HANG, RESTART_NO_REBOOT,
-            };
-
-            let flags = REGISTER_APPLICATION_RESTART_FLAGS(
-                RESTART_NO_CRASH.0 | RESTART_NO_HANG.0 | RESTART_NO_REBOOT.0,
-            );
-            // Safety: a null command line is documented as valid and has no lifetime.
-            if let Err(error) = unsafe { RegisterApplicationRestart(PCWSTR::null(), flags) } {
-                eprintln!("could not register Mote to restart after the update: {error}");
-            }
+        if step == UpdateStep::Install {
+            prepare_for_update_install(app);
         }
 
         let iterable = updates
             .cast::<IIterable<StorePackageUpdate>>()
             .map_err(|error| error.message())?;
-        let operation = context
-            .RequestDownloadAndInstallStorePackageUpdatesAsync(&iterable)
-            .map_err(|error| error.message())?;
+        let operation = match (step, silent) {
+            (UpdateStep::Download, true) => {
+                context.TrySilentDownloadStorePackageUpdatesAsync(&iterable)
+            }
+            (UpdateStep::Download, false) => {
+                context.RequestDownloadStorePackageUpdatesAsync(&iterable)
+            }
+            (UpdateStep::Install, true) => {
+                context.TrySilentDownloadAndInstallStorePackageUpdatesAsync(&iterable)
+            }
+            (UpdateStep::Install, false) => {
+                context.RequestDownloadAndInstallStorePackageUpdatesAsync(&iterable)
+            }
+        }
+        .map_err(|error| error.message())?;
 
-        // Microsoft's dialog comes first. Pending is skipped, so the interface
-        // only warns that Mote will close once the customer has accepted it.
-        let progress_app = app.clone();
-        operation
-            .SetProgress(&AsyncOperationProgressHandler::new(move |_, progress| {
-                let status: &StorePackageUpdateStatus = &progress;
-                let phase = match status.PackageUpdateState {
-                    StorePackageUpdateState::Downloading => "downloading",
-                    StorePackageUpdateState::Deploying => "installing",
-                    _ => return Ok(()),
-                };
-                // The download fills 0 to 0.8 of this value and the install
-                // the rest, so one number covers both phases.
-                let percent = (status.PackageDownloadProgress * 100.0)
-                    .round()
-                    .clamp(0.0, 100.0) as u8;
-                let _ = progress_app.emit(
-                    "store-update-progress",
-                    StoreUpdateProgress { phase, percent },
-                );
-                Ok(())
-            }))
-            .map_err(|error| error.message())?;
+        // Only the download is shown. The install closes Mote within seconds, and
+        // Microsoft's dialog, when there is one, reports as Pending and is skipped.
+        if step == UpdateStep::Download {
+            let progress_app = app.clone();
+            operation
+                .SetProgress(&AsyncOperationProgressHandler::new(move |_, progress| {
+                    let status: &StorePackageUpdateStatus = &progress;
+                    if status.PackageUpdateState != StorePackageUpdateState::Downloading {
+                        return Ok(());
+                    }
+                    // Bytes when the Store knows the size. Otherwise its progress
+                    // value, which a download fills from 0 to 0.8, leaving the
+                    // rest for an install.
+                    let share = if status.PackageDownloadSizeInBytes > 0 {
+                        status.PackageBytesDownloaded as f64
+                            / status.PackageDownloadSizeInBytes as f64
+                    } else {
+                        status.PackageDownloadProgress / 0.8
+                    };
+                    let percent = (share * 100.0).round().clamp(0.0, 100.0) as u8;
+                    let _ = progress_app
+                        .emit("store-update-progress", StoreUpdateProgress { percent });
+                    Ok(())
+                }))
+                .map_err(|error| error.message())?;
+        }
         operation
     };
 
     let result = operation.await.map_err(|error| error.message())?;
-    let state = result.OverallState().map_err(|error| error.message())?;
+    result
+        .OverallState()
+        .map(Some)
+        .map_err(|error| error.message())
+}
 
-    Ok(match state {
-        StorePackageUpdateState::Completed => StoreUpdateOutcome::Installed,
-        StorePackageUpdateState::Canceled => StoreUpdateOutcome::Canceled,
-        _ => StoreUpdateOutcome::Failed,
-    })
+/// Installing closes Mote, so this runs just before the install is requested.
+#[cfg(target_os = "windows")]
+fn prepare_for_update_install(app: &tauri::AppHandle) {
+    use tauri::Manager;
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Recovery::{
+        RegisterApplicationRestart, REGISTER_APPLICATION_RESTART_FLAGS, RESTART_NO_CRASH,
+        RESTART_NO_HANG, RESTART_NO_REBOOT,
+    };
+
+    // Stop a live PC Sync stream first so the lights are restored, rather than
+    // left frozen on the last frame it sent.
+    if let Some(engine) = app.try_state::<crate::services::entertainment::engine::HostSyncEngine>()
+    {
+        engine.stop(app);
+    }
+
+    // A packaged desktop app is not relaunched after a Store update unless it
+    // registered for restart before Windows shut it down. The flags limit the
+    // registration to update restarts, so a crash or hang still just closes.
+    // The relaunch carries no arguments, so it opens the window even when this
+    // instance started hidden through `--autostart`.
+    let flags = REGISTER_APPLICATION_RESTART_FLAGS(
+        RESTART_NO_CRASH.0 | RESTART_NO_HANG.0 | RESTART_NO_REBOOT.0,
+    );
+    // Safety: a null command line is documented as valid and has no lifetime.
+    if let Err(error) = unsafe { RegisterApplicationRestart(PCWSTR::null(), flags) } {
+        eprintln!("could not register Mote to restart after the update: {error}");
+    }
 }
 
 #[cfg(not(target_os = "windows"))]
 async fn check_store_update_for_platform() -> StoreUpdateStatus {
     StoreUpdateStatus::unsupported()
+}
+
+#[cfg(not(target_os = "windows"))]
+async fn download_store_update_for_platform(
+    _app: tauri::AppHandle,
+) -> Result<StoreUpdateOutcome, String> {
+    Err("Store updates are Windows-only.".to_string())
 }
 
 #[cfg(not(target_os = "windows"))]
@@ -843,6 +960,10 @@ mod tests {
         assert_eq!(
             serde_json::to_value(StoreUpdateOutcome::UpToDate).unwrap(),
             serde_json::json!("up_to_date")
+        );
+        assert_eq!(
+            serde_json::to_value(StoreUpdateOutcome::Downloaded).unwrap(),
+            serde_json::json!("downloaded")
         );
     }
 

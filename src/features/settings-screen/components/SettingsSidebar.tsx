@@ -28,7 +28,7 @@ export const SettingsSidebar = ({
       <aside className="flex w-16 shrink-0 flex-col gap-6 overflow-y-auto border-r border-border p-3 @2xl:w-60 @2xl:gap-8 @2xl:p-4">
         {settingsGroups.map((group) => (
           <div key={group.value} className="flex flex-col">
-            <p className="sr-only @2xl:not-sr-only @2xl:px-2.5 @2xl:pb-1.5 @2xl:text-[0.6875rem] @2xl:font-semibold @2xl:tracking-wider @2xl:text-muted-foreground/60 @2xl:uppercase">
+            <p className="sr-only @2xl:not-sr-only @2xl:px-2.5 @2xl:pb-1.5 @2xl:text-[0.6875rem] @2xl:font-semibold @2xl:tracking-wider @2xl:text-muted-foreground @2xl:uppercase">
               {group.label}
             </p>
             <nav aria-label={group.label} className="flex flex-col gap-1 @2xl:gap-0.5">

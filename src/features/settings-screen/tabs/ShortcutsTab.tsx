@@ -144,7 +144,7 @@ export function ShortcutsTab() {
           </p>
         )}
         {((error && !draft) || loadError) && (
-          <p role="alert" className="text-sm text-destructive">
+          <p role="alert" className="text-sm text-(--destructive-text)">
             {error || loadError}
           </p>
         )}
@@ -209,7 +209,7 @@ export function ShortcutsTab() {
                   {errors[s.id] && (
                     <p
                       role="status"
-                      className="max-w-prose break-words text-sm text-destructive"
+                      className="max-w-prose break-words text-sm text-(--destructive-text)"
                     >
                       {errors[s.id]}
                     </p>
@@ -442,7 +442,7 @@ export function ShortcutsTab() {
               </div>
             </div>
             {error && (
-              <p role="alert" className="text-sm text-destructive">
+              <p role="alert" className="text-sm text-(--destructive-text)">
                 {error}
               </p>
             )}

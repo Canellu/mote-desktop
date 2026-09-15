@@ -60,7 +60,7 @@ const buttonEventLabel = (value: string | null): string => {
 const chipClass = (reachable: boolean, extra?: string) =>
   cn(
     "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs",
-    reachable ? "bg-muted/60" : "bg-destructive/10 text-destructive",
+    reachable ? "bg-muted/60" : "bg-destructive/10 text-(--destructive-text)",
     extra,
   );
 

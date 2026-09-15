@@ -171,7 +171,7 @@ export const PcSyncScreen = ({ areaId }: { areaId: string }) => {
     return (
       <div
         role="alert"
-        className="mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive"
+        className="mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)"
       >
         <span>{loadError ?? "Unable to read PC sync state."}</span>
         <Button variant="outline" onClick={() => void refresh()}>
@@ -313,7 +313,7 @@ export const PcSyncScreen = ({ areaId }: { areaId: string }) => {
       {(actionError ?? status.error) && (
         <div
           role="alert"
-          className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive"
+          className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)"
         >
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
           <p>{actionError ?? status.error}</p>

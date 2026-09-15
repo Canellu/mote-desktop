@@ -107,7 +107,7 @@ export const LightsSection: React.FC<LightsSectionProps> = ({
           <SectionGrip />
           <p className="text-sm font-medium text-muted-foreground">
             Lights{" "}
-            <span className="text-muted-foreground/60">{lights.length}</span>
+            <span className="text-muted-foreground">{lights.length}</span>
           </p>
         </div>
         {headerAction}

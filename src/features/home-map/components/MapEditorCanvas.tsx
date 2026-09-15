@@ -2183,7 +2183,7 @@ function EditorSurface({
       {showNavigationHint && (
         <p
           aria-hidden
-          className="pointer-events-none absolute bottom-6 text-[10px] tracking-wide text-muted-foreground/70 uppercase"
+          className="pointer-events-none absolute bottom-6 text-[10px] tracking-wide text-muted-foreground uppercase"
           style={{ right: insetRight + 16 }}
         >
           Drag to pan · Scroll to zoom · Hold Alt for measurements

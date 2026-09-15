@@ -49,7 +49,7 @@ export function HueChangeReview({
                   />
                 ) : state === "failed" ? (
                   <AlertTriangle
-                    className="mt-0.5 size-4 shrink-0 text-destructive"
+                    className="mt-0.5 size-4 shrink-0 text-(--destructive-text)"
                     aria-label="Failed"
                   />
                 ) : running ? (
@@ -94,7 +94,7 @@ export function HueChangeReview({
               {entry.status.state === "failed" && (
                 <p
                   role="alert"
-                  className="wrap-anywhere text-xs text-destructive"
+                  className="wrap-anywhere text-xs text-(--destructive-text)"
                 >
                   {entry.status.error}
                 </p>

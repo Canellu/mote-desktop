@@ -848,7 +848,7 @@ export function HomeMapScreen({
                 className={cn(
                   "pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed backdrop-blur-sm transition-colors",
                   fixtureDrag?.overRemoveZone
-                    ? "border-destructive bg-destructive/15 text-destructive"
+                    ? "border-destructive bg-destructive/15 text-(--destructive-text)"
                     : "border-border bg-background/70 text-muted-foreground",
                 )}
               >
@@ -963,7 +963,7 @@ export function HomeMapScreen({
         {(wallError || saveError || lighting.error) && (
           <p
             role="alert"
-            className="absolute top-12 left-1/2 z-30 max-w-lg -translate-x-1/2 rounded-xl border border-border bg-background px-4 py-3 text-sm text-destructive"
+            className="absolute top-12 left-1/2 z-30 max-w-lg -translate-x-1/2 rounded-xl border border-border bg-background px-4 py-3 text-sm text-(--destructive-text)"
           >
             {wallError || saveError || lighting.error}
           </p>

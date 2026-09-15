@@ -10,6 +10,7 @@ import {
   Check,
   Keyboard,
   LayoutGrid,
+  Radio,
   Router,
   Sparkles,
   Tv,
@@ -23,6 +24,7 @@ const LEAD: Record<ProFeature, string> = {
   advanced_widgets: "This widget needs Mote Pro",
   dashboard_custom_layout: "Your own layout is part of Mote Pro",
   global_shortcuts: "Shortcuts are part of Mote Pro",
+  local_automation: "Automations are part of Mote Pro",
   trial_ended: "Your Pro trial has ended",
   general: "Everything Mote can do",
 };
@@ -35,6 +37,11 @@ const SUBTITLE: Partial<Record<ProFeature, string>> = {
 
 /** What Pro includes, in the order somebody would care about it. */
 const INCLUDED = [
+  {
+    icon: Radio,
+    title: "Automations",
+    detail: "Lights react to your calls and to locking your PC.",
+  },
   {
     icon: Tv,
     title: "PC Sync",

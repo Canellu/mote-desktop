@@ -9,6 +9,7 @@ export interface StoreUpdateStatus {
 }
 
 export type StoreUpdateOutcome =
+  | "downloaded"
   | "installed"
   | "up_to_date"
   | "canceled"
@@ -17,14 +18,18 @@ export type StoreUpdateOutcome =
 export const checkStoreUpdate = () =>
   invoke<StoreUpdateStatus>("check-store-update");
 
+/** Downloads the update only. Mote stays open. */
+export const downloadStoreUpdate = () =>
+  invoke<StoreUpdateOutcome>("download-store-update");
+
+/** Installs the downloaded update, which closes Mote and reopens it. */
 export const installStoreUpdate = () =>
   invoke<StoreUpdateOutcome>("install-store-update");
 
-/** Emitted by `install-store-update` once the download starts. */
+/** Emitted by `download-store-update` while the package downloads. */
 export const STORE_UPDATE_PROGRESS_EVENT = "store-update-progress";
 
 export interface StoreUpdateProgress {
-  phase: "downloading" | "installing";
-  /** Whole percent across both phases; the Store puts installing at 80 to 100. */
+  /** Whole percent of the download. */
   percent: number;
 }

@@ -801,7 +801,10 @@ export function CreateMapWizard({
 
         <div className="shrink-0 space-y-2 border-t border-border p-5">
           {message && (
-            <p role="alert" className="text-sm wrap-anywhere text-destructive">
+            <p
+              role="alert"
+              className="text-sm wrap-anywhere text-(--destructive-text)"
+            >
               {message}
             </p>
           )}
@@ -843,7 +846,7 @@ export function CreateMapWizard({
             className={cn(
               "pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-3xl border-2 border-dashed backdrop-blur-sm transition-colors",
               fixtureDrag?.overRemoveZone
-                ? "border-destructive bg-destructive/15 text-destructive"
+                ? "border-destructive bg-destructive/15 text-(--destructive-text)"
                 : "border-border bg-background/70 text-muted-foreground",
             )}
           >

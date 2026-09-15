@@ -271,7 +271,7 @@ export const DisplayCalibrationCanvas = ({
               y={display.y + display.height / 2 + labelSize * 1.3}
               textAnchor="middle"
               dominantBaseline="middle"
-              className="pointer-events-none fill-muted-foreground/70"
+              className="pointer-events-none fill-muted-foreground"
               fontSize={labelSize * 0.72}
             >
               {displayDetails ?? `${display.width} × ${display.height}`}
@@ -377,7 +377,7 @@ export const DisplayCalibrationCanvas = ({
 
       <p
         className={cn(
-          "pointer-events-none absolute right-3 bottom-2 text-[10px] font-medium tracking-wide text-muted-foreground/60 uppercase",
+          "pointer-events-none absolute right-3 bottom-2 text-[10px] font-medium tracking-wide text-muted-foreground uppercase",
           overlayInsetClassName,
         )}
       >

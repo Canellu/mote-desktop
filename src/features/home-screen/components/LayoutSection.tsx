@@ -165,7 +165,7 @@ export const LayoutSection: React.FC<LayoutSectionProps> = ({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="ml-auto text-muted-foreground hover:text-destructive"
+            className="ml-auto text-muted-foreground hover:text-(--destructive-text)"
             aria-label={`Delete ${section.name}`}
             title="Delete section"
             onClick={() => onDeleteSection(section.id)}

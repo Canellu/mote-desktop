@@ -644,7 +644,7 @@ export const RootLayout: React.FC = () => {
         <ShellHeader />
         {!bridgeConnected && (
           <div className="mx-12 mb-2 flex items-center gap-4 rounded-2xl border border-destructive/25 bg-destructive/10 px-5 py-3">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/15 text-destructive">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/15 text-(--destructive-text)">
               <TriangleAlert size={21} />
             </span>
             <div className="min-w-0 flex-1">

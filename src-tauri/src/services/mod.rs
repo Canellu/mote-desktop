@@ -1,3 +1,4 @@
+pub mod automations;
 pub mod desktop_shortcut;
 pub mod entertainment;
 pub mod entitlements;

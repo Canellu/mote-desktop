@@ -27,8 +27,10 @@ export const LIGHT_THEME = {
 export const TILE_BRIGHTNESS_SLIDER_CLASS =
   "tile-brightness-slider w-full [--paced-slider-thumb-size-override:var(--tile-slider-thumb-size,1.25rem)] [--paced-slider-track-size-override:var(--tile-slider-track-size,0.75rem)]";
 
+// Tile switches keep a translucent track so the lit tile's color shows through,
+// instead of the solid gray fill the base Switch uses on neutral surfaces.
 export const TILE_POWER_SWITCH_CLASS =
-  "data-unchecked:bg-foreground/10 dark:data-checked:bg-foreground/35 dark:data-unchecked:bg-foreground/10 dark:**:data-[slot=switch-thumb]:data-unchecked:bg-background";
+  "data-checked:bg-foreground/35 data-unchecked:bg-foreground/10 dark:data-checked:bg-foreground/35 dark:data-unchecked:bg-foreground/10 dark:**:data-[slot=switch-thumb]:data-unchecked:bg-background";
 
 export const SCENE_TILE_SURFACE_CLASS = "tile-surface-scene";
 

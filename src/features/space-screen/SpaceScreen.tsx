@@ -148,10 +148,10 @@ const EmptyEditSection: React.FC<{ title: string }> = ({ title }) => (
     <div className="flex h-7 items-center">
       <SectionGrip />
       <p className="text-sm font-medium text-muted-foreground">
-        {title} <span className="text-muted-foreground/60">0</span>
+        {title} <span className="text-muted-foreground">0</span>
       </p>
     </div>
-    <div className="edit-dash-border flex min-h-32 items-center justify-center rounded-2xl bg-muted/20 text-sm text-muted-foreground/70">
+    <div className="edit-dash-border flex min-h-32 items-center justify-center rounded-2xl bg-muted/20 text-sm text-muted-foreground">
       No {title.toLowerCase()} in this space
     </div>
   </div>
@@ -666,7 +666,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
         saving && "cursor-wait opacity-60",
       )}
     >
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-(--destructive-text)">{error}</p>}
       <DndContext
         sensors={sensorsForSections}
         collisionDetection={closestCenter}
@@ -780,7 +780,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
                   </Button>
                   <Button
                     variant="ghost"
-                    className="text-destructive"
+                    className="text-(--destructive-text)"
                     onClick={() => setActionDialog("delete-scenes")}
                   >
                     <Trash2 /> Remove
@@ -810,7 +810,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
                   </Button>
                   <Button
                     variant="ghost"
-                    className="text-destructive"
+                    className="text-(--destructive-text)"
                     onClick={() => setActionDialog("remove-lights")}
                   >
                     <Trash2 /> Remove
@@ -829,7 +829,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
                   </Button>
                   <Button
                     variant="ghost"
-                    className="text-destructive"
+                    className="text-(--destructive-text)"
                     onClick={() => setActionDialog("unassign-accessories")}
                   >
                     <Trash2 /> Unassign

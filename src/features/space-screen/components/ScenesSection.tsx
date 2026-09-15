@@ -323,7 +323,7 @@ export const ScenesSection: React.FC<ScenesSectionProps> = ({
             <SectionGrip />
             <p className="text-sm font-medium text-muted-foreground">
               Scenes{" "}
-              <span className="text-muted-foreground/60">{scenes.length}</span>
+              <span className="text-muted-foreground">{scenes.length}</span>
             </p>
           </div>
           <div className="flex items-center gap-2">

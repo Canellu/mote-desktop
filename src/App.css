@@ -104,7 +104,11 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* Set for WCAG AA (4.5:1) on the darkest light surface text sits on: a
+     selected option inside a settings panel (4.8 here). 0.556 fell to 3.7 on an
+     off tile and 4.1 on settings panels. Do not fade it with an alpha modifier:
+     /80 already drops below 3:1. */
+  --muted-foreground: oklch(0.48 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   /* Status feedback family, tuned as a set. warn is a deep amber so it carries

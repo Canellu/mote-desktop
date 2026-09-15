@@ -21,6 +21,7 @@ import { AddWidgetButton } from "./components/AddWidgetButton";
 import { SettingsSidebar } from "./components/SettingsSidebar";
 import { settingsTabs } from "./settingsTabs";
 import { AboutSupportTab } from "./tabs/AboutSupportTab";
+import { AutomationsTab } from "./tabs/AutomationsTab";
 import { BridgeTab } from "./tabs/BridgeTab";
 import { PcSyncTab } from "./tabs/PcSyncTab";
 import { SyncBoxTab } from "./tabs/SyncBoxTab";
@@ -335,7 +336,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     {activeTabDetails.description}
                   </p>
                   {settingsError && (
-                    <p className="pt-2 text-sm text-destructive">
+                    <p className="pt-2 text-sm text-(--destructive-text)">
                       {settingsError}
                     </p>
                   )}
@@ -479,6 +480,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
               <TabsContent value="shortcuts">
                 <ShortcutsTab />
+              </TabsContent>
+
+              <TabsContent value="automations">
+                <AutomationsTab />
               </TabsContent>
 
               <TabsContent value="widget">

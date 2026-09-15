@@ -76,7 +76,7 @@ export const MetaRow = ({
           <Check
             size={14}
             className={cn(
-              "absolute text-green-500 transition-all",
+              "absolute text-(--success-text) transition-all",
               copied ? "scale-100 opacity-100" : "scale-50 opacity-0",
             )}
           />

@@ -1,4 +1,5 @@
 pub mod app_settings;
+pub mod automations;
 pub mod bridges;
 pub mod discovery;
 pub mod entitlements;

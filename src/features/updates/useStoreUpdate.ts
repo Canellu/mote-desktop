@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { StoreUpdateProgress, StoreUpdateStatus } from "./api";
+import type { StoreUpdateStatus } from "./api";
 
 export const NO_STORE_UPDATE: StoreUpdateStatus = {
   supported: false,
@@ -7,14 +7,23 @@ export const NO_STORE_UPDATE: StoreUpdateStatus = {
   mandatory: false,
 };
 
+/**
+ * Where an update stands once the Store has offered one: downloading while Mote
+ * stays open, downloaded and waiting for a restart, then restarting to install.
+ */
+export type StoreUpdatePhase = "idle" | "downloading" | "ready" | "restarting";
+
 export interface StoreUpdateContextValue {
   status: StoreUpdateStatus;
   /** When the Store last answered, in epoch milliseconds. Null until it has. */
   checkedAt: number | null;
-  installing: boolean;
-  /** Null until the customer accepts Microsoft's dialog and the download starts. */
-  progress: StoreUpdateProgress | null;
-  install: () => Promise<void>;
+  phase: StoreUpdatePhase;
+  /** Download percent. Null until the Store reports the download moving. */
+  percent: number | null;
+  /** Downloads the update. Mote stays open. */
+  download: () => Promise<void>;
+  /** Installs the downloaded update, which closes Mote and reopens it. */
+  restart: () => Promise<void>;
   recheck: () => Promise<void>;
 }
 
@@ -27,8 +36,9 @@ export const useStoreUpdate = (): StoreUpdateContextValue =>
   useContext(StoreUpdateContext) ?? {
     status: NO_STORE_UPDATE,
     checkedAt: null,
-    installing: false,
-    progress: null,
-    install: async () => {},
+    phase: "idle",
+    percent: null,
+    download: async () => {},
+    restart: async () => {},
     recheck: async () => {},
   };

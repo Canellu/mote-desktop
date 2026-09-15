@@ -22,8 +22,14 @@ Last reviewed: **2026-09-11**.
 - The app does not impose a limit on the number of widget windows. Multiple
   controls/targets and advanced widget customization require Pro.
 - Mote Pro is a one-time Microsoft Store purchase. PC Sync, global keyboard
-  shortcuts, advanced widget composition, custom dashboard layouts, and multiple
-  saved Hue Bridges require Pro. All of these are enforced as of 2026-09-11.
+  shortcuts, automations, advanced widget composition, custom dashboard
+  layouts, and multiple saved Hue Bridges require Pro. All of these are
+  enforced as of 2026-09-11, automations from 2026-09-15.
+- Automations run only while Mote is running, including in the tray. The
+  on-air light follows Windows' own record of microphone and camera use, so an
+  app that keeps the microphone open outside calls has to be ignored in
+  Settings. Shutting down or restarting the PC does not count as stepping away,
+  and on PCs with Modern Standby, sleep is noticed only once the PC locks.
 - Global keyboard shortcuts can be configured without Pro but will not fire
   until it is owned. The refusal happens in the backend, so a shortcut prepared
   in advance starts working the moment Pro is unlocked.

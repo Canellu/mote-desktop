@@ -319,7 +319,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-sm text-(--destructive-text)">{error}</p>}
 
       {lights.length > 0 && (
         <Card size="sm" className="border border-tile-border bg-card py-5">
