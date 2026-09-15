@@ -5,6 +5,8 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.3.0] - 2026-09-15
+
 ### Highlights
 
 - **Try Mote Pro free for 14 days.** The trial starts when you pair your first
