@@ -1,8 +1,9 @@
 # Free, Pro, and Household feature matrix
 
-Status: **entitlement implemented and partly enforced**.
+Status: **entitlement implemented and enforced; a 14-day Pro trial ships in
+0.3.0**.
 
-Last reviewed: **2026-09-13**.
+Last reviewed: **2026-09-15**.
 
 As of 2026-09-11 the entitlement service is registered as Tauri state, release
 builds read the Store licence through a cached provider, and purchase and
@@ -13,11 +14,58 @@ shipped without a tier at all — absent here, from `v1-feature-inventory.md`, a
 from the Store listing copy — so nothing decided whether they were free. They
 are Pro.
 
-**No grandfathering.** The owner confirmed on 2026-09-11 that nobody has
-downloaded the app yet, so there is no installed base to protect and enforcement
-takes nothing away from anyone. This is the reason no first-seen timestamp is
-recorded; if that ever stops being true, it cannot be reconstructed after the
-fact, so revisit this before shipping enforcement to an installed base.
+**No grandfathering.** The owner confirmed on 2026-09-11, and again on
+2026-09-14, that nobody has downloaded the app yet, so there is no installed
+base to protect and enforcement takes nothing away from anyone. From 0.3.0 each
+installation does record a first-seen date — the start of its trial — so this
+can be revisited with real data later.
+
+## Pro trial
+
+Decided 2026-09-14: a reverse trial, rather than freemium alone or a paid app
+with a Store trial. Every installation gets every Pro capability for 14 days,
+then falls back to Free unless Pro was bought.
+
+- **Starts** when the installation first has a saved Hue Bridge: at pairing, or
+  at launch for an installation that was already paired. An installation that
+  never pairs never starts a trial.
+- **Stored** by `src-tauri/src/services/trial.rs`: the start date and the last
+  time Mote ran, in the app config folder (`pro-trial.json`) and in the Windows
+  credential store (`com.motedesktop.mote` / `mote-pro-trial`). The earlier
+  start and the later sighting win. Credentials survive uninstall, so
+  reinstalling does not restart the trial. Nothing leaves the PC and there is no
+  server check.
+- **Per installation**, which on Windows means per PC and user. Deliberately
+  simple: deleting both copies by hand resets it, and on 2026-09-14 that was
+  judged not worth a server. Revisit if installs are healthy but purchases lag,
+  or if reset instructions start circulating.
+- **Clock:** measured from the later of the clock and the last sighting, so
+  winding the clock back buys nothing.
+- **Authorization:** a running trial satisfies any Pro capability in
+  `EntitlementRuntime::authorize`. `pro` in the IPC status stays the purchase
+  alone; the trial is reported beside it, so the interface can tell them apart.
+- **Debug builds** never read or write the stored trial, because they share the
+  credential store with an installed Store copy. The title-bar badge steps
+  through Free, trial, trial ending, trial ended, and Pro in memory.
+- **Ending:** a watcher notices the end while Mote is running and emits
+  `entitlements-changed`. The app reminds at three days and one day left, and
+  opens the purchase dialog once after the trial has ended.
+
+### When Pro lapses
+
+Applies when the Store authoritatively says Pro is not owned and no trial is
+running — never on `unknown`. Nothing saved is changed, so buying or restoring
+Pro brings everything back as it was.
+
+- Widgets show their first control with its first target, and are neither pinned
+  nor always on top. Saving a widget's settings enforces the Free composition in
+  `set-widget-config` as well as `set-widget-controls`.
+- A saved custom dashboard layout stays saved; Home shows rooms-first grouping.
+- Switching to another saved bridge requires `multiple_bridges`; removing one
+  never does.
+- Global shortcuts refuse at execution, as before.
+- A PC Sync session already running is left to finish; starting the next one
+  requires `pc_sync`.
 
 This document defines the initial product boundary for functionality that exists
 today and establishes rules for future paid features. Store-specific product IDs
@@ -118,7 +166,8 @@ automatically when it passes.
    only shows copy telling the customer to retry, because offering to sell Pro
    to somebody who already paid is the worse mistake. The Free badge in the
    title bar carries a "Get Pro" action, and the Shortcuts tab says the same in
-   place. Downgrade and recovery states are still not built.
+   place. Downgrade states were built with the trial on 2026-09-15; see
+   [When Pro lapses](#when-pro-lapses).
 7. **Not done.** Test every paid command directly so a modified frontend cannot
    bypass the tier boundary. The static half is audited — see the commerce spike
    — but reinstall, offline, refund and downgrade behaviour still need a packaged

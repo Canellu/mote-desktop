@@ -5,6 +5,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Toaster } from "./components/ui/sonner";
 import { EntitlementProvider } from "./context/EntitlementContext";
 import { ProUpgradeProvider } from "./features/pro/ProUpgradeProvider";
+import { TrialNotices } from "./features/pro/TrialNotices";
 import { StoreUpdateProvider } from "./features/updates/StoreUpdateContext";
 import { HueProvider } from "./context/HueContext";
 import { ThemeProvider } from "./context/ThemeContext";
@@ -63,6 +64,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
               <ProUpgradeProvider>
                 <HueProvider>
                   <App />
+                  <TrialNotices />
                   <Toaster />
                 </HueProvider>
               </ProUpgradeProvider>

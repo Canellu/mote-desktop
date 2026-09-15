@@ -23,7 +23,14 @@ const LEAD: Record<ProFeature, string> = {
   advanced_widgets: "This widget needs Mote Pro",
   dashboard_custom_layout: "Your own layout is part of Mote Pro",
   global_shortcuts: "Shortcuts are part of Mote Pro",
+  trial_ended: "Your Pro trial has ended",
   general: "Everything Mote can do",
+};
+
+/** The line under the lead. Only an ended trial has something else to say. */
+const SUBTITLE: Partial<Record<ProFeature, string>> = {
+  trial_ended:
+    "Everything you set up is saved. One purchase switches it back on, on every PC you sign in to.",
 };
 
 /** What Pro includes, in the order somebody would care about it. */
@@ -109,7 +116,8 @@ export const ProPaywall: React.FC<ProPaywallProps> = ({
                 {phase === "done" ? "Mote Pro is yours" : LEAD[feature]}
               </DialogTitle>
               <p className="text-sm leading-6 text-muted-foreground">
-                One purchase unlocks all of it, on every PC you sign in to.
+                {SUBTITLE[feature] ??
+                  "One purchase unlocks all of it, on every PC you sign in to."}
               </p>
             </header>
 

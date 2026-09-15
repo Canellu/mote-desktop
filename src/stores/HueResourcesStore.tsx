@@ -107,6 +107,12 @@ export interface HueResourcesState extends LayoutState {
   isEditLayoutMode: boolean;
   setDraftLayout: (next: HomeLayout) => void;
   setGroupingMode: (mode: HomeGroupingMode) => void;
+  /**
+   * Shows a grouping mode without saving it as the choice. Used when a custom
+   * layout outlives Pro: Home shows standard grouping, and the saved choice
+   * comes back with Pro.
+   */
+  showGroupingMode: (mode: HomeGroupingMode) => void;
   enterEditLayout: () => void;
   cancelEditLayout: () => void;
   saveEditLayout: () => void;
@@ -635,6 +641,19 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
     writeStoredGroupingMode(mode);
     set((state) => ({
       ...refreshLayoutState(state.roomZones, state.storedLayout, mode),
+      ...(mode !== "custom"
+        ? {
+            isEditLayoutMode: false,
+            draftLayout: [],
+            isCreatingSection: false,
+          }
+        : null),
+    }));
+  },
+
+  showGroupingMode: (mode) => {
+    set((state) => ({
+      ...buildLayoutState(state.roomZones, state.storedLayout, mode),
       ...(mode !== "custom"
         ? {
             isEditLayoutMode: false,

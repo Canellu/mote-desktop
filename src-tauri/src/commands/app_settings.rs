@@ -85,9 +85,29 @@ pub fn apply_desktop_shortcut_preference(app: &AppHandle) {
 /// can be told apart from a normal one and start hidden in the tray.
 pub const AUTOSTART_FLAG: &str = "--autostart";
 
-/// True when this process was launched by the Windows "Run" entry at login.
+/// The startup task declared in the package manifest. Keep it in step with
+/// `src-tauri/msix/AppxManifest.xml.template`.
+#[cfg(target_os = "windows")]
+const STARTUP_TASK_ID: &str = "MoteDesktopStartup";
+
+/// True when this process was launched at sign-in: by the package's startup
+/// task in a Store install, or by the registry Run entry otherwise.
 pub fn launched_via_autostart() -> bool {
-    std::env::args().any(|arg| arg == AUTOSTART_FLAG)
+    std::env::args().any(|arg| arg == AUTOSTART_FLAG) || launched_by_startup_task()
+}
+
+#[cfg(target_os = "windows")]
+fn launched_by_startup_task() -> bool {
+    use windows::ApplicationModel::{Activation::ActivationKind, AppInstance};
+
+    AppInstance::GetActivatedEventArgs()
+        .and_then(|args| args.Kind())
+        .is_ok_and(|kind| kind == ActivationKind::StartupTask)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn launched_by_startup_task() -> bool {
+    false
 }
 
 #[tauri::command(rename = "handle-main-window-close")]
@@ -195,9 +215,34 @@ fn auto_start_supported() -> bool {
     false
 }
 
+/// The package's startup task, or `None` outside a Store install.
+///
+/// A Store install cannot use the registry Run entry: Windows keeps a packaged
+/// app's registry writes in a private copy that sign-in never reads, so the
+/// switch would appear to work and do nothing. The startup task is the
+/// supported route, and it is on by default through the manifest.
+#[cfg(target_os = "windows")]
+fn startup_task() -> Option<windows::ApplicationModel::StartupTask> {
+    use windows::ApplicationModel::{Package, StartupTask};
+
+    Package::Current().ok()?;
+    StartupTask::GetAsync(&windows::core::HSTRING::from(STARTUP_TASK_ID))
+        .ok()?
+        .join()
+        .ok()
+}
+
 #[cfg(target_os = "windows")]
 fn get_auto_start_enabled() -> Result<bool, String> {
+    use windows::ApplicationModel::StartupTaskState;
     use windows_registry::CURRENT_USER;
+
+    if let Some(task) = startup_task() {
+        let state = task
+            .State()
+            .map_err(|error| private_error("Failed to read start on login.", error))?;
+        return Ok(state == StartupTaskState::Enabled || state == StartupTaskState::EnabledByPolicy);
+    }
 
     let key = match CURRENT_USER.open(auto_start_run_key()) {
         Ok(key) => key,
@@ -219,7 +264,34 @@ fn get_auto_start_enabled() -> Result<bool, String> {
 
 #[cfg(target_os = "windows")]
 fn set_auto_start_enabled(enabled: bool) -> Result<(), String> {
+    use windows::ApplicationModel::StartupTaskState;
     use windows_registry::CURRENT_USER;
+
+    if let Some(task) = startup_task() {
+        if !enabled {
+            return task
+                .Disable()
+                .map_err(|error| private_error("Failed to update start on login.", error));
+        }
+
+        // No prompt for a packaged desktop app. Windows refuses, rather than
+        // overrides, a task the person switched off in Windows itself.
+        let state = task
+            .RequestEnableAsync()
+            .and_then(|operation| operation.join())
+            .map_err(|error| private_error("Failed to update start on login.", error))?;
+
+        return if state == StartupTaskState::Enabled || state == StartupTaskState::EnabledByPolicy {
+            Ok(())
+        } else if state == StartupTaskState::DisabledByPolicy {
+            Err("Start on login is turned off by a policy on this PC.".to_string())
+        } else {
+            Err(
+                "Windows has start on login switched off for Mote Desktop. Turn it on under Settings > Apps > Startup."
+                    .to_string(),
+            )
+        };
+    }
 
     let key = CURRENT_USER
         .create(auto_start_run_key())

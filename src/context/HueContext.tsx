@@ -9,6 +9,8 @@ import React, {
 } from "react";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 import { mapFeatureEnabled } from "@/features/home-map/homeView";
+import { openProUpgrade } from "@/features/pro/proUpgrade";
+import { isPurchaseRequired } from "@/lib/entitlement-errors";
 import { homeMapStore } from "@/features/home-map/useHomeMapStore";
 
 export interface HueSession {
@@ -117,9 +119,19 @@ export const HueProvider: React.FC<HueProviderProps> = ({ children }) => {
         // Any PC sync session streams to the current bridge; end it before the
         // active bridge changes out from under it.
         await invoke("stop-host-sync").catch(() => {});
-        const nextSession = await invoke<HueSession>("set-active-hue-bridge", {
-          bridgeId,
-        });
+        let nextSession: HueSession;
+        try {
+          nextSession = await invoke<HueSession>("set-active-hue-bridge", {
+            bridgeId,
+          });
+        } catch (error) {
+          // Moving to another saved bridge is Pro; offer it rather than failing.
+          if (isPurchaseRequired(error)) {
+            openProUpgrade("multiple_bridges");
+            return;
+          }
+          throw error;
+        }
         useHueResourcesStore.setState({ hasLoaded: false });
         if (nextSession.connected) {
           await useHueResourcesStore.getState().loadAll();

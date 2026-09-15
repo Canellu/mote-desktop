@@ -100,6 +100,7 @@ pub fn run() {
             commands::store_commerce::install_store_update,
             commands::entitlements::get_entitlements,
             commands::entitlements::set_debug_entitlements,
+            commands::entitlements::set_debug_trial,
             commands::entitlements::refresh_entitlements,
             commands::entitlements::purchase_pro,
             commands::entitlements::get_pro_offer,
@@ -145,6 +146,11 @@ pub fn run() {
             commands::widget::reset_widget_position,
         ])
         .setup(|app| {
+            // The trial is local, so it is known before the Store answers. Load it
+            // first, so the widgets restored below already reflect it.
+            commands::entitlements::initialize_trial(app.handle());
+            commands::entitlements::watch_trial(app.handle().clone());
+
             // Entitlements start Unknown, and Unknown refuses, so a paid feature
             // stays shut until the Store answers. Ask on launch rather than
             // waiting for the first person to open a gated screen, or the app

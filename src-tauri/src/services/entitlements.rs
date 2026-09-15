@@ -1,7 +1,9 @@
 use std::fmt;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
+
+use crate::services::trial::{now_ms, TrialRecord, TrialStatus};
 
 /// Paid product capabilities. Feature code depends on these stable names, not
 /// on Store product IDs or provider-specific license types.
@@ -268,15 +270,40 @@ impl EntitlementProvider for CachedEntitlementProvider {
     }
 }
 
-/// What the Tauri app manages: the authorization service, plus — in a debug
-/// build only — the handle that can move it between Free and Pro.
+/// Everything the interface is told: what the Store says was bought, plus this
+/// installation's trial once one has started.
 ///
-/// One managed value rather than two so the mutable handle cannot outlive or
+/// `pro` stays the purchase alone, so the interface can tell a trial from a
+/// purchase. Pro is usable when `pro` is active or the trial is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EntitlementStatus {
+    pub pro: EntitlementState,
+    pub household: EntitlementState,
+    pub trial: Option<TrialStatus>,
+}
+
+impl EntitlementStatus {
+    pub const fn unavailable() -> Self {
+        Self {
+            pro: EntitlementState::Unknown,
+            household: EntitlementState::Unknown,
+            trial: None,
+        }
+    }
+}
+
+/// What the Tauri app manages: the authorization service, this installation's
+/// trial, and — in a debug build only — the handle that can move it between Free
+/// and Pro.
+///
+/// One managed value rather than several so the mutable handle cannot outlive or
 /// drift from the service reading it. In a release build the field is not
 /// compiled at all, so there is no path to a development entitlement even if a
 /// command tried to take one.
 pub struct EntitlementRuntime {
     service: EntitlementService,
+    trial: RwLock<Option<TrialRecord>>,
     #[cfg(debug_assertions)]
     debug: Arc<DebugEntitlementProvider>,
     #[cfg(not(debug_assertions))]
@@ -288,8 +315,64 @@ impl EntitlementRuntime {
         self.service.snapshot()
     }
 
+    pub fn status(&self) -> EntitlementStatus {
+        self.status_at(now_ms())
+    }
+
+    fn status_at(&self, now: i64) -> EntitlementStatus {
+        let snapshot = self.snapshot();
+
+        EntitlementStatus {
+            pro: snapshot.pro,
+            household: snapshot.household,
+            trial: self.trial().map(|record| TrialStatus::of(record, now)),
+        }
+    }
+
     pub fn authorize(&self, capability: Capability) -> Result<(), AuthorizationError> {
-        self.service.authorize(capability)
+        self.authorize_at(capability, now_ms())
+    }
+
+    /// A running trial stands in for a Pro purchase, and only for Pro. Once the
+    /// trial is over the Store's own answer applies again, including "could not
+    /// check", so an ended trial never reads as a refusal to somebody who paid.
+    fn authorize_at(&self, capability: Capability, now: i64) -> Result<(), AuthorizationError> {
+        match self.service.authorize(capability) {
+            Err(_)
+                if capability.required_product() == EntitlementProduct::Pro
+                    && self.trial_active_at(now) =>
+            {
+                Ok(())
+            }
+            answer => answer,
+        }
+    }
+
+    pub fn trial(&self) -> Option<TrialRecord> {
+        *self.trial.read().expect("trial lock poisoned")
+    }
+
+    pub fn set_trial(&self, record: Option<TrialRecord>) {
+        *self.trial.write().expect("trial lock poisoned") = record;
+    }
+
+    pub fn trial_active(&self) -> bool {
+        self.trial_active_at(now_ms())
+    }
+
+    fn trial_active_at(&self, now: i64) -> bool {
+        self.trial().is_some_and(|record| record.is_active(now))
+    }
+
+    /// Whether Pro has gone for certain: the Store says it is not owned and no
+    /// trial is running. `Unknown` is not a lapse, so an unreachable Store never
+    /// strips a paying customer's setup back to Free.
+    pub fn pro_lapsed(&self) -> bool {
+        self.pro_lapsed_at(now_ms())
+    }
+
+    fn pro_lapsed_at(&self, now: i64) -> bool {
+        self.snapshot().pro == EntitlementState::Inactive && !self.trial_active_at(now)
     }
 
     /// Folds a snapshot read from the commerce backend into the cache.
@@ -330,6 +413,7 @@ impl Default for EntitlementRuntime {
 
             Self {
                 service: EntitlementService::new(debug.clone()),
+                trial: RwLock::new(None),
                 debug,
             }
         }
@@ -339,10 +423,12 @@ impl Default for EntitlementRuntime {
             // Starts Unknown and stays there until a Store read lands, because
             // the Store API is asynchronous and this contract is not. Unknown
             // refuses, so nothing is granted by a refresh that never arrived.
+            // The trial is loaded from disk at launch, before that read.
             let cache = Arc::new(CachedEntitlementProvider::default());
 
             Self {
                 service: EntitlementService::new(cache.clone()),
+                trial: RwLock::new(None),
                 cache,
             }
         }
@@ -568,5 +654,98 @@ mod tests {
         for capability in Capability::ALL {
             assert!(runtime.authorize(capability).is_err());
         }
+    }
+
+    const NOW: i64 = 1_789_000_000_000;
+
+    fn runtime_with(pro: EntitlementState, trial_started: Option<i64>) -> EntitlementRuntime {
+        let runtime = EntitlementRuntime::default();
+        runtime.set_debug_snapshot(EntitlementSnapshot {
+            pro,
+            household: EntitlementState::Inactive,
+        });
+        runtime.set_trial(trial_started.map(TrialRecord::starting_at));
+        runtime
+    }
+
+    fn ended_trial_start() -> i64 {
+        NOW - crate::services::trial::TRIAL_LENGTH_MS
+    }
+
+    #[test]
+    fn a_running_trial_authorizes_every_pro_capability() {
+        let runtime = runtime_with(EntitlementState::Inactive, Some(NOW));
+
+        for capability in Capability::ALL {
+            assert_eq!(runtime.authorize_at(capability, NOW), Ok(()));
+        }
+        assert!(!runtime.pro_lapsed_at(NOW));
+    }
+
+    #[test]
+    fn an_ended_trial_refuses_again() {
+        let runtime = runtime_with(EntitlementState::Inactive, Some(ended_trial_start()));
+
+        assert_eq!(
+            runtime
+                .authorize_at(Capability::PcSync, NOW)
+                .unwrap_err()
+                .code,
+            AuthorizationErrorCode::ProRequired
+        );
+        assert!(runtime.pro_lapsed_at(NOW));
+    }
+
+    #[test]
+    fn an_ended_trial_leaves_an_unanswered_store_unanswered() {
+        let runtime = runtime_with(EntitlementState::Unknown, Some(ended_trial_start()));
+
+        // "Could not check" must never become "you do not own this".
+        assert_eq!(
+            runtime
+                .authorize_at(Capability::PcSync, NOW)
+                .unwrap_err()
+                .code,
+            AuthorizationErrorCode::EntitlementUnavailable
+        );
+        assert!(!runtime.pro_lapsed_at(NOW));
+    }
+
+    #[test]
+    fn free_without_a_trial_has_lapsed() {
+        assert!(runtime_with(EntitlementState::Inactive, None).pro_lapsed_at(NOW));
+    }
+
+    #[test]
+    fn a_purchase_outlasts_the_trial() {
+        let runtime = runtime_with(EntitlementState::Active, Some(ended_trial_start()));
+
+        assert_eq!(
+            runtime.authorize_at(Capability::GlobalShortcuts, NOW),
+            Ok(())
+        );
+        assert!(!runtime.pro_lapsed_at(NOW));
+    }
+
+    #[test]
+    fn status_reports_the_purchase_and_the_trial_separately() {
+        let runtime = runtime_with(EntitlementState::Inactive, Some(NOW));
+
+        assert_eq!(
+            serde_json::to_value(runtime.status_at(NOW)).unwrap(),
+            serde_json::json!({
+                "pro": "inactive",
+                "household": "inactive",
+                "trial": {
+                    "startedAt": NOW,
+                    "endsAt": NOW + crate::services::trial::TRIAL_LENGTH_MS,
+                    "active": true
+                }
+            })
+        );
+        assert_eq!(
+            serde_json::to_value(EntitlementStatus::unavailable()).unwrap(),
+            serde_json::json!({ "pro": "unknown", "household": "unknown", "trial": null })
+        );
     }
 }

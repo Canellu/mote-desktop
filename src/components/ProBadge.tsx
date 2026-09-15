@@ -1,5 +1,6 @@
-import { useEntitlements } from "@/context/EntitlementContext";
+import { useEntitlements, type DebugTier } from "@/context/EntitlementContext";
 import { useProUpgrade } from "@/features/pro/proUpgrade";
+import { formatDaysLeft } from "@/features/pro/trial";
 import { cn } from "@/lib/utils";
 
 /**
@@ -38,15 +39,25 @@ const freeSurface = cn(
   "text-[0.8125rem] leading-5 font-medium tracking-tight text-foreground/70",
 );
 
+const DEBUG_TIER_LABEL: Record<DebugTier, string> = {
+  free: "Free",
+  trial: "a new trial",
+  trial_ending: "a trial with 3 days left",
+  trial_ended: "an ended trial",
+  pro: "Pro",
+};
+
 /**
  * Says which tier the running app is in, beside the product name.
  *
- * On Free it also carries the upgrade path. On Pro it is just the mark. In a
- * development build the mark itself toggles the tier, so both states can be
- * seen without a Store purchase.
+ * On Free it also carries the upgrade path. On a trial it counts down and still
+ * offers the purchase. On Pro it is just the mark. In a development build the
+ * mark itself steps through Free, the trial's stages, and Pro, so every state
+ * can be seen without a Store purchase or a two-week wait.
  */
 export const ProBadge: React.FC<{ className?: string }> = ({ className }) => {
-  const { hasPro, setDebugPro } = useEntitlements();
+  const { hasPro, onTrial, trialDaysLeft, trialEnded, setDebugTier } =
+    useEntitlements();
   const { requestPro } = useProUpgrade();
 
   // The title bar starts a window drag from its own mousedown, so every control
@@ -57,28 +68,37 @@ export const ProBadge: React.FC<{ className?: string }> = ({ className }) => {
     onPointerDown: (event: React.PointerEvent) => event.stopPropagation(),
   };
 
-  const mark = hasPro ? (
+  const mark = onTrial ? (
+    <span className={proSurface}>Pro trial</span>
+  ) : hasPro ? (
     <span className={proSurface}>Pro</span>
   ) : (
     <span className={freeSurface}>Free</span>
   );
 
+  // Free → trial → trial ending → trial ended → Pro → Free.
+  const nextDebugTier: DebugTier =
+    hasPro && !onTrial
+      ? "free"
+      : !onTrial && !trialEnded
+        ? "trial"
+        : onTrial && (trialDaysLeft ?? 0) > 3
+          ? "trial_ending"
+          : onTrial
+            ? "trial_ended"
+            : "pro";
+
   return (
     <span className={cn("flex items-center gap-2", className)}>
-      {setDebugPro ? (
+      {setDebugTier ? (
         <button
           type="button"
           {...stopDrag}
           onClick={(event) => {
             event.stopPropagation();
-            void setDebugPro(!hasPro);
+            void setDebugTier(nextDebugTier);
           }}
-          aria-pressed={hasPro}
-          title={
-            hasPro
-              ? "Development build: Pro is on. Click for Free."
-              : "Development build: Free tier. Click for Pro."
-          }
+          title={`Development build: click for ${DEBUG_TIER_LABEL[nextDebugTier]}.`}
           className={cn(
             // A bare wrapper: no box of its own, so the pill is the only thing
             // that paints. Anything else here shows up as a plate behind it.
@@ -94,7 +114,13 @@ export const ProBadge: React.FC<{ className?: string }> = ({ className }) => {
         mark
       )}
 
-      {!hasPro && (
+      {onTrial && trialDaysLeft !== null && (
+        <span className="text-[0.8125rem] leading-5 font-medium tracking-tight text-foreground/70">
+          {formatDaysLeft(trialDaysLeft)}
+        </span>
+      )}
+
+      {(!hasPro || onTrial) && (
         <button
           type="button"
           {...stopDrag}

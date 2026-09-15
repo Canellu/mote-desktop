@@ -38,9 +38,14 @@ pub async fn pair_bridge(app: AppHandle, ip: String) -> Result<HueSession, Strin
             eprintln!("failed to save entertainment client key: {_error}");
         }
     }
-    client
+    let session = client
         .save_session(&app, &paired.bridge, &paired.application_key)
-        .await
+        .await?;
+
+    // The trial runs from the first bridge this installation pairs.
+    crate::commands::entitlements::start_trial_if_paired(&app);
+
+    Ok(session)
 }
 
 #[tauri::command(rename = "get-hue-session")]

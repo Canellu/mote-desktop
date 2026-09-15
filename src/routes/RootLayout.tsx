@@ -1,8 +1,10 @@
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
+import { useEntitlements } from "@/context/EntitlementContext";
 import { useHue } from "@/context/HueContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-icons";
+import { readStoredGroupingMode } from "@/features/home-screen/utils/homeLayout";
 import {
   resolveHomeView,
   type HomeViewSearch,
@@ -255,6 +257,18 @@ const ShellHeader: React.FC = () => {
     })),
   );
   const { bridgeId, bridges, switchBridge, beginAddBridge } = useHue();
+  const { proLapsed } = useEntitlements();
+
+  // A custom layout outlives Pro: it stays saved, and Home shows the standard
+  // grouping until Pro is back. An unknown answer is not a lapse, so this never
+  // hides the layout of somebody who paid while the Store is unreachable.
+  useEffect(() => {
+    if (readStoredGroupingMode() !== "custom") return;
+    const { showGroupingMode } = useHueResourcesStore.getState();
+    if (proLapsed && groupingMode === "custom") showGroupingMode("rooms-first");
+    else if (!proLapsed && groupingMode !== "custom")
+      showGroupingMode("custom");
+  }, [proLapsed, groupingMode]);
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const homeSearch = useRouterState({

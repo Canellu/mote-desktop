@@ -179,12 +179,76 @@ struct StoredWidget {
     controls: Vec<StoredWidgetControl>,
 }
 
+/// Set while Pro has gone for certain: nothing bought, and no trial running.
+///
+/// Widgets keep everything configured under Pro. This only limits what they do
+/// with it, so buying or restoring Pro brings each widget back exactly as it was.
+/// A flag rather than a question to the entitlement runtime, because the reads
+/// below happen in places with no app handle to ask through.
+static FREE_LIMITS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+fn free_limits() -> bool {
+    FREE_LIMITS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 impl StoredWidget {
     /// Whether the window should float above others. Driven solely by the
     /// `always_on_top` toggle; pinning a widget locks its position but leaves
-    /// stacking untouched.
+    /// stacking untouched. A widget under the Free limits never floats.
     fn keeps_on_top(&self) -> bool {
-        self.always_on_top
+        self.always_on_top && !free_limits()
+    }
+
+    /// The widget as it may run right now. Nothing here is written back.
+    fn in_effect(&self) -> Self {
+        let mut widget = self.clone();
+        if free_limits() {
+            widget.pinned = false;
+            widget.always_on_top = false;
+            widget.controls = free_composition(&self.controls);
+        }
+        widget
+    }
+}
+
+/// The Free allowance applied to a composition saved under Pro: its first
+/// control, and on that control its first target.
+fn free_composition(controls: &[StoredWidgetControl]) -> Vec<StoredWidgetControl> {
+    controls
+        .iter()
+        .take(1)
+        .cloned()
+        .map(|mut control| {
+            control.targets.truncate(1);
+            control
+        })
+        .collect()
+}
+
+/// Applies the Free limits, or lifts them, and brings open widget windows in line
+/// so a trial ending or a purchase landing shows without reopening anything.
+pub fn set_free_limits(app: &tauri::AppHandle, limited: bool) {
+    if FREE_LIMITS.swap(limited, std::sync::atomic::Ordering::Relaxed) == limited {
+        return;
+    }
+
+    let Ok(settings) = read_widget_settings(app) else {
+        return;
+    };
+    let main_open = app.get_webview_window("main").is_some();
+
+    for widget in &settings.widgets {
+        let state = WidgetState::from_stored(widget);
+        let label = widget_label(&widget.id);
+
+        if let Some(window) = app.get_webview_window(&label) {
+            let _ = window.set_always_on_top(widget.keeps_on_top());
+            let _ = app.emit_to(&label, WIDGET_SETTINGS_CHANGED_EVENT, &state);
+            let _ = app.emit_to(&label, WIDGET_CONTROLS_EVENT, &state);
+        }
+        if main_open {
+            let _ = app.emit_to("main", WIDGET_SETTINGS_CHANGED_EVENT, &state);
+        }
     }
 }
 
@@ -217,6 +281,8 @@ pub struct WidgetState {
 
 impl WidgetState {
     fn from_stored(widget: &StoredWidget) -> Self {
+        // A window shows what the widget may do now, not everything saved.
+        let widget = &widget.in_effect();
         Self {
             widget_id: widget.id.clone(),
             title: widget.title.clone(),
@@ -673,7 +739,7 @@ pub fn get_widget_controls(
         .widgets
         .iter()
         .find(|widget| widget.id == widget_id)
-        .map(|widget| widget.controls.clone())
+        .map(|widget| widget.in_effect().controls)
         .unwrap_or_default())
 }
 
@@ -768,7 +834,13 @@ pub fn set_widget_config(
         .iter_mut()
         .find(|widget| widget.id == widget_id)
         .ok_or_else(|| "Widget settings are not available.".to_string())?;
-    widget.controls = sanitize_controls(controls);
+    let controls = sanitize_controls(controls);
+    // The same composition gate as `set-widget-controls`. Without it, saving
+    // from the settings panel was a way round the Free allowance.
+    if exceeds_free_composition(&controls) {
+        crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
+    }
+    widget.controls = controls;
     widget.theme_mode = theme_mode;
     widget.size_mode = size_mode;
     let next_state = WidgetState::from_stored(widget);
@@ -1635,4 +1707,47 @@ pub fn reset_widget_position(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod free_limit_tests {
+    use super::*;
+
+    fn toggles(id: &str, targets: &[&str]) -> StoredWidgetControl {
+        let targets: Vec<Value> = targets
+            .iter()
+            .map(|target| serde_json::json!({ "kind": "room", "id": target }))
+            .collect();
+
+        serde_json::from_value(serde_json::json!({
+            "id": id,
+            "type": "toggles",
+            "targets": targets,
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn a_pro_composition_is_cut_to_what_free_allows() {
+        let saved = vec![toggles("a", &["r1", "r2"]), toggles("b", &["r3"])];
+        assert!(exceeds_free_composition(&saved));
+
+        let limited = free_composition(&saved);
+
+        assert!(!exceeds_free_composition(&limited));
+        assert_eq!(limited.len(), 1);
+        assert_eq!(limited[0].id, "a");
+        assert_eq!(limited[0].targets.len(), 1);
+        assert_eq!(limited[0].targets[0].id, "r1");
+    }
+
+    #[test]
+    fn a_free_composition_is_left_as_it_is() {
+        let saved = vec![toggles("a", &["r1"])];
+
+        let limited = free_composition(&saved);
+
+        assert_eq!(limited.len(), 1);
+        assert_eq!(limited[0].targets[0].id, "r1");
+    }
 }

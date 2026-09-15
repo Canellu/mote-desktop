@@ -43,10 +43,26 @@ pub async fn set_active_hue_bridge(
     app: AppHandle,
     bridge_id: String,
 ) -> Result<HueSession, String> {
+    let client = HueClient::new()?;
+
+    // Free keeps whichever bridge is active; moving to another saved one is the
+    // multiple-bridges capability. Removing a bridge is never gated, so somebody
+    // back on Free can always tidy away bridges saved under Pro.
+    let already_active = client
+        .list_bridges(&app)?
+        .active_bridge_id
+        .is_some_and(|active| active.eq_ignore_ascii_case(&bridge_id));
+    if !already_active {
+        crate::commands::entitlements::require(
+            &app,
+            crate::services::entitlements::Capability::MultipleBridges,
+        )?;
+    }
+
     if let Some(state) = app.try_state::<EventStreamState>() {
         state.stop();
     }
-    HueClient::new()?.set_active_bridge(&app, &bridge_id).await
+    client.set_active_bridge(&app, &bridge_id).await
 }
 
 /// Removes one bridge and its secrets. Returns the resulting session: the next

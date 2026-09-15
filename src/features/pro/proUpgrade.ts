@@ -7,6 +7,7 @@ export type ProFeature =
   | "advanced_widgets"
   | "dashboard_custom_layout"
   | "global_shortcuts"
+  | "trial_ended"
   | "general";
 
 export interface ProUpgradeContextValue {

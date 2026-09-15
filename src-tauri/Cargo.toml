@@ -40,6 +40,7 @@ rustfft = "6.4"
 wasapi = "0.23"
 windows = { version = "0.62.2", features = [
     "ApplicationModel",
+    "ApplicationModel_Activation",
     "Foundation",
     "Services_Store",
     "Win32_Foundation",

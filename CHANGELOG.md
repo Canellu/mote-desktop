@@ -5,6 +5,25 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Highlights
+
+- **Try Mote Pro free for 14 days.** The trial starts when you pair your first
+  Hue Bridge and unlocks everything in Pro. The title bar counts down the days
+  left, and Mote reminds you three days and one day before the trial ends.
+- When the trial ends without a purchase, Pro features switch off, but nothing
+  you set up is lost. Widgets show their first control and stop staying on top,
+  the home dashboard shows the standard grouping, and shortcuts stop firing.
+  Buying Mote Pro brings all of it back as it was.
+- Reinstalling Mote does not start a second trial.
+
+### Improvements
+
+- Mote now starts when you sign in to Windows by default, quietly in the tray.
+  Turn it off under Settings, General, or on the Startup page in Windows
+  Settings.
+- Switching to another saved Hue Bridge now needs Pro, the same as saving a
+  second one. Removing a bridge stays free.
+
 ## [0.2.5] - 2026-09-14
 
 ### Improvements
