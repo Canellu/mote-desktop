@@ -117,6 +117,21 @@ control, single-target desktop widgets, and desktop preferences. A one-time Mote
 Pro purchase unlocks PC Sync, global keyboard shortcuts, multi-control and
 customizable widgets, custom dashboard layouts, and multiple saved Hue Bridges.
 
+## Store links
+
+These are set under **Properties → Support info**, not in the description,
+which Microsoft asks to keep free of URLs. All three were live in the public
+Store catalog on 2026-09-15:
+
+- Website: https://motedesktop.com
+- Support: https://motedesktop.com/support
+- Privacy policy: https://motedesktop.com/privacy
+
+## Screenshots and trailer
+
+Upload order, captions, the trailer title, and the Super hero art are listed in
+[the Store assets README](../store-assets/screenshots/README.md).
+
 ## Legal and attribution
 
 - Publisher: Anton Vo

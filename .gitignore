@@ -39,3 +39,6 @@ docs/*.local.md
 !.impeccable/design.json
 !.impeccable/surfaces/
 !.impeccable/surfaces/**
+
+# Python bytecode from the Store asset scripts
+__pycache__/
