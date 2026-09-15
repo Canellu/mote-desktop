@@ -1,13 +1,27 @@
 # Windows Store packaging and commerce spike
 
-Status: **0.2.4.0 is live in the Store with Pro enforcement, the purchase
-window fix, the in-app update notice, a blue Update button, a desktop shortcut,
-and restart after a Store update, and the Mote Pro add-on is live at NOK 149.
-0.2.5.0, which shows update progress and says Mote will close and reopen, is in
-certification and publishes automatically. Purchase, restore, and offline
-licensing are still unverified on a Store-installed build.**
+Status: **0.2.5.0 is live in the Store with Pro enforcement, the purchase
+window fix, the in-app update notice and progress, a desktop shortcut, and
+restart after a Store update, and the Mote Pro add-on is live at NOK 149.
+0.3.0.0, which adds the 14-day Pro trial and starts Mote at sign-in by default,
+is in certification and publishes automatically. Purchase, restore, offline
+licensing, the trial surviving a reinstall, and the startup task are still
+unverified on a Store-installed build.**
 
-Last reviewed: **2026-09-14**.
+Last reviewed: **2026-09-15**.
+
+What changed on 2026-09-15: 0.2.5.0 published. 0.3.0.0 went to certification
+as Submission 9 (`1152921505701893993`), carrying `MoteDesktop_0.3.0.0_x64.msix`
+(9,796,931 bytes, SHA-256
+`CB2EEC5200FCFDD69A58F9B08AFACF55B16C140D580774D4C4C2ECE94540E680`, tag `v0.3.0`
+at `89f9bf8`), set to publish as soon as it passes. The package declares a
+`uap5:StartupTask` (`MoteDesktopStartup`, enabled), because the registry Run
+entry the app used to write is kept in a packaged app's private registry copy
+and never read at sign-in; MakeAppx accepted the manifest. The listing's
+description, short description, and what's new describe the trial, and the notes
+for certification explain that no trial starts without Hue hardware and how the
+startup task is switched off. The website's features pages, privacy policy, and
+terms were updated for the trial the same day, effective 15 September 2026.
 
 What changed late on 2026-09-14: 0.2.4.0 published. 0.2.5.0 went to
 certification as Submission 8 (`1152921505701890472`), carrying
