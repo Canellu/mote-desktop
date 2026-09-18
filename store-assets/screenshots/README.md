@@ -9,9 +9,14 @@ Upload the files in `final/` in this order, with these captions:
 3. `03-scene-gallery.png` — Preview Hue scene palettes live on your lights, then save the one you want.
 4. `04-pc-sync.png` — Sync your lights with video, games, and music playing on your PC with Mote Pro.
 5. `05-light-placement.png` — Place each light of an entertainment area around your screen in a 3D view, so sync knows where it sits.
-6. `06-desktop-widgets.png` — Pin a compact lighting controller to your desktop for instant access to lights and scenes.
-7. `07-custom-widgets.png` — Build custom widgets with the controls, scenes, layout, and size that fit your desktop.
-8. `08-sync-box.png` — Switch sources, sync styles, and intensity for a Hue Play HDMI Sync Box.
+6. `06-desktop-widgets.png` — Keep a compact lighting controller on your desktop for instant access to lights and scenes.
+7. `08-sync-box.png` — Switch sources, sync styles, and intensity for a Hue Play HDMI Sync Box.
+8. `07-custom-widgets.png` — With Mote Pro, build widgets with the controls, scenes, corners, and size that fit your desktop.
+
+Partner Center holds the Sync Box image seventh and the custom widgets image
+eighth, the reverse of the file numbers; the captions above follow Partner
+Center. Captions stay true to the free app, which has one widget and no
+pinning, so anything beyond that says Mote Pro.
 
 All final images are 1920×1080 PNG files. `raw/` contains the captures used to build them: `01`–`06` come from the live app, and `07`–`10` are copies of the website's product captures in `mote-website/public/product`. Re-run `scripts/build-store-screenshots.py` after replacing any raw capture.
 

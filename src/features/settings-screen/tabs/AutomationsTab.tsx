@@ -977,7 +977,7 @@ function OutcomeSwatch({
     >
       {/* A soft bloom in the same paint, so a lit automation reads as lit. */}
       <span
-        className="absolute inset-0 rounded-full opacity-55 blur-lg"
+        className="absolute inset-0.5 rounded-full opacity-55 blur-md"
         style={{ background: outcome.background }}
       />
       <span
