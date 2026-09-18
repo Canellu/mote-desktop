@@ -363,7 +363,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="-ml-2 shrink-0"
+                      // No negative margin: the viewport clips horizontally and has
+                      // no left padding, so pulling it left cut the button off.
+                      className="shrink-0"
                       aria-label="Back to automations"
                       onClick={() => setAutomation(null)}
                     >
