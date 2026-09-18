@@ -1,4 +1,3 @@
-import { Button } from "@/components/ui/button";
 import { DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useEntitlements } from "@/context/EntitlementContext";
@@ -7,7 +6,7 @@ import { formatDaysLeft } from "@/features/pro/trial";
 import { purchaseLabel, type ProPurchase } from "@/features/pro/useProPurchase";
 import { cn } from "@/lib/utils";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Check, ExternalLink, Minus, Sparkles } from "lucide-react";
+import { Check, ExternalLink, Minus } from "lucide-react";
 import type { Ref } from "react";
 import { toast } from "sonner";
 
@@ -116,8 +115,6 @@ const endDate = (endsAt: number) =>
 
 interface PlanOverviewProps {
   purchase: ProPurchase;
-  /** Opened by itself as a new trial starts, rather than from the badge. */
-  welcome: boolean;
   onClose: () => void;
   /** The footer's main button, which the dialog focuses when it opens. */
   actionRef?: Ref<HTMLButtonElement>;
@@ -133,7 +130,6 @@ interface PlanOverviewProps {
  */
 export const PlanOverview: React.FC<PlanOverviewProps> = ({
   purchase,
-  welcome,
   onClose,
   actionRef,
 }) => {
@@ -164,6 +160,23 @@ export const PlanOverview: React.FC<PlanOverviewProps> = ({
     void openUrl(COMPARE_URL).catch(() =>
       toast.error("Couldn't open motedesktop.com."),
     );
+
+  const websiteLine = (
+    <>
+      Every feature is explained on{" "}
+      <button
+        // On Pro this is all the footer holds, so it takes the opening focus.
+        ref={plan === "pro" ? actionRef : undefined}
+        type="button"
+        onClick={openCompare}
+        className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:underline"
+      >
+        motedesktop.com
+        <ExternalLink size={12} aria-hidden />
+      </button>
+      .
+    </>
+  );
 
   return (
     <div className="flex min-h-0 flex-col">
@@ -240,62 +253,23 @@ export const PlanOverview: React.FC<PlanOverviewProps> = ({
             </p>
           )}
 
-          <p className="text-xs leading-5 text-muted-foreground">
-            {plan === "free" &&
-              "Already bought Mote Pro on another PC? Sign in to the Microsoft Store with the same account and it restores itself. "}
-            Every feature is explained on{" "}
-            <button
-              type="button"
-              onClick={openCompare}
-              className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:underline"
-            >
-              motedesktop.com
-              <ExternalLink size={12} aria-hidden />
-            </button>
-            .
-          </p>
+          {plan !== "pro" && (
+            <p className="text-xs leading-5 text-muted-foreground">
+              {plan === "free" &&
+                "Already bought Mote Pro on another PC? Sign in to the Microsoft Store with the same account and it restores itself. "}
+              {websiteLine}
+            </p>
+          )}
         </div>
       </ScrollArea>
 
       <footer className="flex shrink-0 flex-wrap items-center gap-3 border-t px-8 py-5">
+        {/* Pro has nothing left to buy or decline, so the footer only says
+          where to read more; the close button covers leaving. */}
         {plan === "pro" ? (
-          <Button
-            ref={actionRef}
-            size="lg"
-            onClick={onClose}
-            className="min-w-28"
-          >
-            Done
-          </Button>
-        ) : plan === "trial" ? (
-          <>
-            <Button
-              ref={actionRef}
-              size="lg"
-              onClick={onClose}
-              className="min-w-28"
-            >
-              {welcome ? "Start exploring" : "Done"}
-            </Button>
-            {/* Buying early is offered, not pressed: the gold button is for
-              somebody who has nothing left to try. */}
-            <span className="ml-auto flex items-center gap-3">
-              {phase === "offer" && offer?.formattedPrice && (
-                <span className="text-sm text-muted-foreground">
-                  {offer.formattedPrice} once
-                </span>
-              )}
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={phase === "unavailable" ? retry : buy}
-                disabled={phase === "working"}
-              >
-                <Sparkles data-icon="inline-start" />
-                {purchaseLabel(phase)}
-              </Button>
-            </span>
-          </>
+          <p className="text-xs leading-5 text-muted-foreground">
+            {websiteLine}
+          </p>
         ) : (
           <>
             <BuyButton

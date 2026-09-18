@@ -85,7 +85,7 @@ export const TrialNotices: React.FC = () => {
       // Asked again: the development menu can mark it seen in the meantime.
       if (trialWelcomeSeen(startedAt)) return;
       markTrialWelcomeSeen(startedAt);
-      showPlan({ welcome: true });
+      showPlan();
     }, WELCOME_DELAY_MS);
     return () => window.clearTimeout(timer);
   }, [homeShown, onTrial, startedAt, trialDaysLeft, showPlan]);

@@ -11,16 +11,11 @@ export type ProFeature =
   | "trial_ended"
   | "general";
 
-export interface PlanOptions {
-  /** The first sight of a new trial, rather than somebody checking their plan. */
-  welcome?: boolean;
-}
-
 export interface ProUpgradeContextValue {
   /** Opens the purchase dialog, leading with the capability that prompted it. */
   requestPro: (feature?: ProFeature) => void;
   /** Opens the current plan beside what Free and Pro each include. */
-  showPlan: (options?: PlanOptions) => void;
+  showPlan: () => void;
   /**
    * The tier badge. The plan grows out of it when it opens and shrinks back
    * into it when it closes, so the badge reads as where the plan lives.

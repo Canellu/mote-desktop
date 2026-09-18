@@ -2,7 +2,6 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   ProUpgradeContext,
   registerProUpgradeOpener,
-  type PlanOptions,
   type ProFeature,
 } from "@/features/pro/proUpgrade";
 import { PlanOverview } from "@/features/pro/PlanOverview";
@@ -20,9 +19,7 @@ import {
 } from "react";
 
 /** What the dialog shows: the offer for a capability, or the current plan. */
-type DialogView =
-  | { kind: "offer"; feature: ProFeature }
-  | { kind: "plan"; welcome: boolean };
+type DialogView = { kind: "offer"; feature: ProFeature } | { kind: "plan" };
 
 /** Leaving the badge: quick off the mark, settling gently into place. */
 const FLIGHT_OUT = { duration: "480ms", ease: "cubic-bezier(0.16, 1, 0.3, 1)" };
@@ -103,8 +100,8 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
     setOpen(true);
   }, []);
 
-  const showPlan = useCallback((options?: PlanOptions) => {
-    setView({ kind: "plan", welcome: options?.welcome ?? false });
+  const showPlan = useCallback(() => {
+    setView({ kind: "plan" });
     setFlight(flightTo(planAnchorRef.current, FLIGHT_OUT));
     setOpen(true);
   }, []);
@@ -166,7 +163,6 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
           {view.kind === "plan" ? (
             <PlanOverview
               purchase={purchase}
-              welcome={view.welcome}
               onClose={close}
               actionRef={planActionRef}
             />

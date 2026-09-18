@@ -18,17 +18,21 @@ export const BuyButton: React.FC<{
   children: ReactNode;
   onClick: () => void;
   disabled?: boolean;
+  /** `sm` sits inside a banner or a row beside other small controls. */
+  size?: "default" | "sm";
   className?: string;
   ref?: Ref<HTMLButtonElement>;
-}> = ({ children, onClick, disabled, className, ref }) => (
+}> = ({ children, onClick, disabled, size = "default", className, ref }) => (
   <button
     ref={ref}
     type="button"
     onClick={onClick}
     disabled={disabled}
     className={cn(
-      "group relative isolate overflow-hidden rounded-2xl px-8 py-3.5",
-      "text-base font-semibold tracking-tight text-amber-950",
+      "group relative isolate overflow-hidden font-semibold tracking-tight text-amber-950",
+      size === "sm"
+        ? "rounded-xl px-4 py-2 text-sm"
+        : "rounded-2xl px-8 py-3.5 text-base",
       "bg-[linear-gradient(110deg,oklch(0.88_0.15_86)_0%,oklch(0.82_0.19_58)_45%,oklch(0.75_0.20_28)_100%)]",
       "shadow-[0_10px_30px_-12px_oklch(0.72_0.19_50/0.9),inset_0_1px_0_oklch(1_0_0/0.45)]",
       // Tailwind v4 lifts and presses through the `translate` and `scale`

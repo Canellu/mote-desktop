@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { BuyButton } from "@/features/pro/BuyButton";
 import { type ProFeature, useProUpgrade } from "@/features/pro/proUpgrade";
 
 /**
@@ -18,9 +18,9 @@ export function ProSetupBanner({
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3">
       <p className="min-w-0 flex-1 text-sm leading-6">{children}</p>
-      <Button size="sm" onClick={() => requestPro(feature)}>
+      <BuyButton size="sm" onClick={() => requestPro(feature)}>
         Get Mote Pro
-      </Button>
+      </BuyButton>
     </div>
   );
 }

@@ -28,8 +28,11 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
+      // Closing holds its faded end: a popup whose exit outlasts this fade (the
+      // plan's flight back to the badge) keeps the backdrop mounted, and without
+      // it the backdrop snaps back to full strength until the popup is gone.
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/80 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/80 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 data-closed:[--tw-animation-fill-mode:forwards]",
         className,
       )}
       {...props}
