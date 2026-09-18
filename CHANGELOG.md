@@ -5,18 +5,45 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.4.0] - 2026-09-18
+
 ### Highlights
 
-- **On-air light (Mote Pro).** Choose a light, and it turns red, or another
-  color you pick, while an app uses your microphone or camera, then goes back to
-  how it was when the call ends. It works with any calling app, a browser tab
-  included. An app that keeps the microphone open outside calls can be ignored.
+- **On-air light (Mote Pro).** Choose lights, rooms, or zones, and they turn a
+  color, a white, or a scene you pick while an app uses your microphone or
+  camera, then go back to how they were when the call ends. It works with any
+  calling app, a browser tab included. An app that keeps the microphone open
+  outside calls can be ignored.
 - **Lights that follow you stepping away (Mote Pro).** When you lock this PC or
-  it goes to sleep, Mote turns off or dims the lights you choose and puts them
-  back when you unlock it. A light someone changed in the meantime is left as
-  it is.
-- Both live under Settings, App, Automations, and can be set up before Pro is
-  unlocked.
+  it goes to sleep, Mote turns off, dims, or sets a scene on the lights you
+  choose and puts them back when you unlock it. A light someone changed in the
+  meantime is left as it is.
+- Both live under Settings, App, Automations, can be previewed on the real
+  lights while you edit them, and can be set up before Pro is unlocked.
+- **Widget corners (Mote Pro).** Choose square, soft, rounded, or round corners
+  for each widget; its cards follow.
+
+### Improvements
+
+- Store updates download while Mote stays open, then install with a restart.
+- Settings says what the free app includes wherever Mote Pro starts, and
+  anything that needs Pro opens the purchase window instead of an error.
+
+### Fixes
+
+- The Mote Pro purchase window opens the way Microsoft requires, and a failed
+  purchase says what the Store reported.
+- Moving between screens no longer fades the whole window, the close setting no
+  longer flashes the wrong choice, and the scroll-to-top button no longer
+  covers the last row in Settings.
+
+### Migration notes
+
+- The free app now includes one desktop widget with one room, zone, or light.
+  More widgets, more controls in a widget, and each widget's theme, size,
+  corners, placement, pinning, and always-on-top are part of Mote Pro. Widgets
+  made during a trial stay saved; without Pro only the first one runs, and the
+  rest come back as they were once Pro is unlocked.
 
 ## [0.3.0] - 2026-09-15
 

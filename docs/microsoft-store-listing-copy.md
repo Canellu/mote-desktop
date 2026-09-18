@@ -15,10 +15,11 @@ read: correct here first, then carry the change across, because this file is
 where the widget claims below came from in the first place. The trial wording
 went across with the 0.3.0 submission.
 
-**Not yet in Partner Center (2026-09-18):** Free became one widget with one
-room, zone, or light. The description and both feature lists below say so; the
-live listing still says Free widgets are unlimited. Carry it across with the
-first package that enforces the limit, not before.
+**Carry across with 0.4.0 (2026-09-18):** Free became one widget with one
+room, zone, or light, and automations ship for the first time. The description,
+both feature lists, and "What's new in 0.4.0" below say so; the live listing
+still says Free widgets are unlimited and does not mention automations. Update
+it in the same submission as the 0.4.0.0 package, not before.
 
 ## Product name
 
@@ -42,7 +43,8 @@ details are needed to start the trial.
 
 The Free tier includes one desktop widget holding one room, zone, or light.
 Mote Pro adds PC Sync, global keyboard shortcuts that control your lights from
-anywhere in Windows, as many widgets as you like with several controls or a
+anywhere in Windows, an on-air light during calls, lights that dim or turn off
+when you lock the PC, as many widgets as you like with several controls or a
 multi-target toggle group in each, each widget's theme, size, corners and
 placement, a customized and reordered home dashboard, and saving and switching
 among multiple Hue Bridges. PC Sync extends supported displays, games, and
@@ -82,6 +84,9 @@ releases.
   hardware.
 - Set global keyboard shortcuts that control lights, rooms, zones, and scenes
   from anywhere in Windows, including from the tray.
+- Turn lights into an on-air sign while an app uses your microphone or camera,
+  and dim or turn them off when the PC locks or sleeps, then back on when you
+  return.
 - Create as many desktop widgets as you like, put several controls or a
   multi-target toggle group in each, and choose its theme, size, corners,
   placement, pinning, and always-on-top behavior.
@@ -103,6 +108,17 @@ releases.
 Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
+
+## What's new in 0.4.0
+
+Automations, with Mote Pro: an on-air light that turns the lights you choose a
+color, a white, or a scene while an app uses your microphone or camera, and
+lights that dim, turn off, or change scene when you lock the PC or it sleeps.
+Preview either on your own lights while you set it up. Widgets can now have
+square, soft, rounded, or round corners with Mote Pro. Store updates download
+while Mote stays open. The free app now includes one desktop widget with one
+room, zone, or light; more widgets and their customization are part of Mote
+Pro, and widgets made during a trial stay saved.
 
 ## What's new in 0.3.0
 
