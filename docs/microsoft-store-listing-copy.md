@@ -15,6 +15,11 @@ read: correct here first, then carry the change across, because this file is
 where the widget claims below came from in the first place. The trial wording
 went across with the 0.3.0 submission.
 
+**Carried across with 0.5.0 (Submission 10, resubmitted 2026-09-18):** 0.4.1
+never published. Its certification was cancelled and Submission 10 went back
+with the 0.5.0.0 package; "What's new in 0.5.0" below went across as written,
+covering both releases. Nothing else in the listing changed.
+
 **Carried across with 0.4.1 (Submission 10, in certification 2026-09-18):**
 Free became one widget with one room, zone, or light, and automations ship for
 the first time. Partner Center keeps its own, shorter description; it gained
@@ -114,11 +119,25 @@ Remote Hue cloud control is not included.
 
 ## What's new in 0.5.0
 
-See your plan at any time: the plan button beside the app name shows what you
-have, next to what Free and Mote Pro each include. When the 14-day Mote Pro
-trial starts, Mote now says so, with what it includes and when it ends. No
-card, and nothing to cancel. Pro features stay marked Pro during the trial, so
-it is clear what goes back to Free when it ends.
+0.4.1 never reached customers, so this covers both releases.
+
+New in 0.5.0: See your plan at any time. The plan button beside the app name
+shows what you have, next to what Free and Mote Pro each include. When the
+14-day Mote Pro trial starts, Mote now says so, with what it includes and when
+it ends. No card, and nothing to cancel. Pro features stay marked Pro during the
+trial, so it is clear what goes back to Free when it ends.
+
+Automations, with Mote Pro. An on-air light turns the lights you choose a color,
+a white, or a scene while an app uses your microphone or camera, and lights can
+dim, turn off, or change scene when you lock the PC or it sleeps. Preview either
+on your own lights while you set it up.
+
+Widgets can now have square, soft, rounded, or round corners with Mote Pro.
+Store updates download while Mote stays open.
+
+The free app now includes one desktop widget with one room, zone, or light. More
+widgets and their customization are part of Mote Pro, and widgets made during a
+trial stay saved.
 
 ## What's new in 0.4.1
 

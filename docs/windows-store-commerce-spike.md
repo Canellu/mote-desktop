@@ -2,13 +2,24 @@
 
 Status: **0.3.0.0 is live in the Store with Pro enforcement, the 14-day Pro
 trial, the in-app update notice, and start at sign-in, and the Mote Pro add-on
-is live at NOK 149. 0.4.1.0, which adds automations, the one-widget Free tier,
-widget corners, and the UI-thread purchase call, is in certification and
+is live at NOK 149. 0.5.0.0, which adds automations, the one-widget Free tier,
+widget corners, and the UI-thread purchase call from 0.4.1, plus the plan view,
+the trial welcome, and Pro tags through the trial, is in certification and
 publishes automatically. Purchase, restore, offline licensing, the trial
 surviving a reinstall, and the startup task are still unverified on a
 Store-installed build.**
 
 Last reviewed: **2026-09-18**.
+
+Later on 2026-09-18: Submission 10's certification was cancelled while it was
+still in the certification step, its 0.4.1.0 package was replaced with
+`MoteDesktop_0.5.0.0_x64.msix` (9,973,447 bytes, SHA-256
+`50E068C394E57650CBA6DAF28074C8834412CED81D3CF01FD2DA7380978FDE7B`, tag `v0.5.0`
+at `3f35ae5`), and it went back to certification set to publish as soon as it
+passes. 0.4.1 was never published, and its 0.4.1.0 package is spent, so "What's
+new" now covers 0.4.1 and 0.5.0 together. The package went up through the
+browser 27 KB under the 10 MB upload limit; the next release will likely need
+another way.
 
 What changed on 2026-09-18: 0.4.1.0 went to certification as Submission 10
 (`1152921505701901277`), carrying `MoteDesktop_0.4.1.0_x64.msix` (9,964,878

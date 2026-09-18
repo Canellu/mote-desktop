@@ -26,6 +26,9 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## [0.4.1] - 2026-09-18
 
+Withdrawn from Store certification before it was published; everything below
+reaches the Store with 0.5.0.
+
 ### Highlights
 
 - **On-air light (Mote Pro).** Choose lights, rooms, or zones, and they turn a
