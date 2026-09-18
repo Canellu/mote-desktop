@@ -23,7 +23,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useEntitlements } from "@/context/EntitlementContext";
@@ -62,7 +61,6 @@ import {
 } from "@/features/space-screen/utils/color-state";
 import { getLightIcon } from "@/features/space-screen/utils/light-icons";
 import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-icons";
-import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { describeCommandError } from "@/lib/entitlement-errors";
 import { activeTileTheme } from "@/lib/tile-theme";
 import { cn } from "@/lib/utils";
@@ -77,6 +75,7 @@ import {
   AutomationScenePicker,
   type AutomationSceneOption,
 } from "../components/AutomationScenePicker";
+import { ProSetupBanner } from "../components/ProSetupBanner";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { SettingsRow, SettingsStack } from "../components/SettingsList";
 import {
@@ -103,7 +102,6 @@ const DIM_SWATCH = hueDisplayColorHex({ mirek: 366 }) ?? "#f4cf95";
 
 export function AutomationsTab() {
   const { hasPro } = useEntitlements();
-  const { requestPro } = useProUpgrade();
   const { bridgeId } = useHue();
   const { automation: editing, setAutomation: setEditing } =
     useOpenAutomation();
@@ -200,15 +198,10 @@ export function AutomationsTab() {
   return (
     <SettingsStack>
       {!hasPro && (
-        <div className="flex max-w-prose flex-wrap items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3">
-          <p className="min-w-0 flex-1 text-sm leading-6">
-            Automations are part of Mote Pro. You can set them up now. They
-            start working as soon as Pro is unlocked.
-          </p>
-          <Button size="sm" onClick={() => requestPro("local_automation")}>
-            Get Mote Pro
-          </Button>
-        </div>
+        <ProSetupBanner feature="local_automation">
+          Automations are part of Mote Pro. You can set them up now. They start
+          working as soon as Pro is unlocked.
+        </ProSetupBanner>
       )}
       <AutomationSettingsEditor
         settings={settings}
@@ -888,10 +881,11 @@ export function AutomationSettingsEditor({
         />
       </div>
       {outcomeCard(open.rule)}
-      <div className="grid min-w-0 gap-6">
+      {/* Each step reads like a General tab section: its number and title sit
+        above, and its controls sit on the recessed settings surface. */}
+      <div className="grid min-w-0 gap-8">
         {stepsFor(open.rule).map((step, position) => (
           <Fragment key={step.id}>
-            {position > 0 && <Separator />}
             <section className="grid min-w-0 gap-4">
               <div className="flex min-w-0 items-baseline gap-3">
                 <span
@@ -912,7 +906,9 @@ export function AutomationSettingsEditor({
                   </p>
                 </div>
               </div>
-              <div className="min-w-0 pl-9">{step.content}</div>
+              <div className="min-w-0 rounded-2xl bg-(--settings-surface) p-4 @3xl:p-5">
+                {step.content}
+              </div>
             </section>
           </Fragment>
         ))}

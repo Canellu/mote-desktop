@@ -15,7 +15,7 @@ import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 import { type LightShortcut, shortcutLabel } from "@/features/shortcuts/model";
 import { saveShortcut, useShortcutStore } from "@/features/shortcuts/store";
 import { useEntitlements } from "@/context/EntitlementContext";
-import { useProUpgrade } from "@/features/pro/proUpgrade";
+import { ProSetupBanner } from "../components/ProSetupBanner";
 import { SettingsSection, SettingsStack } from "../components/SettingsList";
 import { ShortcutTargetPicker } from "../components/ShortcutTargetPicker";
 import { sceneBubbleCss } from "@/features/space-screen/utils/color-state";
@@ -30,7 +30,6 @@ const actions = [
 
 export function ShortcutsTab() {
   const { hasPro } = useEntitlements();
-  const { requestPro } = useProUpgrade();
   const { bridgeId, connected } = useHue();
   const lights = useHueResourcesStore((s) => s.lights);
   const spaces = useHueResourcesStore((s) => s.roomZones);
@@ -110,6 +109,16 @@ export function ShortcutsTab() {
 
   return (
     <SettingsStack>
+      {/* Pressing a shortcut is refused in Rust without Pro, so say that here
+        rather than letting somebody build a set of hotkeys that do nothing.
+        The editor below stays usable: a shortcut can be prepared, and it
+        starts working the moment Pro is owned. */}
+      {!hasPro && (
+        <ProSetupBanner feature="global_shortcuts">
+          Shortcuts are part of Mote Pro. You can set them up now — they start
+          working as soon as Pro is unlocked.
+        </ProSetupBanner>
+      )}
       <SettingsSection title="Keyboard shortcuts">
         <p className="max-w-prose text-sm leading-6 text-muted-foreground">
           Control lights, rooms, zones, and scenes while Mote is running,
@@ -118,21 +127,6 @@ export function ShortcutsTab() {
           to the bridge it was created for.
         </p>
 
-        {/* Pressing a shortcut is refused in Rust without Pro, so say that here
-          rather than letting somebody build a set of hotkeys that do nothing.
-          The editor below stays usable: a shortcut can be prepared, and it
-          starts working the moment Pro is owned. */}
-        {!hasPro && (
-          <div className="flex max-w-prose flex-wrap items-center gap-3 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3">
-            <p className="min-w-0 flex-1 text-sm leading-6">
-              Shortcuts are part of Mote Pro. You can set them up now — they
-              start working as soon as Pro is unlocked.
-            </p>
-            <Button size="sm" onClick={() => requestPro("global_shortcuts")}>
-              Get Mote Pro
-            </Button>
-          </div>
-        )}
         <p className="max-w-prose text-sm leading-6 text-muted-foreground">
           Mote checks availability when saving and at startup. Other apps’
           in-window shortcuts cannot all be detected; choose a different key if
