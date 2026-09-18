@@ -54,10 +54,11 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         }
       >
         {isWidgetWindow ? (
-          <>
+          // Widgets read entitlements too, to leave Pro controls out on Free.
+          <EntitlementProvider>
             <WidgetScreen widgetId={widgetId ?? "main"} />
             <Toaster />
-          </>
+          </EntitlementProvider>
         ) : (
           <EntitlementProvider>
             <StoreUpdateProvider>

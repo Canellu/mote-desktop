@@ -98,6 +98,8 @@ export const controlTargetKey = (target: ControlTarget): string =>
 
 export type WidgetThemeMode = "light" | "dark" | "system";
 export type WidgetSizeMode = "small" | "default" | "large";
+/** A fixed set of corner shapes; see `WIDGET_CORNER_SCALE`. */
+export type WidgetCornerMode = "square" | "soft" | "rounded" | "round";
 
 export interface WidgetState {
   widgetId: string;
@@ -109,7 +111,13 @@ export interface WidgetState {
   userSized: boolean;
   themeMode: WidgetThemeMode;
   sizeMode: WidgetSizeMode;
+  cornerMode: WidgetCornerMode;
   controls: WidgetControl[];
+  /**
+   * Saved under Pro past the one widget Free runs. It stays saved and comes
+   * back with Pro. Only `list-widgets` reports it.
+   */
+  locked?: boolean;
 }
 
 /** A short, collision-resistant id for a freshly created control. */

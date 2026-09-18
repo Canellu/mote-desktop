@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { useEntitlements } from "@/context/EntitlementContext";
+import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { ManageControls } from "@/features/widget-screen/components/ManageControls";
 import type {
+  WidgetCornerMode,
   WidgetSizeMode,
   WidgetThemeMode,
 } from "@/features/widget-screen/types";
@@ -32,10 +35,9 @@ import {
   SETTINGS_EXPANDABLE_TRIGGER_OPEN,
 } from "../constants";
 import { DeleteResourceButton } from "./DeleteResourceButton";
-import {
-  SegmentedControl,
-  type SegmentIcon,
-} from "./SegmentedControl";
+import { ProTag } from "./ProTag";
+import { SegmentedControl, type SegmentIcon } from "./SegmentedControl";
+import { WIDGET_CORNER_OPTIONS } from "./widgetCornerOptions";
 import { WidgetPositionPicker } from "./WidgetPositionPicker";
 
 const THEME_MODES = [
@@ -84,8 +86,13 @@ export const WidgetCard = ({
     alwaysOnTop,
     themeMode,
     sizeMode,
+    cornerMode,
     controls,
+    locked,
   } = widget;
+  const { hasPro } = useEntitlements();
+  const { requestPro } = useProUpgrade();
+  const upgrade = () => requestPro("advanced_widgets");
   const [configOpen, setConfigOpen] = useState(false);
   const prefersReducedMotion = useReducedMotion();
   const count = controls.length;
@@ -96,7 +103,18 @@ export const WidgetCard = ({
   }, [openRequest]);
 
   const updateConfig = (next: Partial<WidgetConfigDraft>) =>
-    onSetConfig(widgetId, { controls, themeMode, sizeMode, ...next });
+    onSetConfig(widgetId, {
+      controls,
+      themeMode,
+      sizeMode,
+      cornerMode,
+      ...next,
+    });
+
+  // Free is one widget at the system theme, standard size and corners, neither
+  // pinned nor on top. Reaching past that offers Pro; stepping back inside it never does,
+  // so nothing can be left stuck where a lapsed purchase put it.
+  const activate = () => (locked ? upgrade() : onReopen(widgetId));
 
   const toggleConfigure = () => setConfigOpen((open) => !open);
 
@@ -156,7 +174,7 @@ export const WidgetCard = ({
               ? "bg-(--success-surface) text-(--success-text)"
               : "bg-muted text-muted-foreground",
           )}
-          onClick={() => enabled ? onClose(widgetId) : onReopen(widgetId)}
+          onClick={() => (enabled ? onClose(widgetId) : activate())}
         >
           <span
             className={cn(
@@ -164,7 +182,7 @@ export const WidgetCard = ({
               enabled ? "bg-success" : "bg-muted-foreground",
             )}
           />
-          {enabled ? "Active" : "Inactive"}
+          {enabled ? "Active" : locked ? "Needs Pro" : "Inactive"}
         </button>
         <button
           type="button"
@@ -177,10 +195,7 @@ export const WidgetCard = ({
         >
           <ChevronDown
             size={16}
-            className={cn(
-              "transition-transform",
-              configOpen && "rotate-180",
-            )}
+            className={cn("transition-transform", configOpen && "rotate-180")}
           />
         </button>
       </div>
@@ -198,115 +213,165 @@ export const WidgetCard = ({
             className="overflow-hidden"
           >
             <div className="border-t border-border/60 px-4 py-4">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">Active</p>
-              <p className="text-xs text-muted-foreground">
-                Show this widget in its own window.
-              </p>
-            </div>
-            <Switch
-              checked={enabled}
-              onCheckedChange={(checked) =>
-                checked ? onReopen(widgetId) : onClose(widgetId)
-              }
-              aria-label="Active"
-            />
-          </div>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Active</p>
+                  <p className="text-xs text-muted-foreground">
+                    Show this widget in its own window.
+                  </p>
+                </div>
+                <Switch
+                  checked={enabled}
+                  onCheckedChange={(checked) =>
+                    checked ? activate() : onClose(widgetId)
+                  }
+                  aria-label="Active"
+                />
+              </div>
 
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">Pinned</p>
-              <p className="text-xs text-muted-foreground">
-                Lock this widget to its current position.
-              </p>
-            </div>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="rounded-lg"
-              aria-label={pinned ? "Unpin widget" : "Pin widget"}
-              onClick={() => onSetPinned(widgetId, !pinned)}
-            >
-              {pinned ? <PinOff /> : <Pin />}
-              {pinned ? "Unpin" : "Pin"}
-            </Button>
-          </div>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    Pinned
+                    {hasPro ? null : <ProTag />}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Lock this widget to its current position.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="rounded-lg"
+                  aria-label={pinned ? "Unpin widget" : "Pin widget"}
+                  onClick={() =>
+                    !pinned && !hasPro
+                      ? upgrade()
+                      : onSetPinned(widgetId, !pinned)
+                  }
+                >
+                  {pinned ? <PinOff /> : <Pin />}
+                  {pinned ? "Unpin" : "Pin"}
+                </Button>
+              </div>
 
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">Always on top</p>
-              <p className="text-xs text-muted-foreground">
-                Keep this widget floating above other windows.
-              </p>
-            </div>
-            <Switch
-              checked={alwaysOnTop}
-              onCheckedChange={(checked) => onSetAlwaysOnTop(widgetId, checked)}
-              aria-label="Always on top"
-            />
-          </div>
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    Always on top
+                    {hasPro ? null : <ProTag />}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Keep this widget floating above other windows.
+                  </p>
+                </div>
+                <Switch
+                  checked={alwaysOnTop}
+                  onCheckedChange={(checked) =>
+                    checked && !hasPro
+                      ? upgrade()
+                      : onSetAlwaysOnTop(widgetId, checked)
+                  }
+                  aria-label="Always on top"
+                />
+              </div>
 
-          <WidgetPositionPicker widgetId={widgetId} />
-
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">Theme</p>
-              <p className="text-xs text-muted-foreground">
-                Choose the widget's light or dark appearance.
-              </p>
-            </div>
-            <SegmentedControl
-              value={themeMode}
-              onValueChange={(value) =>
-                updateConfig({ themeMode: value as WidgetThemeMode })
-              }
-              ariaLabel="Widget theme"
-              options={THEME_MODES}
-              layoutId={`widget-theme-mode-pill-${widgetId}`}
-            />
-          </div>
-
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium">Widget size</p>
-              <p className="text-xs text-muted-foreground">
-                Adjust the dimensions of the widget controls.
-              </p>
-            </div>
-            <SegmentedControl
-              value={sizeMode}
-              onValueChange={(value) =>
-                updateConfig({ sizeMode: value as WidgetSizeMode })
-              }
-              ariaLabel="Widget size"
-              options={SIZE_MODES}
-              layoutId={`widget-size-mode-pill-${widgetId}`}
-            />
-          </div>
-
-          <ManageControls
-            controls={controls}
-            onChange={(controls) => updateConfig({ controls })}
-          />
-
-          <div className="mt-5 flex border-t border-border/60 pt-4">
-            <span className="ml-auto">
-              <DeleteResourceButton
-                label="widget"
-                description="This permanently removes the widget and its saved controls. This can't be undone."
-                tooltip="Delete widget"
-                triggerLabel="Delete"
-                onDelete={() => onRemove(widgetId)}
+              <WidgetPositionPicker
+                widgetId={widgetId}
+                onProRequired={hasPro ? undefined : upgrade}
               />
-            </span>
-          </div>
+
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    Theme
+                    {hasPro ? null : <ProTag />}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Choose the widget's light or dark appearance.
+                  </p>
+                </div>
+                <SegmentedControl
+                  value={themeMode}
+                  onValueChange={(value) =>
+                    value !== "system" && !hasPro
+                      ? upgrade()
+                      : updateConfig({ themeMode: value as WidgetThemeMode })
+                  }
+                  ariaLabel="Widget theme"
+                  options={THEME_MODES}
+                  layoutId={`widget-theme-mode-pill-${widgetId}`}
+                />
+              </div>
+
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    Widget size
+                    {hasPro ? null : <ProTag />}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Adjust the dimensions of the widget controls.
+                  </p>
+                </div>
+                <SegmentedControl
+                  value={sizeMode}
+                  onValueChange={(value) =>
+                    value !== "default" && !hasPro
+                      ? upgrade()
+                      : updateConfig({ sizeMode: value as WidgetSizeMode })
+                  }
+                  ariaLabel="Widget size"
+                  options={SIZE_MODES}
+                  layoutId={`widget-size-mode-pill-${widgetId}`}
+                />
+              </div>
+
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    Corners
+                    {hasPro ? null : <ProTag />}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Round the widget and its cards more or less.
+                  </p>
+                </div>
+                <SegmentedControl
+                  value={cornerMode}
+                  onValueChange={(value) =>
+                    value !== "rounded" && !hasPro
+                      ? upgrade()
+                      : updateConfig({ cornerMode: value as WidgetCornerMode })
+                  }
+                  ariaLabel="Widget corners"
+                  options={WIDGET_CORNER_OPTIONS}
+                  layoutId={`widget-corner-mode-pill-${widgetId}`}
+                />
+              </div>
+
+              <ManageControls
+                controls={controls}
+                onChange={(controls) => updateConfig({ controls })}
+                onProRequired={hasPro ? undefined : upgrade}
+              />
+
+              <div className="mt-5 flex border-t border-border/60 pt-4">
+                <span className="ml-auto">
+                  <DeleteResourceButton
+                    label="widget"
+                    description="This permanently removes the widget and its saved controls. This can't be undone."
+                    tooltip="Delete widget"
+                    triggerLabel="Delete"
+                    onDelete={() => onRemove(widgetId)}
+                  />
+                </span>
+              </div>
             </div>
           </motion.div>
         ) : null}
       </AnimatePresence>
-
     </Card>
   );
 };

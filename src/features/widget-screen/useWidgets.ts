@@ -1,9 +1,15 @@
+import { openProUpgrade } from "@/features/pro/proUpgrade";
+import {
+  describeCommandError,
+  isPurchaseRequired,
+} from "@/lib/entitlement-errors";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type {
   WidgetControl,
+  WidgetCornerMode,
   WidgetSizeMode,
   WidgetState,
   WidgetThemeMode,
@@ -20,13 +26,29 @@ const toSummary = (state: WidgetState): WidgetSummary => ({
   userSized: state.userSized ?? false,
   themeMode: state.themeMode ?? "system",
   sizeMode: state.sizeMode ?? "default",
+  cornerMode: state.cornerMode ?? "rounded",
   controls: state.controls ?? [],
+  locked: state.locked ?? false,
 });
+
+/**
+ * Reports a failed widget command. A Pro refusal opens the purchase dialog, since
+ * it answers what was just asked for. Anything else is described rather than
+ * printed: the gate's refusals are JSON.
+ */
+const reportFailure = (error: unknown, fallback: string) => {
+  if (isPurchaseRequired(error)) {
+    openProUpgrade("advanced_widgets");
+    return;
+  }
+  toast.error(describeCommandError(error) || fallback);
+};
 
 export interface WidgetConfigDraft {
   controls: WidgetControl[];
   themeMode: WidgetThemeMode;
   sizeMode: WidgetSizeMode;
+  cornerMode: WidgetCornerMode;
 }
 
 /**
@@ -71,6 +93,7 @@ export const useWidgets = () => {
         controls?: WidgetSummary["controls"];
         themeMode?: WidgetThemeMode;
         sizeMode?: WidgetSizeMode;
+        cornerMode?: WidgetCornerMode;
       },
     ) => {
       if (opening) return;
@@ -79,7 +102,7 @@ export const useWidgets = () => {
         await invoke("open-widget-window", { widgetId, ...options });
         await refresh();
       } catch (error) {
-        toast.error(String(error) || "Unable to open widget");
+        reportFailure(error, "Unable to open widget");
       } finally {
         setOpening(false);
       }
@@ -93,7 +116,7 @@ export const useWidgets = () => {
         await invoke("close-widget-window", { widgetId });
         await refresh();
       } catch (error) {
-        toast.error(String(error) || "Unable to close widget");
+        reportFailure(error, "Unable to close widget");
       }
     },
     [refresh],
@@ -105,7 +128,7 @@ export const useWidgets = () => {
         await invoke("remove-widget", { widgetId });
         await refresh();
       } catch (error) {
-        toast.error(String(error) || "Unable to remove widget");
+        reportFailure(error, "Unable to remove widget");
       }
     },
     [refresh],
@@ -117,7 +140,7 @@ export const useWidgets = () => {
         await invoke("set-widget-pinned", { widgetId, pinned });
         await refresh();
       } catch (error) {
-        toast.error(String(error) || "Unable to update widget");
+        reportFailure(error, "Unable to update widget");
       }
     },
     [refresh],
@@ -134,7 +157,7 @@ export const useWidgets = () => {
         await invoke("set-widget-always-on-top", { widgetId, alwaysOnTop });
         await refresh();
       } catch (error) {
-        toast.error(String(error) || "Unable to update widget");
+        reportFailure(error, "Unable to update widget");
         await refresh();
       }
     },
@@ -152,7 +175,7 @@ export const useWidgets = () => {
         await invoke("set-widget-controls", { widgetId, controls });
         await refresh();
       } catch (error) {
-        toast.error(String(error) || "Unable to update controls");
+        reportFailure(error, "Unable to update controls");
         await refresh();
       }
     },
@@ -170,7 +193,7 @@ export const useWidgets = () => {
         await invoke("set-widget-config", { widgetId, ...config });
         await refresh();
       } catch (error) {
-        toast.error(String(error) || "Unable to update widget");
+        reportFailure(error, "Unable to update widget");
         await refresh();
       }
     },

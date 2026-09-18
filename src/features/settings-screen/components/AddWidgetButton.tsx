@@ -6,21 +6,24 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Plus } from "lucide-react";
+import { ProTag } from "./ProTag";
 
 /**
  * Header action for the Widget tab. Mirrors {@link AddDevicesButton}: it always
  * keeps its label and shows a transient "Opening..." state while a new widget
- * window is being spawned.
+ * window is being spawned. `pro` marks it once Free's one widget exists.
  */
 export const AddWidgetButton = ({
   loading,
   disabled,
   disabledReason,
+  pro,
   onClick,
 }: {
   loading?: boolean;
   disabled?: boolean;
   disabledReason?: string;
+  pro?: boolean;
   onClick: () => void;
 }) => {
   const button = (
@@ -32,6 +35,10 @@ export const AddWidgetButton = ({
     >
       <Plus size={16} />
       {loading ? "Opening..." : "Add widget"}
+      {/* The button is filled with the primary colour the tag normally uses. */}
+      {pro ? (
+        <ProTag className="border-primary-foreground/30 bg-primary-foreground/10 text-primary-foreground" />
+      ) : null}
     </Button>
   );
 

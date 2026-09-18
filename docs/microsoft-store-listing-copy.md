@@ -2,7 +2,7 @@
 
 Status: **submitted; the live listing is the record**.
 
-Last reviewed: **2026-09-15**.
+Last reviewed: **2026-09-18**.
 
 This is the source-controlled English listing copy for the Windows release. It
 has a useful Free tier, a 14-day Mote Pro trial, and a one-time Mote Pro
@@ -14,6 +14,11 @@ Where this file and Partner Center disagree, Partner Center is what customers
 read: correct here first, then carry the change across, because this file is
 where the widget claims below came from in the first place. The trial wording
 went across with the 0.3.0 submission.
+
+**Not yet in Partner Center (2026-09-18):** Free became one widget with one
+room, zone, or light. The description and both feature lists below say so; the
+live listing still says Free widgets are unlimited. Carry it across with the
+first package that enforces the limit, not before.
 
 ## Product name
 
@@ -35,10 +40,10 @@ first Hue Bridge. When the trial ends, everything you set up stays saved, and a
 one-time Microsoft Store purchase keeps Mote Pro working. No account or payment
 details are needed to start the trial.
 
-The Free tier includes desktop widgets, each holding one room, zone, or light.
-The app does not limit how many are open. Mote Pro adds PC Sync, global keyboard
-shortcuts that control your lights from anywhere in Windows, several controls or
-a multi-target toggle group in a single widget, each widget's theme, size and
+The Free tier includes one desktop widget holding one room, zone, or light.
+Mote Pro adds PC Sync, global keyboard shortcuts that control your lights from
+anywhere in Windows, as many widgets as you like with several controls or a
+multi-target toggle group in each, each widget's theme, size, corners and
 placement, a customized and reordered home dashboard, and saving and switching
 among multiple Hue Bridges. PC Sync extends supported displays, games, and
 system audio to a compatible Hue entertainment area.
@@ -65,8 +70,7 @@ releases.
 - Use the home dashboard and switch between standard grouping modes.
 - Discover, pair, and control one Hue Play HDMI Sync Box.
 - Discover, pair, restore, rename, and remove one saved Hue Bridge.
-- Create desktop widgets, each holding one room, zone, or light. The app does
-  not limit how many are open.
+- Create one desktop widget holding one room, zone, or light.
 - Choose light, dark, or system appearance and configure tray and startup
   behavior.
 - Keep Hue credentials in the Windows credential store and preferences on your
@@ -78,8 +82,9 @@ releases.
   hardware.
 - Set global keyboard shortcuts that control lights, rooms, zones, and scenes
   from anywhere in Windows, including from the tray.
-- Put several controls, or a multi-target toggle group, in a single widget, and
-  choose its theme, size, placement, and always-on-top behavior.
+- Create as many desktop widgets as you like, put several controls or a
+  multi-target toggle group in each, and choose its theme, size, corners,
+  placement, pinning, and always-on-top behavior.
 - Reorder cards and persist a custom home-dashboard layout.
 - Save and switch among multiple Hue Bridges, with one active bridge at a time.
 

@@ -4,6 +4,7 @@ import type {
   WidgetBounds,
   WidgetPlacement,
 } from "@/features/widget-screen/types";
+import { describeCommandError } from "@/lib/entitlement-errors";
 import { cn } from "@/lib/utils";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -16,6 +17,7 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { ProTag } from "./ProTag";
 
 // Fallback widget size (physical px) used to anchor a widget whose real size
 // isn't known yet — i.e. a closed widget that's never been placed. Mirrors the
@@ -53,7 +55,18 @@ const desktopExtent = (placement: WidgetPlacement) => {
   return { minX, minY, width: maxX - minX || 1, height: maxY - minY || 1 };
 };
 
-export const WidgetPositionPicker = ({ widgetId }: { widgetId: string }) => {
+export const WidgetPositionPicker = ({
+  widgetId,
+  onProRequired,
+}: {
+  widgetId: string;
+  /**
+   * Set on Free. Placing the widget from here is Pro, so dragging the preview or
+   * picking a region calls this instead. Reset stays free: it is recovery, not
+   * placement.
+   */
+  onProRequired?: () => void;
+}) => {
   const [placement, setPlacement] = useState<WidgetPlacement | null>(null);
   const [busy, setBusy] = useState(false);
   // While the user drags the preview rectangle, the widget's bounds are driven
@@ -113,7 +126,7 @@ export const WidgetPositionPicker = ({ widgetId }: { widgetId: string }) => {
         });
         await load();
       } catch (error) {
-        toast.error(String(error) || "Unable to move widget");
+        toast.error(describeCommandError(error) || "Unable to move widget");
       } finally {
         setBusy(false);
       }
@@ -127,7 +140,9 @@ export const WidgetPositionPicker = ({ widgetId }: { widgetId: string }) => {
       await invoke("reset-widget-position", { widgetId });
       await load();
     } catch (error) {
-      toast.error(String(error) || "Unable to reset widget position");
+      toast.error(
+        describeCommandError(error) || "Unable to reset widget position",
+      );
     } finally {
       setBusy(false);
     }
@@ -174,6 +189,10 @@ export const WidgetPositionPicker = ({ widgetId }: { widgetId: string }) => {
     if (!placement?.bounds || !preview || busy) return;
     event.preventDefault();
     event.stopPropagation();
+    if (onProRequired) {
+      onProRequired();
+      return;
+    }
 
     const extent = desktopExtent(placement);
     const rect = preview.getBoundingClientRect();
@@ -190,8 +209,16 @@ export const WidgetPositionPicker = ({ widgetId }: { widgetId: string }) => {
     const onMove = (move: PointerEvent) => {
       const next = {
         ...start,
-        x: clampAxis(start.x + (move.clientX - startClientX) * perPxX, extent.minX, maxX),
-        y: clampAxis(start.y + (move.clientY - startClientY) * perPxY, extent.minY, maxY),
+        x: clampAxis(
+          start.x + (move.clientX - startClientX) * perPxX,
+          extent.minX,
+          maxX,
+        ),
+        y: clampAxis(
+          start.y + (move.clientY - startClientY) * perPxY,
+          extent.minY,
+          maxY,
+        ),
       };
       setDragBounds(next);
       scheduleApply(next.x, next.y);
@@ -220,6 +247,10 @@ export const WidgetPositionPicker = ({ widgetId }: { widgetId: string }) => {
 
   // Snap the widget to one of a monitor's nine regions (corners, edges, centre).
   const snapToRegion = (monitor: MonitorInfo, row: number, col: number) => {
+    if (onProRequired) {
+      onProRequired();
+      return;
+    }
     const w = Math.min(
       placement?.bounds?.width ?? FALLBACK_WIDTH,
       monitor.workWidth,
@@ -269,7 +300,10 @@ export const WidgetPositionPicker = ({ widgetId }: { widgetId: string }) => {
     <div className="mb-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium">Position</p>
+          <p className="flex items-center gap-2 text-sm font-medium">
+            Position
+            {onProRequired ? <ProTag /> : null}
+          </p>
           <p className="text-xs text-muted-foreground">
             Drag the widget, or click a region to move it there.
           </p>
@@ -309,7 +343,9 @@ export const WidgetPositionPicker = ({ widgetId }: { widgetId: string }) => {
             >
               <span className="pointer-events-none absolute left-1 top-1 z-20 flex items-center gap-1 rounded bg-background/70 px-1 py-0.5 text-[9px] font-medium text-muted-foreground">
                 <Monitor size={9} />
-                {monitor.isPrimary ? "Primary" : `${monitor.width}×${monitor.height}`}
+                {monitor.isPrimary
+                  ? "Primary"
+                  : `${monitor.width}×${monitor.height}`}
               </span>
               <div className="absolute inset-0 z-10 grid grid-cols-3 grid-rows-3">
                 {Array.from({ length: 9 }).map((_, cell) => {
@@ -350,7 +386,10 @@ export const WidgetPositionPicker = ({ widgetId }: { widgetId: string }) => {
                 height: `${(displayBounds.height / extent.height) * 100}%`,
               }}
             >
-              <Crosshair size={12} className="pointer-events-none text-primary" />
+              <Crosshair
+                size={12}
+                className="pointer-events-none text-primary"
+              />
             </div>
           ) : null}
         </div>

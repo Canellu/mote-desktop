@@ -19,10 +19,11 @@ Last reviewed: **2026-09-11**.
 - PC Sync Music mode uses system-audio loopback; it does not use the microphone.
 - The first release manages one saved Hue Play HDMI Sync Box. Multiple or
   per-bridge Sync Box association is not included.
-- The app does not impose a limit on the number of widget windows. Multiple
-  controls/targets and advanced widget customization require Pro.
+- Free includes one desktop widget with one room, zone, or light. More widgets,
+  multiple controls/targets, and widget theme, size, corners, placement,
+  pinning, and always-on-top require Pro.
 - Mote Pro is a one-time Microsoft Store purchase. PC Sync, global keyboard
-  shortcuts, automations, advanced widget composition, custom dashboard
+  shortcuts, automations, more than one widget or control, custom dashboard
   layouts, and multiple saved Hue Bridges require Pro. All of these are
   enforced as of 2026-09-11, automations from 2026-09-15.
 - Automations run only while Mote is running, including in the tray. The

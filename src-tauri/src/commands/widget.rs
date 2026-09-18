@@ -155,6 +155,23 @@ impl Default for WidgetSizeMode {
     }
 }
 
+/// How rounded a widget's corners are. A fixed set of steps rather than a
+/// number, so every widget stays one of a few shapes that were designed.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WidgetCornerMode {
+    Square,
+    Soft,
+    Rounded,
+    Round,
+}
+
+impl Default for WidgetCornerMode {
+    fn default() -> Self {
+        Self::Rounded
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredWidget {
@@ -170,6 +187,8 @@ struct StoredWidget {
     theme_mode: WidgetThemeMode,
     #[serde(default)]
     size_mode: WidgetSizeMode,
+    #[serde(default)]
+    corner_mode: WidgetCornerMode,
     /// Keeps the widget window floating above other windows. Fully independent
     /// of `pinned`: pinning only locks the widget's position, it does not affect
     /// stacking, and a widget can be on-top without being pinned.
@@ -205,6 +224,9 @@ impl StoredWidget {
         if free_limits() {
             widget.pinned = false;
             widget.always_on_top = false;
+            widget.theme_mode = WidgetThemeMode::System;
+            widget.size_mode = WidgetSizeMode::Default;
+            widget.corner_mode = WidgetCornerMode::Rounded;
             widget.controls = free_composition(&self.controls);
         }
         widget
@@ -238,8 +260,23 @@ pub fn set_free_limits(app: &tauri::AppHandle, limited: bool) {
     let main_open = app.get_webview_window("main").is_some();
 
     for widget in &settings.widgets {
-        let state = WidgetState::from_stored(widget);
+        let state = settings.state_of(widget);
         let label = widget_label(&widget.id);
+
+        if !settings.within_free_count(&widget.id) {
+            // Widgets past the Free allowance leave the desktop while it applies
+            // and come back when it lifts. Their saved `enabled` is untouched, so
+            // each returns exactly as it was left.
+            if limited {
+                if let Some(window) = app.get_webview_window(&label) {
+                    let _ = window.hide();
+                }
+            } else if widget.enabled {
+                // Often called from a sync command, so on the main thread; see
+                // `show_widget_window_later`.
+                show_widget_window_later(app, widget.clone(), false);
+            }
+        }
 
         if let Some(window) = app.get_webview_window(&label) {
             let _ = window.set_always_on_top(widget.keeps_on_top());
@@ -259,6 +296,32 @@ struct StoredWidgetSettings {
     widgets: Vec<StoredWidget>,
 }
 
+impl StoredWidgetSettings {
+    /// Free runs one widget: the first saved. Any later ones were made under Pro
+    /// and are kept exactly as they are, but only run while Pro does.
+    fn within_free_count(&self, widget_id: &str) -> bool {
+        self.widgets
+            .first()
+            .is_some_and(|widget| widget.id == widget_id)
+    }
+
+    /// Whether a widget may be on the desktop right now.
+    fn may_run(&self, widget_id: &str) -> bool {
+        !free_limits() || self.within_free_count(widget_id)
+    }
+
+    /// A widget as the Settings tab should list it. One held back by the Free
+    /// allowance reads as closed and locked, whatever was saved for it.
+    fn state_of(&self, widget: &StoredWidget) -> WidgetState {
+        let mut state = WidgetState::from_stored(widget);
+        if !self.may_run(&widget.id) {
+            state.enabled = false;
+            state.locked = true;
+        }
+        state
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenWidgetResult {
@@ -276,7 +339,11 @@ pub struct WidgetState {
     user_sized: bool,
     theme_mode: WidgetThemeMode,
     size_mode: WidgetSizeMode,
+    corner_mode: WidgetCornerMode,
     controls: Vec<StoredWidgetControl>,
+    /// Held back by the Free allowance of one widget. Only the Settings list
+    /// reports it, through `StoredWidgetSettings::state_of`.
+    locked: bool,
 }
 
 impl WidgetState {
@@ -292,7 +359,26 @@ impl WidgetState {
             user_sized: widget.user_sized,
             theme_mode: widget.theme_mode.clone(),
             size_mode: widget.size_mode.clone(),
+            corner_mode: widget.corner_mode.clone(),
             controls: widget.controls.clone(),
+            locked: false,
+        }
+    }
+
+    /// What a window asking after a widget that no longer exists is told.
+    fn missing(widget_id: String) -> Self {
+        Self {
+            widget_id,
+            title: None,
+            pinned: false,
+            always_on_top: false,
+            enabled: false,
+            user_sized: false,
+            theme_mode: WidgetThemeMode::default(),
+            size_mode: WidgetSizeMode::default(),
+            corner_mode: WidgetCornerMode::default(),
+            controls: Vec::new(),
+            locked: false,
         }
     }
 }
@@ -305,6 +391,7 @@ pub fn open_widget_window(
     controls: Option<Vec<StoredWidgetControl>>,
     theme_mode: Option<WidgetThemeMode>,
     size_mode: Option<WidgetSizeMode>,
+    corner_mode: Option<WidgetCornerMode>,
 ) -> Result<OpenWidgetResult, String> {
     let mut settings = read_widget_settings(&app)?;
     let sanitized_controls = controls.map(sanitize_controls);
@@ -316,6 +403,10 @@ pub fn open_widget_window(
         .filter(|id| settings.widgets.iter().any(|widget| &widget.id == id));
 
     let widget = if let Some(id) = reopen_id {
+        // Free runs its one widget. Bringing back any other is Pro.
+        if !settings.within_free_count(&id) {
+            crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
+        }
         let widget = settings
             .widgets
             .iter_mut()
@@ -337,6 +428,18 @@ pub fn open_widget_window(
                 }
             }
         }
+        let theme_mode = theme_mode.unwrap_or_default();
+        let size_mode = size_mode.unwrap_or_default();
+        let corner_mode = corner_mode.unwrap_or_default();
+        let controls = sanitized_controls.unwrap_or_default();
+        // Free holds one widget, built within the Free composition and
+        // appearance. A second widget, or one built past either, is Pro.
+        if !settings.widgets.is_empty()
+            || exceeds_free_composition(&controls)
+            || exceeds_free_appearance(&theme_mode, &size_mode, &corner_mode)
+        {
+            crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
+        }
         let widget = StoredWidget {
             id: next_widget_id(&settings),
             enabled: true,
@@ -344,10 +447,11 @@ pub fn open_widget_window(
             pinned: false,
             bounds: None,
             user_sized: false,
-            theme_mode: theme_mode.unwrap_or_default(),
-            size_mode: size_mode.unwrap_or_default(),
+            theme_mode,
+            size_mode,
+            corner_mode,
             always_on_top: false,
-            controls: sanitized_controls.unwrap_or_default(),
+            controls,
         };
         settings.widgets.push(widget.clone());
         widget
@@ -356,21 +460,29 @@ pub fn open_widget_window(
 
     write_widget_settings(&app, &settings)?;
 
-    let app_for_thread = app.clone();
-    let widget_for_thread = widget.clone();
+    show_widget_window_later(&app, widget, true);
+
+    Ok(OpenWidgetResult { widget_id })
+}
+
+/// Shows a widget window once the caller has returned.
+///
+/// Called from the main thread, `run_on_main_thread` runs its task on the spot,
+/// and building a webview there on Windows deadlocks the event loop. A sync
+/// command runs on the main thread, so the task is posted from a thread of its
+/// own and the command finishes first.
+fn show_widget_window_later(app: &tauri::AppHandle, widget: StoredWidget, focus: bool) {
+    let app = app.clone();
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(25));
-        let app_for_window = app_for_thread.clone();
-        let widget_for_window = widget_for_thread.clone();
-        let _ = app_for_thread.run_on_main_thread(move || {
-            if let Err(_error) = show_widget_window(&app_for_window, &widget_for_window, true) {
+        let app_for_window = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if let Err(_error) = show_widget_window(&app_for_window, &widget, focus) {
                 #[cfg(debug_assertions)]
                 eprintln!("failed to open widget window: {_error}");
             }
         });
     });
-
-    Ok(OpenWidgetResult { widget_id })
 }
 
 #[tauri::command(rename = "list-widgets")]
@@ -382,7 +494,7 @@ pub fn list_widgets(app: tauri::AppHandle) -> Result<Vec<WidgetState>, String> {
     Ok(settings
         .widgets
         .iter()
-        .map(WidgetState::from_stored)
+        .map(|widget| settings.state_of(widget))
         .collect())
 }
 
@@ -398,18 +510,8 @@ pub fn get_widget_state(
         .widgets
         .iter()
         .find(|widget| widget.id == widget_id)
-        .map(WidgetState::from_stored)
-        .unwrap_or_else(|| WidgetState {
-            widget_id,
-            title: None,
-            pinned: false,
-            always_on_top: false,
-            enabled: false,
-            user_sized: false,
-            theme_mode: WidgetThemeMode::default(),
-            size_mode: WidgetSizeMode::default(),
-            controls: Vec::new(),
-        }))
+        .map(|widget| settings.state_of(widget))
+        .unwrap_or_else(|| WidgetState::missing(widget_id)))
 }
 
 #[tauri::command(rename = "close-widget-window")]
@@ -528,17 +630,7 @@ pub fn widget_frontend_ready(
         .find(|widget| widget.id == widget_id)
         .cloned()
     else {
-        return Ok(WidgetState {
-            widget_id,
-            title: None,
-            pinned: false,
-            always_on_top: false,
-            enabled: false,
-            user_sized: false,
-            theme_mode: WidgetThemeMode::default(),
-            size_mode: WidgetSizeMode::default(),
-            controls: Vec::new(),
-        });
+        return Ok(WidgetState::missing(widget_id));
     };
 
     let label = widget_label(&widget.id);
@@ -548,7 +640,7 @@ pub fn widget_frontend_ready(
 
     apply_widget_bounds(&window, &widget);
     let _ = window.set_always_on_top(widget.keeps_on_top());
-    if widget.enabled || widget.pinned {
+    if (widget.enabled || widget.pinned) && settings.may_run(&widget.id) {
         let _ = window.show();
     }
 
@@ -575,7 +667,11 @@ pub fn restore_widget_window(app: &tauri::AppHandle) -> Result<(), String> {
     }
 
     for widget in restored_widgets {
-        show_widget_window(app, &widget, false)?;
+        // Widgets past the Free allowance wait for Pro; `set_free_limits` opens
+        // them if it comes back while Mote is running.
+        if settings.may_run(&widget.id) {
+            show_widget_window(app, &widget, false)?;
+        }
     }
 
     Ok(())
@@ -755,6 +851,18 @@ fn exceeds_free_composition(controls: &[StoredWidgetControl]) -> bool {
     controls.len() > 1 || controls.iter().any(|control| control.targets.len() > 1)
 }
 
+/// The Free appearance: the system theme at the standard size, with the standard
+/// corners. Choosing anything else is Pro; going back to them never is.
+fn exceeds_free_appearance(
+    theme_mode: &WidgetThemeMode,
+    size_mode: &WidgetSizeMode,
+    corner_mode: &WidgetCornerMode,
+) -> bool {
+    !matches!(theme_mode, WidgetThemeMode::System)
+        || !matches!(size_mode, WidgetSizeMode::Default)
+        || !matches!(corner_mode, WidgetCornerMode::Rounded)
+}
+
 #[tauri::command(rename = "set-widget-controls")]
 pub fn set_widget_controls(
     app: tauri::AppHandle,
@@ -797,6 +905,7 @@ pub fn preview_widget_config(
     controls: Vec<StoredWidgetControl>,
     theme_mode: WidgetThemeMode,
     size_mode: WidgetSizeMode,
+    corner_mode: Option<WidgetCornerMode>,
 ) -> Result<(), String> {
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let settings = read_widget_settings(&app)?;
@@ -809,6 +918,9 @@ pub fn preview_widget_config(
     preview.controls = sanitize_controls(controls);
     preview.theme_mode = theme_mode;
     preview.size_mode = size_mode;
+    if let Some(corner_mode) = corner_mode {
+        preview.corner_mode = corner_mode;
+    }
     let next_state = WidgetState::from_stored(&preview);
 
     let label = widget_label(&widget_id);
@@ -826,6 +938,8 @@ pub fn set_widget_config(
     controls: Vec<StoredWidgetControl>,
     theme_mode: WidgetThemeMode,
     size_mode: WidgetSizeMode,
+    // Optional so a caller that predates corners leaves them as they are.
+    corner_mode: Option<WidgetCornerMode>,
 ) -> Result<(), String> {
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let mut settings = read_widget_settings(&app)?;
@@ -835,14 +949,18 @@ pub fn set_widget_config(
         .find(|widget| widget.id == widget_id)
         .ok_or_else(|| "Widget settings are not available.".to_string())?;
     let controls = sanitize_controls(controls);
+    let corner_mode = corner_mode.unwrap_or_else(|| widget.corner_mode.clone());
     // The same composition gate as `set-widget-controls`. Without it, saving
     // from the settings panel was a way round the Free allowance.
-    if exceeds_free_composition(&controls) {
+    if exceeds_free_composition(&controls)
+        || exceeds_free_appearance(&theme_mode, &size_mode, &corner_mode)
+    {
         crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
     }
     widget.controls = controls;
     widget.theme_mode = theme_mode;
     widget.size_mode = size_mode;
+    widget.corner_mode = corner_mode;
     let next_state = WidgetState::from_stored(widget);
     write_widget_settings(&app, &settings)?;
 
@@ -1367,6 +1485,7 @@ fn legacy_widget_settings_from_value(value: &Value) -> StoredWidgetSettings {
             user_sized: false,
             theme_mode: WidgetThemeMode::default(),
             size_mode: WidgetSizeMode::default(),
+            corner_mode: WidgetCornerMode::default(),
             always_on_top: false,
             controls: Vec::new(),
         }],
@@ -1571,6 +1690,11 @@ pub fn set_widget_position(
     x: i32,
     y: i32,
 ) -> Result<(), String> {
+    // Placing a widget by coordinates is Pro. Dragging the window itself is
+    // ordinary window behaviour and stays free, and so does
+    // `reset-widget-position`, which is recovery rather than placement.
+    crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
+
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let mut settings = read_widget_settings(&app)?;
 
@@ -1749,5 +1873,47 @@ mod free_limit_tests {
 
         assert_eq!(limited.len(), 1);
         assert_eq!(limited[0].targets[0].id, "r1");
+    }
+
+    #[test]
+    fn only_the_standard_appearance_is_free() {
+        use WidgetCornerMode::{Round, Rounded, Soft, Square};
+        use WidgetSizeMode::{Default, Large, Small};
+        use WidgetThemeMode::{Dark, Light, System};
+
+        assert!(!exceeds_free_appearance(&System, &Default, &Rounded));
+        assert!(exceeds_free_appearance(&Light, &Default, &Rounded));
+        assert!(exceeds_free_appearance(&Dark, &Default, &Rounded));
+        assert!(exceeds_free_appearance(&System, &Small, &Rounded));
+        assert!(exceeds_free_appearance(&System, &Large, &Rounded));
+        assert!(exceeds_free_appearance(&System, &Default, &Square));
+        assert!(exceeds_free_appearance(&System, &Default, &Soft));
+        assert!(exceeds_free_appearance(&System, &Default, &Round));
+    }
+
+    #[test]
+    fn a_widget_saved_before_corners_existed_keeps_the_standard_ones() {
+        let widget: StoredWidget = serde_json::from_value(serde_json::json!({
+            "id": "old", "enabled": true, "pinned": false, "bounds": null
+        }))
+        .unwrap();
+
+        assert!(matches!(widget.corner_mode, WidgetCornerMode::Rounded));
+    }
+
+    #[test]
+    fn free_runs_the_first_saved_widget_only() {
+        let settings: StoredWidgetSettings = serde_json::from_value(serde_json::json!({
+            "widgets": [
+                { "id": "first", "enabled": true, "pinned": false, "bounds": null },
+                { "id": "second", "enabled": true, "pinned": false, "bounds": null },
+            ]
+        }))
+        .unwrap();
+
+        assert!(settings.within_free_count("first"));
+        assert!(!settings.within_free_count("second"));
+        assert!(!settings.within_free_count("unknown"));
+        assert!(!StoredWidgetSettings::default().within_free_count("first"));
     }
 }

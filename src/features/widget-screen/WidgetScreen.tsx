@@ -5,6 +5,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useEntitlements } from "@/context/EntitlementContext";
 import { cn } from "@/lib/utils";
 import { EntertainmentStoreEffects } from "@/stores/EntertainmentStore";
 import {
@@ -87,6 +88,7 @@ const WidgetTitleBar = ({
   onRevealChange: (revealed: boolean) => void;
 }) => {
   const [pinned, setPinned] = useState(false);
+  const { hasPro } = useEntitlements();
   const [hovering, setHovering] = useState(false);
   const [focusing, setFocusing] = useState(false);
   // An unpinned widget is "in arrangement mode": keep its background and title
@@ -162,14 +164,18 @@ const WidgetTitleBar = ({
     >
       <TooltipProvider>
         <div className="flex items-center gap-0.5">
-          <TitleBarButton
-            label={pinned ? "Unpin widget" : "Pin widget"}
-            onClick={() => void togglePinned()}
-          >
-            {/* Swap to the slashed "off" glyph so the icon reflects what the
-                button will do; keep the same color in both states. */}
-            {pinned ? <PinOff size={15} /> : <Pin size={15} />}
-          </TitleBarButton>
+          {/* Pinning is Pro, and this window has no room to sell it, so Free
+              leaves the button out. Unpinning is always offered. */}
+          {hasPro || pinned ? (
+            <TitleBarButton
+              label={pinned ? "Unpin widget" : "Pin widget"}
+              onClick={() => void togglePinned()}
+            >
+              {/* Swap to the slashed "off" glyph so the icon reflects what the
+                  button will do; keep the same color in both states. */}
+              {pinned ? <PinOff size={15} /> : <Pin size={15} />}
+            </TitleBarButton>
+          ) : null}
           <TitleBarButton label="Widget settings" onClick={onOpenSettings}>
             <Settings size={15} />
           </TitleBarButton>
@@ -293,7 +299,8 @@ const ControlList = ({
 };
 
 export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
-  const { controls, themeMode, sizeMode } = useWidgetControls(widgetId);
+  const { controls, themeMode, sizeMode, cornerMode } =
+    useWidgetControls(widgetId);
   const sizeMetrics = WIDGET_SIZE_METRICS[sizeMode];
   const hasLoaded = useHueResourcesStore((state) => state.hasLoaded);
   const [shellRevealed, setShellRevealed] = useState(false);
@@ -462,8 +469,8 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     void invoke("open-widget-settings", { widgetId }).catch(() => undefined);
 
   const shellStyle = useMemo(
-    () => widgetShellStyle(theme, sizeMode),
-    [sizeMode, theme],
+    () => widgetShellStyle(theme, sizeMode, cornerMode),
+    [cornerMode, sizeMode, theme],
   );
 
   // While we're still connecting to the bridge there's nothing to grab onto, so

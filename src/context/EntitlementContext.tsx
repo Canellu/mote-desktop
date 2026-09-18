@@ -245,8 +245,8 @@ export const EntitlementProvider: React.FC<{ children: ReactNode }> = ({
 };
 
 /**
- * Reads entitlement state. Usable outside the provider — widget windows mount
- * their own tree — where it reports the Free presentation rather than throwing.
+ * Reads entitlement state. Usable outside the provider, where it reports the
+ * Free presentation rather than throwing.
  */
 export const useEntitlements = (): EntitlementContextValue => {
   const context = useContext(EntitlementContext);

@@ -21,6 +21,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-icons";
+import { ProTag } from "@/features/settings-screen/components/ProTag";
 import { selectableVariants } from "@/lib/selection-styles";
 import { cn } from "@/lib/utils";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
@@ -800,10 +801,16 @@ export const ManageControls = ({
   controls,
   onClose,
   onChange,
+  onProRequired,
 }: {
   controls: WidgetControl[];
   onClose?: () => void;
   onChange: (next: WidgetControl[]) => void;
+  /**
+   * Set on Free, which holds one single-target control. Adding a second card, or
+   * a toggles card at all, calls this instead.
+   */
+  onProRequired?: () => void;
 }) => {
   const scenes = useHueResourcesStore((state) => state.scenes);
   const [adding, setAdding] = useState(false);
@@ -851,6 +858,9 @@ export const ManageControls = ({
     onChange(arrayMove(controls, from, to));
   };
 
+  const togglesNeedPro = onProRequired !== undefined;
+  const controlNeedsPro = onProRequired !== undefined && controls.length > 0;
+
   return (
     <div className="grid gap-4 pt-8">
       <div className="flex items-center gap-2">
@@ -873,20 +883,22 @@ export const ManageControls = ({
             type="button"
             size="sm"
             variant="outline"
-            onClick={addTogglesCard}
+            onClick={togglesNeedPro ? onProRequired : addTogglesCard}
           >
             <ToggleRight size={16} />
             Add toggles
+            {togglesNeedPro ? <ProTag /> : null}
           </Button>
           <Button
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => setAdding(true)}
+            onClick={controlNeedsPro ? onProRequired : () => setAdding(true)}
             disabled={adding}
           >
             <Plus size={16} />
             Add control
+            {controlNeedsPro ? <ProTag /> : null}
           </Button>
         </div>
       </div>

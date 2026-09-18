@@ -1,5 +1,9 @@
 import type { CSSProperties } from "react";
-import type { WidgetSizeMode, WidgetThemeMode } from "./types";
+import type {
+  WidgetCornerMode,
+  WidgetSizeMode,
+  WidgetThemeMode,
+} from "./types";
 
 /** Corner radius (px) of the widget window's glass shell. */
 export const WIDGET_CORNER_RADIUS = 18;
@@ -52,6 +56,22 @@ export const WIDGET_SIZE_METRICS: Record<
     cornerRadius: 20,
   },
 };
+
+/**
+ * How far each corner style scales the standard rounding. The shell and the
+ * cards inside it scale together, so their corners keep the same relationship
+ * at every step. `rounded` is the widget as it has always looked.
+ */
+export const WIDGET_CORNER_SCALE: Record<WidgetCornerMode, number> = {
+  square: 0,
+  soft: 0.5,
+  rounded: 1,
+  round: 1.6,
+};
+
+/** The app's `--radius` in rem, mirrored from App.css. The cards' `rounded-*`
+ * classes are calculated from it, so a widget scales them by redefining it. */
+const APP_RADIUS_REM = 0.625;
 
 export const widgetCardGridColumns = (sizeMode: WidgetSizeMode) =>
   `repeat(auto-fill, minmax(${WIDGET_SIZE_METRICS[sizeMode].cardBasis}px, 1fr))`;
@@ -136,13 +156,16 @@ const WIDGET_DARK_TOKENS = {
 export const widgetShellStyle = (
   theme: "light" | "dark" = "dark",
   sizeMode: WidgetSizeMode = "default",
+  cornerMode: WidgetCornerMode = "rounded",
 ): CSSProperties => {
   const dark = theme === "dark";
   const tint = dark ? "#1b1c20" : "#f6f7f2";
   const tintStrength = dark ? 55 : 70;
+  const cornerScale = WIDGET_CORNER_SCALE[cornerMode];
   return {
     ...(dark ? WIDGET_DARK_TOKENS : WIDGET_LIGHT_TOKENS),
-    borderRadius: WIDGET_SIZE_METRICS[sizeMode].cornerRadius,
+    "--radius": `${APP_RADIUS_REM * cornerScale}rem`,
+    borderRadius: WIDGET_SIZE_METRICS[sizeMode].cornerRadius * cornerScale,
     fontSize: WIDGET_SIZE_METRICS[sizeMode].fontSize,
     backgroundColor: `color-mix(in srgb, ${tint} ${tintStrength}%, transparent)`,
     "--widget-tint": tint,

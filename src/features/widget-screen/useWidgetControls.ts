@@ -3,6 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   WidgetControl,
+  WidgetCornerMode,
   WidgetSizeMode,
   WidgetState,
   WidgetThemeMode,
@@ -23,6 +24,7 @@ export const useWidgetControls = (widgetId: string) => {
   const [controls, setControls] = useState<WidgetControl[]>([]);
   const [themeMode, setThemeMode] = useState<WidgetThemeMode>("system");
   const [sizeMode, setSizeMode] = useState<WidgetSizeMode>("default");
+  const [cornerMode, setCornerMode] = useState<WidgetCornerMode>("rounded");
   const [loaded, setLoaded] = useState(false);
   // The last value we wrote, so the echoed change event doesn't clobber a newer
   // optimistic edit with a stale payload.
@@ -36,6 +38,7 @@ export const useWidgetControls = (widgetId: string) => {
         setControls(state.controls ?? []);
         setThemeMode(state.themeMode ?? "system");
         setSizeMode(state.sizeMode ?? "default");
+        setCornerMode(state.cornerMode ?? "rounded");
       })
       .catch(() => {
         // A brand-new or unconfigured widget has none yet; start empty.
@@ -59,6 +62,7 @@ export const useWidgetControls = (widgetId: string) => {
         setControls(event.payload.controls ?? []);
         setThemeMode(event.payload.themeMode ?? "system");
         setSizeMode(event.payload.sizeMode ?? "default");
+        setCornerMode(event.payload.cornerMode ?? "rounded");
       },
     );
 
@@ -89,6 +93,7 @@ export const useWidgetControls = (widgetId: string) => {
     controls,
     themeMode,
     sizeMode,
+    cornerMode,
     loaded,
     save,
   };

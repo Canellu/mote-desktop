@@ -14,7 +14,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useEntitlements } from "@/context/EntitlementContext";
 import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-icons";
+import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { ControlCard } from "@/features/widget-screen/components/ControlCard";
 import { TogglesControlBody } from "@/features/widget-screen/components/ManageControls";
 import {
@@ -28,6 +30,7 @@ import {
   type SingleWidgetControl,
   type TogglesWidgetControl,
   type WidgetControl,
+  type WidgetCornerMode,
   type WidgetThemeMode,
 } from "@/features/widget-screen/types";
 import {
@@ -69,6 +72,8 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ProTag } from "./ProTag";
+import { WIDGET_CORNER_OPTIONS } from "./widgetCornerOptions";
 import {
   SettingsWizardContainedStep,
   SettingsWizardLayout,
@@ -211,6 +216,7 @@ interface WidgetWizardProps {
     title: string;
     controls: WidgetControl[];
     themeMode: WidgetThemeMode;
+    cornerMode: WidgetCornerMode;
   }) => void;
   /** Step to mount on. Dev-only: lets the dev toolbar preview a single screen. */
   initialStep?: number;
@@ -226,6 +232,11 @@ export const WidgetWizard = ({
   const roomZones = useHueResourcesStore((state) => state.roomZones);
   const lights = useHueResourcesStore((state) => state.lights);
   const scenes = useHueResourcesStore((state) => state.scenes);
+  // Free builds one widget with one room, zone, or light, at the system theme.
+  // Choosing past that offers Pro; `open-widget-window` enforces the same.
+  const { hasPro } = useEntitlements();
+  const { requestPro } = useProUpgrade();
+  const upgrade = () => requestPro("advanced_widgets");
   const [step, setStep] = useState(initialStep);
   const [title, setTitle] = useState("");
   const [namePlaceholder] = useState(randomSuggestedName);
@@ -234,6 +245,7 @@ export const WidgetWizard = ({
   const [spacesOpen, setSpacesOpen] = useState(true);
   const [lightsOpen, setLightsOpen] = useState(true);
   const [themeMode, setThemeMode] = useState<WidgetThemeMode>("system");
+  const [cornerMode, setCornerMode] = useState<WidgetCornerMode>("rounded");
   const [maxUnlockedStep, setMaxUnlockedStep] = useState(initialStep);
   // Editable list of controls, seeded from the step-1 selection. Held as state
   // (not derived) so it can be reordered and configured per-control. Single-
@@ -397,11 +409,14 @@ export const WidgetWizard = ({
     (step === 1 && selected.length > 0) ||
     step === 2;
 
+  // On Free, choosing a target replaces the one already chosen.
   const toggleTarget = (key: string) =>
     setSelected((current) =>
       current.includes(key)
         ? current.filter((value) => value !== key)
-        : [...current, key],
+        : hasPro
+          ? [...current, key]
+          : [key],
     );
 
   // Placeholder dev targets aren't in the store; the hook drops unknown ids,
@@ -420,6 +435,7 @@ export const WidgetWizard = ({
       title: title.trim(),
       controls,
       themeMode,
+      cornerMode,
     });
 
   const nextStep = () => {
@@ -478,9 +494,23 @@ export const WidgetWizard = ({
                 Select Controls
               </h1>
               <p className="text-base text-muted-foreground">
-                Choose the rooms, zones, or individual lights you want to manage
-                with this widget.
+                {hasPro
+                  ? "Choose the rooms, zones, or individual lights you want to manage with this widget."
+                  : "Choose the room, zone, or light this widget controls."}
               </p>
+              {hasPro ? null : (
+                <p className="text-sm text-muted-foreground">
+                  Free widgets hold one.{" "}
+                  <button
+                    type="button"
+                    onClick={upgrade}
+                    className="font-medium text-primary transition-opacity hover:opacity-70"
+                  >
+                    Mote Pro
+                  </button>{" "}
+                  combines several.
+                </p>
+              )}
             </div>
 
             <div className="relative w-full shrink-0">
@@ -515,8 +545,14 @@ export const WidgetWizard = ({
                       open={spacesOpen}
                       onToggleOpen={() => setSpacesOpen((open) => !open)}
                       allSelected={roomZonesAllSelected}
-                      onSelectAll={() =>
-                        setKeysSelected(roomZoneKeys, !roomZonesAllSelected)
+                      onSelectAll={
+                        hasPro
+                          ? () =>
+                              setKeysSelected(
+                                roomZoneKeys,
+                                !roomZonesAllSelected,
+                              )
+                          : undefined
                       }
                     >
                       {filteredRoomZones.length > 0 ? (
@@ -563,8 +599,10 @@ export const WidgetWizard = ({
                       open={lightsOpen}
                       onToggleOpen={() => setLightsOpen((open) => !open)}
                       allSelected={lightsAllSelected}
-                      onSelectAll={() =>
-                        setKeysSelected(lightKeys, !lightsAllSelected)
+                      onSelectAll={
+                        hasPro
+                          ? () => setKeysSelected(lightKeys, !lightsAllSelected)
+                          : undefined
                       }
                     >
                       {filteredLights.length > 0 ? (
@@ -682,11 +720,12 @@ export const WidgetWizard = ({
                       type="button"
                       variant="outline"
                       size="sm"
-                      onClick={addTogglesCard}
+                      onClick={hasPro ? addTogglesCard : upgrade}
                       className="self-start"
                     >
                       <ToggleRight size={16} />
                       Add toggles card
+                      {hasPro ? null : <ProTag />}
                     </Button>
                   </TabsContent>
                   <TabsContent value="appearance" className="space-y-5">
@@ -698,15 +737,39 @@ export const WidgetWizard = ({
                           compact
                           icon={<Sparkles size={16} />}
                           title={mode.label}
-                          onClick={() => setThemeMode(mode.value)}
+                          pro={!hasPro && mode.value !== "system"}
+                          onClick={() =>
+                            !hasPro && mode.value !== "system"
+                              ? upgrade()
+                              : setThemeMode(mode.value)
+                          }
                         />
                       ))}
+                    </PickerGroup>
+                    <PickerGroup title="Corners">
+                      {WIDGET_CORNER_OPTIONS.map((option) => {
+                        const pro = !hasPro && option.value !== "rounded";
+                        return (
+                          <OptionButton
+                            key={option.value}
+                            active={cornerMode === option.value}
+                            compact
+                            icon={<option.icon size={16} />}
+                            title={option.label}
+                            pro={pro}
+                            onClick={() =>
+                              pro ? upgrade() : setCornerMode(option.value)
+                            }
+                          />
+                        );
+                      })}
                     </PickerGroup>
                   </TabsContent>
                 </Tabs>
 
                 <WidgetPreview
                   theme={previewTheme}
+                  cornerMode={cornerMode}
                   controls={controls}
                   onReorder={reorderControls}
                 />
@@ -733,7 +796,8 @@ const TargetSection = ({
   open: boolean;
   onToggleOpen: () => void;
   allSelected: boolean;
-  onSelectAll: () => void;
+  /** Absent on Free, where a widget holds one target. */
+  onSelectAll?: () => void;
   children: React.ReactNode;
 }) => (
   <div>
@@ -755,13 +819,15 @@ const TargetSection = ({
           {count}
         </span>
       </button>
-      <button
-        type="button"
-        onClick={onSelectAll}
-        className="text-xs font-medium text-primary transition-opacity hover:opacity-70"
-      >
-        {allSelected ? "Clear all" : "Select all"}
-      </button>
+      {onSelectAll ? (
+        <button
+          type="button"
+          onClick={onSelectAll}
+          className="text-xs font-medium text-primary transition-opacity hover:opacity-70"
+        >
+          {allSelected ? "Clear all" : "Select all"}
+        </button>
+      ) : null}
     </div>
     {open ? (
       <div className="divide-y divide-foreground/10 overflow-hidden rounded-2xl border border-foreground/12 bg-input/40">
@@ -850,6 +916,7 @@ const OptionButton = ({
   icon,
   title,
   description,
+  pro,
   onClick,
 }: {
   active: boolean;
@@ -857,6 +924,7 @@ const OptionButton = ({
   icon: React.ReactNode;
   title: string;
   description?: string;
+  pro?: boolean;
   onClick: () => void;
 }) => (
   <button
@@ -874,6 +942,7 @@ const OptionButton = ({
     <span className="min-w-0 flex-1">
       <span className="flex items-center gap-2 text-sm font-medium">
         {title}
+        {pro ? <ProTag /> : null}
       </span>
       {description ? (
         <span className="mt-1 block text-xs text-muted-foreground">
@@ -1052,10 +1121,12 @@ const TogglesConfigRow = ({
 
 const WidgetPreview = ({
   theme,
+  cornerMode,
   controls,
   onReorder,
 }: {
   theme: ReturnType<typeof resolveWidgetTheme>;
+  cornerMode: WidgetCornerMode;
   controls: WidgetControl[];
   onReorder: (from: number, to: number) => void;
 }) => {
@@ -1138,7 +1209,7 @@ const WidgetPreview = ({
             theme === "dark" ? "dark" : "theme-light",
           )}
           style={{
-            ...widgetShellStyle(theme),
+            ...widgetShellStyle(theme, sizeMode, cornerMode),
             width: sizeMetrics.cardBasis + WIDGET_SIDE_PADDING * 2,
             paddingTop: sizeMetrics.edgePadding,
             paddingRight: WIDGET_SIDE_PADDING,

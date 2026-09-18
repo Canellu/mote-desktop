@@ -3,7 +3,7 @@
 Status: **entitlement implemented and enforced; a 14-day Pro trial ships in
 0.3.0**.
 
-Last reviewed: **2026-09-15**.
+Last reviewed: **2026-09-18**.
 
 As of 2026-09-11 the entitlement service is registered as Tauri state, release
 builds read the Store licence through a cached provider, and purchase and
@@ -19,6 +19,12 @@ this document had already reserved for local automation: an on-air light while
 an app uses the microphone or camera, and lights that change when the PC locks
 or sleeps. Setting one up is free; starting one is gated in the Rust runtime,
 and whatever an automation already changed is always put back.
+
+Desktop widgets were narrowed on 2026-09-18, by the owner's decision: Free is
+now one widget with one room, zone, or light, at the standard size, corners,
+and system theme. Until then Free had no limit on how many widgets could exist and only
+the composition of each was paid. More widgets, more controls, and every
+appearance and window option are Pro.
 
 **No grandfathering.** The owner confirmed on 2026-09-11, and again on
 2026-09-14, that nobody has downloaded the app yet, so there is no installed
@@ -63,9 +69,12 @@ Applies when the Store authoritatively says Pro is not owned and no trial is
 running — never on `unknown`. Nothing saved is changed, so buying or restoring
 Pro brings everything back as it was.
 
-- Widgets show their first control with its first target, and are neither pinned
-  nor always on top. Saving a widget's settings enforces the Free composition in
-  `set-widget-config` as well as `set-widget-controls`.
+- Only the first saved widget runs. Any others leave the desktop, show as
+  "Needs Pro" in Settings, and come back as they were when Pro does. The one
+  that runs shows its first control with its first target, at the system theme,
+  standard size, and rounded corners, and is neither pinned nor always on top. Saving a widget's
+  settings enforces the Free composition and appearance in `set-widget-config`
+  as well as `set-widget-controls`.
 - A saved custom dashboard layout stays saved; Home shows rooms-first grouping.
 - Switching to another saved bridge requires `multiple_bridges`; removing one
   never does.
@@ -94,32 +103,35 @@ and APIs must map into the provider-neutral capabilities defined here.
 
 ## Current functionality
 
-| Product area                    | Free                                                                                                                      | Pro                                                                                                                                      | Capability                |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
-| Bridge setup                    | Discover, pair, restore, rename, remove, and recover one saved Hue Bridge                                                 | Save and switch among multiple bridges                                                                                                   | `multiple_bridges`        |
-| Home dashboard                  | View and control resources; choose standard grouping modes                                                                | Reorder cards and edit/persist a custom dashboard layout                                                                                 | `dashboard_custom_layout` |
-| Lights, rooms, and zones        | Power, brightness, color, color temperature, membership, placement, naming, and live updates                              | No current control is reserved for Pro                                                                                                   | —                         |
-| Scenes                          | View, activate, create, edit, delete, and run supported dynamic scenes                                                    | No current scene control is reserved for Pro                                                                                             | —                         |
-| Devices                         | Inspect, discover, configure, assign, rename, and remove supported Hue resources                                          | No current device-administration control is reserved for Pro                                                                             | —                         |
-| Entertainment areas             | Create, position, test, edit, and delete areas                                                                            | Using an area for PC Sync requires Pro                                                                                                   | `pc_sync`                 |
-| PC Sync                         | Explain requirements and show the upgrade entry point                                                                     | Video, Games, and Music modes; display/audio selection; start, update, and stop streaming                                                | `pc_sync`                 |
-| Hue Play HDMI Sync Box          | All current single-box discovery, pairing, source, mode, intensity, brightness, sync, restore, and removal controls       | Future workflows that combine several boxes, bridges, or automations may be Pro                                                          | —                         |
-| Desktop widgets                 | Create any number of widgets with one single-target control each, standard size, system theme, and normal window behavior | Add multiple controls or multi-target toggle groups; customize theme, size, placement, pinning, and always-on-top behavior               | `advanced_widgets`        |
-| Global keyboard shortcuts       | Explain the capability and show the upgrade entry point; shortcuts can be prepared but do not fire                        | System-wide hotkeys for lights, rooms, zones, and scenes, active whenever Mote runs, including from the tray                             | `global_shortcuts`        |
-| Automations                     | Explain the capability and show the upgrade entry point; automations can be set up but do not start                       | On-air light while an app uses the microphone or camera; dim or turn off lights when the PC locks or sleeps, and put them back on return | `local_automation`        |
-| Appearance and desktop behavior | Light/dark/system theme, close behavior, tray behavior, start-on-login, window state, and navigation                      | No current essential application setting is reserved for Pro                                                                             | —                         |
-| About and support               | Version, legal/support links, privacy summary, release notes, diagnostics, purchase status, and restore-purchase action   | No support or privacy control is reserved for Pro                                                                                        | —                         |
+| Product area                    | Free                                                                                                                    | Pro                                                                                                                                           | Capability                |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| Bridge setup                    | Discover, pair, restore, rename, remove, and recover one saved Hue Bridge                                               | Save and switch among multiple bridges                                                                                                        | `multiple_bridges`        |
+| Home dashboard                  | View and control resources; choose standard grouping modes                                                              | Reorder cards and edit/persist a custom dashboard layout                                                                                      | `dashboard_custom_layout` |
+| Lights, rooms, and zones        | Power, brightness, color, color temperature, membership, placement, naming, and live updates                            | No current control is reserved for Pro                                                                                                        | —                         |
+| Scenes                          | View, activate, create, edit, delete, and run supported dynamic scenes                                                  | No current scene control is reserved for Pro                                                                                                  | —                         |
+| Devices                         | Inspect, discover, configure, assign, rename, and remove supported Hue resources                                        | No current device-administration control is reserved for Pro                                                                                  | —                         |
+| Entertainment areas             | Create, position, test, edit, and delete areas                                                                          | Using an area for PC Sync requires Pro                                                                                                        | `pc_sync`                 |
+| PC Sync                         | Explain requirements and show the upgrade entry point                                                                   | Video, Games, and Music modes; display/audio selection; start, update, and stop streaming                                                     | `pc_sync`                 |
+| Hue Play HDMI Sync Box          | All current single-box discovery, pairing, source, mode, intensity, brightness, sync, restore, and removal controls     | Future workflows that combine several boxes, bridges, or automations may be Pro                                                               | —                         |
+| Desktop widgets                 | One widget with one single-target control, standard size and corners, system theme, and normal window behavior          | Any number of widgets; multiple controls or multi-target toggle groups; customize theme, size, corners, placement, pinning, and always-on-top | `advanced_widgets`        |
+| Global keyboard shortcuts       | Explain the capability and show the upgrade entry point; shortcuts can be prepared but do not fire                      | System-wide hotkeys for lights, rooms, zones, and scenes, active whenever Mote runs, including from the tray                                  | `global_shortcuts`        |
+| Automations                     | Explain the capability and show the upgrade entry point; automations can be set up but do not start                     | On-air light while an app uses the microphone or camera; dim or turn off lights when the PC locks or sleeps, and put them back on return      | `local_automation`        |
+| Appearance and desktop behavior | Light/dark/system theme, close behavior, tray behavior, start-on-login, window state, and navigation                    | No current essential application setting is reserved for Pro                                                                                  | —                         |
+| About and support               | Version, legal/support links, privacy summary, release notes, diagnostics, purchase status, and restore-purchase action | No support or privacy control is reserved for Pro                                                                                             | —                         |
 
 The first implementation should gate complete workflows, not scatter locks over
 individual sliders. For example, the PC Sync entry point may explain and sell
 Pro, but a user who starts an authorized session must not encounter additional
 paywalls inside that session.
 
-For widgets, the app does not limit how many widget windows can be created. The
-backend—not only the interface—must enforce the Free control-composition limit:
-one single-target control per widget. A room, zone, or light counts as one
-target. Adding a second control, a multi-target toggle group, or advanced window
-customization requires `advanced_widgets`.
+For widgets, Free is one widget holding one single-target control. A room,
+zone, or light counts as one target. The backend—not only the interface—enforces
+all of it under `advanced_widgets`: creating a second widget, adding a second
+control or a multi-target toggle group, choosing a theme other than system, a
+size other than standard, or corners other than rounded, placing the widget
+from Settings, pinning it, and keeping it on top. Corners are a fixed set of
+four styles — square, soft, rounded, round — never a free value. Dragging the window, resizing it, and resetting its position
+stay free as ordinary window behavior and recovery.
 
 ## Production enforcement phase
 
@@ -153,7 +165,12 @@ automatically when it passes.
    `set-widget-controls` after sanitizing, so the count reflects what would
    actually be stored. Pinning and always-on-top gate only when switching on;
    turning them off is always allowed, or a lapsed purchase would strand a
-   widget pinned above everything forever.
+   widget pinned above everything forever. **Extended 2026-09-18:**
+   `open-widget-window` refuses a second widget, reopening any widget but the
+   first saved, and a new widget built past the Free composition or appearance
+   (it had checked neither). `set-widget-config` also refuses a non-system theme,
+   non-standard size, or non-rounded corners, and `set-widget-position` requires Pro;
+   `reset-widget-position` does not.
 3. **Done (2026-09-11).** `multiple_bridges` is enforced on pairing when a bridge
    is already saved. The check reads what is stored rather than the pairing
    itself, so a Free customer can always pair, re-pair, and recover their one

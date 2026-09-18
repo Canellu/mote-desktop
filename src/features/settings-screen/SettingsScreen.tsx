@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { useEntitlements } from "@/context/EntitlementContext";
+import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { useWidgets } from "@/features/widget-screen/useWidgets";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 import type { HueRoomZone, HueSettingsSummary } from "@/types/hue";
@@ -102,6 +104,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     setAlwaysOnTop: setWidgetAlwaysOnTop,
     setConfig: setWidgetConfig,
   } = useWidgets();
+  const { hasPro } = useEntitlements();
+  const { requestPro } = useProUpgrade();
+  // Free holds one widget. Past it, adding one is the moment to offer Pro, so
+  // the wizard never opens only for creation to be refused at the end.
+  const widgetLimitReached = !hasPro && widgets.length > 0;
 
   // Surface a "scroll to top" affordance once the shared settings viewport has
   // been scrolled down past a threshold and still has room to scroll.
@@ -440,8 +447,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 )}
                 {activeTab === "widget" && (
                   <AddWidgetButton
+                    pro={widgetLimitReached}
                     onClick={() =>
-                      void navigate({ to: "/settings/widget-wizard" })
+                      widgetLimitReached
+                        ? requestPro("advanced_widgets")
+                        : void navigate({ to: "/settings/widget-wizard" })
                     }
                   />
                 )}
