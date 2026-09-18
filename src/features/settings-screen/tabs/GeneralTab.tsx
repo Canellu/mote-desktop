@@ -74,7 +74,8 @@ function CloseButtonChoiceList({
   onValueChange,
   disabled,
 }: {
-  value: CloseButtonBehavior;
+  /** Unset until the saved behavior is known, so neither card is selected. */
+  value: CloseButtonBehavior | undefined;
   onValueChange: (value: CloseButtonBehavior) => void;
   disabled?: boolean;
 }) {
@@ -196,7 +197,7 @@ export const GeneralTab = ({
               Minimize &amp; close button behavior
             </p>
             <CloseButtonChoiceList
-              value={appSettings?.closeButtonBehavior ?? "exit"}
+              value={appSettings?.closeButtonBehavior}
               onValueChange={onUpdateCloseButtonBehavior}
               disabled={isLoadingAppSettings || isSavingAppSettings}
             />

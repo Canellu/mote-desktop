@@ -27,8 +27,13 @@ import { useSyncBoxStore } from "@/stores/SyncBoxStore";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AnimatePresence,
+  motion,
+  useAnimate,
+  useReducedMotion,
+} from "motion/react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { SyncBoxSession } from "@/types/sync-box";
 import { ChevronRight, Loader2, Plus, TriangleAlert, Tv } from "lucide-react";
 import { useShallow } from "zustand/react/shallow";
@@ -499,6 +504,31 @@ export const RootLayout: React.FC = () => {
   const routeIsFullBleed =
     pathname.startsWith("/settings/entertainment-placement/") ||
     pathname === "/";
+  const reduceMotion = useReducedMotion();
+  /**
+   * Navigations used to run through the browser's default view transition,
+   * which cross-fades a snapshot of the *whole window*: the title bar, header
+   * and sync banner dissolved along with the page, and for a quarter second the
+   * outgoing screen sat ghosted over the incoming one. Going in and out of
+   * Settings was the worst of it, because the banner is on Home but not on
+   * Settings, so the content also slid while the ghost was still fading.
+   *
+   * Only the area under the header actually changes between routes, so only it
+   * fades. The shell stays put and keeps its own tuned animations (the header
+   * already crossfades its title and controls). Driven imperatively instead of
+   * with a `key` so the fade replays when the path changes without remounting
+   * the screen — switching between two spaces keeps its state, as before.
+   */
+  const [routeFade, animateRouteFade] = useAnimate<HTMLDivElement>();
+  useLayoutEffect(() => {
+    if (reduceMotion || !routeFade.current) return;
+    const animation = animateRouteFade(
+      routeFade.current,
+      { opacity: [0, 1] },
+      { duration: 0.16, ease: "easeOut" },
+    );
+    return () => animation.complete();
+  }, [pathname, reduceMotion, animateRouteFade, routeFade]);
   const navigate = useNavigate();
   const inspectorPaneOpen = useRouterState({
     select: (state) =>
@@ -747,7 +777,9 @@ export const RootLayout: React.FC = () => {
               routeOwnsScroll ? "h-full" : "min-h-full",
             )}
           >
-            <Outlet />
+            <div ref={routeFade} className="h-full">
+              <Outlet />
+            </div>
           </ScrollArea>
           <LightInspector />
         </div>

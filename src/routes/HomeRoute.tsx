@@ -75,7 +75,6 @@ export const HomeRoute: React.FC = () => {
   function navigateHome(next: HomeViewSearch) {
     void navigate({
       to: "/",
-      viewTransition: false,
       search: { ...next, viewBridge: bridgeId ?? "preview" },
     });
   }

@@ -10,6 +10,7 @@ import { EntertainmentAreaWizardRoute } from "./routes/EntertainmentAreaWizardRo
 import { EntertainmentPlacementRoute } from "./routes/EntertainmentPlacementRoute";
 import { HomeRoute } from "./routes/HomeRoute";
 import { validateHomeViewSearch } from "./features/home-map/homeView";
+import { preloadAppSettings } from "./features/settings-screen/appSettingsCache";
 import { RoomZoneWizardRoute } from "./routes/RoomZoneWizardRoute";
 import { RootLayout } from "./routes/RootLayout";
 import { SettingsRoute } from "./routes/SettingsRoute";
@@ -59,6 +60,9 @@ const settingsRoute = createRoute({
       ? { widgetRequest: search.widgetRequest }
       : {}),
   }),
+  // Fetched before the screen renders (and on hover of the gear), so the window
+  // preferences open on their saved values instead of defaults.
+  loader: preloadAppSettings,
   component: SettingsRoute,
 });
 
@@ -144,7 +148,6 @@ export const router = createRouter({
   defaultPreload: "intent",
   defaultStaleTime: 5000,
   scrollRestoration: true,
-  defaultViewTransition: true,
 });
 
 declare module "@tanstack/react-router" {

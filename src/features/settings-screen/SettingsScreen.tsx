@@ -27,6 +27,11 @@ import { AddWidgetButton } from "./components/AddWidgetButton";
 import { SettingsSidebar } from "./components/SettingsSidebar";
 import { settingsTabs } from "./settingsTabs";
 import { AboutSupportTab } from "./tabs/AboutSupportTab";
+import {
+  fetchAppSettings,
+  getCachedAppSettings,
+  rememberAppSettings,
+} from "./appSettingsCache";
 import { AutomationsTab } from "./tabs/AutomationsTab";
 import { BridgeTab } from "./tabs/BridgeTab";
 import { PcSyncTab } from "./tabs/PcSyncTab";
@@ -78,8 +83,12 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   );
   const [isLoadingSyncBox, setIsLoadingSyncBox] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
-  const [isLoadingAppSettings, setIsLoadingAppSettings] = useState(true);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(
+    getCachedAppSettings,
+  );
+  const [isLoadingAppSettings, setIsLoadingAppSettings] = useState(
+    () => getCachedAppSettings() === null,
+  );
   const [isSavingAppSettings, setIsSavingAppSettings] = useState(false);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -148,8 +157,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
   const loadAppSettings = async () => {
     try {
-      const nextSettings = await invoke<AppSettings>("get-app-settings");
-      setAppSettings(nextSettings);
+      setAppSettings(await fetchAppSettings());
     } catch (error) {
       setSettingsError(String(error) || "Unable to load app settings.");
     } finally {
@@ -272,7 +280,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
         "set-close-button-behavior",
         { behavior },
       );
-      setAppSettings(nextSettings);
+      setAppSettings(rememberAppSettings(nextSettings));
       toast.success("General settings updated");
     } catch (error) {
       setSettingsError(String(error) || "Unable to update close behavior.");
@@ -289,7 +297,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       const nextSettings = await invoke<AppSettings>("set-auto-start", {
         enabled,
       });
-      setAppSettings(nextSettings);
+      setAppSettings(rememberAppSettings(nextSettings));
       toast.success("General settings updated");
     } catch (error) {
       setSettingsError(String(error) || "Unable to update auto start.");
@@ -306,7 +314,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
       const nextSettings = await invoke<AppSettings>("set-desktop-shortcut", {
         enabled,
       });
-      setAppSettings(nextSettings);
+      setAppSettings(rememberAppSettings(nextSettings));
       toast.success("General settings updated");
     } catch (error) {
       setSettingsError(
@@ -339,7 +347,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           <ScrollArea
             fade
             className="min-h-0 min-w-0 flex-1"
-            viewportClassName="overflow-x-hidden py-4 pr-4 @2xl:py-6 @2xl:pr-6"
+            // The bottom padding clears the floating scroll-to-top button (40px,
+            // 16px off the edge), so the last row never ends up underneath it.
+            viewportClassName="overflow-x-hidden pt-4 pr-4 pb-18 @2xl:pt-6 @2xl:pr-6"
             viewportRef={viewportRef}
           >
             <div className="mx-auto w-full max-w-3xl pt-8">
