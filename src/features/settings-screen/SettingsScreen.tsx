@@ -8,9 +8,15 @@ import type { HueRoomZone, HueSettingsSummary } from "@/types/hue";
 import type { SyncBoxSession } from "@/types/sync-box";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
-import { ArrowUp } from "lucide-react";
+import { ArrowLeft, ArrowUp } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import {
+  automationNavVariants,
+  automationRuleInfo,
+  useOpenAutomation,
+} from "@/features/automations/useOpenAutomation";
 import { useHue } from "../../context/HueContext";
 import type { ThemeMode } from "../../context/ThemeContext";
 import { AddBridgeButton } from "./components/AddBridgeButton";
@@ -116,6 +122,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     : "general";
   const activeTabDetails =
     settingsTabs.find((tab) => tab.value === activeTab) ?? settingsTabs[0];
+  const { automation, setAutomation } = useOpenAutomation();
+  const openAutomation = activeTab === "automations" ? automation : null;
+  const reduceMotion = useReducedMotion();
+  // Forward into an automation, backward out of it; 0 is a plain crossfade.
+  const headerDirection = reduceMotion ? 0 : openAutomation ? 1 : -1;
+  // A detail view is much taller than the list, so land at the top of whichever
+  // one just opened rather than partway down it.
+  useEffect(() => {
+    viewportRef.current?.scrollTo({ top: 0 });
+  }, [openAutomation]);
   const loadSettingsSummary = async () => {
     setSettingsError(null);
     try {
@@ -328,18 +344,57 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
           >
             <div className="mx-auto w-full max-w-3xl pt-8">
               <div className="flex flex-col items-start justify-between gap-4 pb-8 @2xl:flex-row @2xl:items-center @2xl:pb-10">
-                <div className="min-w-0 space-y-2">
-                  <h1 className="font-heading text-2xl font-semibold tracking-tight">
-                    {activeTabDetails.label}
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    {activeTabDetails.description}
-                  </p>
-                  {settingsError && (
-                    <p className="pt-2 text-sm text-(--destructive-text)">
-                      {settingsError}
-                    </p>
+                {/* An open automation takes the page title, with a back button
+                    beside it — the same shape as the app header one level up.
+                    Both halves stack in one grid cell so the swap slides across
+                    instead of collapsing the header for a frame. */}
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  {openAutomation && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="-ml-2 shrink-0"
+                      aria-label="Back to automations"
+                      onClick={() => setAutomation(null)}
+                    >
+                      <ArrowLeft />
+                    </Button>
                   )}
+                  <div className="min-w-0 flex-1">
+                    <div className="grid min-w-0">
+                      <AnimatePresence
+                        initial={false}
+                        mode="sync"
+                        custom={headerDirection}
+                      >
+                        <motion.div
+                          key={openAutomation ?? "tab"}
+                          className="col-start-1 row-start-1 min-w-0 space-y-2"
+                          custom={headerDirection}
+                          variants={automationNavVariants}
+                          initial="initial"
+                          animate="animate"
+                          exit="exit"
+                        >
+                          <h1 className="font-heading text-2xl font-semibold tracking-tight">
+                            {openAutomation
+                              ? automationRuleInfo[openAutomation].title
+                              : activeTabDetails.label}
+                          </h1>
+                          <p className="text-sm text-muted-foreground">
+                            {openAutomation
+                              ? automationRuleInfo[openAutomation].description
+                              : activeTabDetails.description}
+                          </p>
+                        </motion.div>
+                      </AnimatePresence>
+                    </div>
+                    {settingsError && (
+                      <p className="pt-2 text-sm text-(--destructive-text)">
+                        {settingsError}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 {activeTab === "bridge" && (
                   <AddBridgeButton onClick={beginAddBridge} />

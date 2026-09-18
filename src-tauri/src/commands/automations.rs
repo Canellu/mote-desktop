@@ -35,3 +35,15 @@ pub fn get_automation_status(app: AppHandle) -> AutomationStatus {
         .map(|runtime| runtime.status())
         .unwrap_or_default()
 }
+
+#[tauri::command(rename = "preview-automation")]
+pub async fn preview_automation(
+    app: AppHandle,
+    rule: Option<runtime::PreviewRule>,
+    settings: AutomationSettings,
+) -> Result<(), String> {
+    let runtime = app
+        .try_state::<AutomationRuntime>()
+        .ok_or("Automations are not ready yet.")?;
+    runtime.preview(&app, rule, settings).await
+}

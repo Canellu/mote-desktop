@@ -47,6 +47,11 @@ const settingsRoute = createRoute({
   path: "/settings",
   validateSearch: (search: Record<string, unknown>) => ({
     tab: typeof search.tab === "string" ? search.tab : undefined,
+    // The open automation lives in the URL so it's a real history entry: mouse
+    // Back returns to the automation list instead of leaving Settings.
+    ...(search.automation === "onAir" || search.automation === "away"
+      ? { automation: search.automation as "onAir" | "away" }
+      : {}),
     ...(typeof search.widgetId === "string"
       ? { widgetId: search.widgetId }
       : {}),

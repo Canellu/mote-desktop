@@ -8,14 +8,52 @@ export interface AutomationTarget {
   name: string;
 }
 
+export interface AutomationScene {
+  id: string;
+  name: string;
+}
+
+export type AutomationRule = "onAir" | "away";
+export type OnAirMode = "color" | "white" | "scene";
+
+export function automationTargets(settings: {
+  targets: AutomationTarget[];
+  target: AutomationTarget | null;
+}): AutomationTarget[] {
+  return settings.targets.length
+    ? settings.targets
+    : settings.target
+      ? [settings.target]
+      : [];
+}
+
+export function onAirXy(
+  settings: Pick<OnAirSettings, "xy" | "color">,
+): [number, number] {
+  return (
+    settings.xy ??
+    ({
+      red: [0.675, 0.322],
+      orange: [0.5614, 0.4156],
+      purple: [0.2725, 0.1096],
+      blue: [0.1532, 0.0475],
+    }[settings.color] as [number, number])
+  );
+}
+
 export type OnAirTrigger = "microphone_or_camera" | "microphone" | "camera";
 export type OnAirColor = "red" | "orange" | "purple" | "blue";
-export type AwayAction = "off" | "dim";
+export type AwayAction = "off" | "dim" | "scene";
 
 export interface OnAirSettings {
   enabled: boolean;
   bridgeId: string | null;
   target: AutomationTarget | null;
+  targets: AutomationTarget[];
+  mode: OnAirMode;
+  xy: [number, number] | null;
+  mirek: number;
+  scene: AutomationScene | null;
   trigger: OnAirTrigger;
   color: OnAirColor;
   brightness: number;
@@ -26,6 +64,8 @@ export interface AwaySettings {
   enabled: boolean;
   bridgeId: string | null;
   target: AutomationTarget | null;
+  targets: AutomationTarget[];
+  scene: AutomationScene | null;
   action: AwayAction;
   dimBrightness: number;
   includeSleep: boolean;
@@ -73,6 +113,7 @@ export const onAirColors: {
 export const awayActions: { value: AwayAction; label: string }[] = [
   { value: "off", label: "Turn off" },
   { value: "dim", label: "Dim" },
+  { value: "scene", label: "Scene" },
 ];
 
 const nonPackagedPrefix = "NonPackaged\\";

@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::{mpsc, Mutex};
@@ -23,7 +23,8 @@ use super::layers::{
     self, Applied, BridgeAccess, Layer, LayerKind, LayerStack, OwnedLight, Restore,
 };
 use super::settings::{
-    self, AutomationSettings, AutomationTarget, AwayAction, OnAirSettings, OnAirTrigger, TargetKind,
+    self, effective_targets, AutomationScene, AutomationSettings, AutomationTarget, AwayAction,
+    OnAirMode, OnAirSettings, OnAirTrigger, TargetKind,
 };
 
 const STATUS_EVENT: &str = "automation-status";
@@ -90,7 +91,71 @@ pub struct AutomationRuntime {
     worker: Mutex<Worker>,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PreviewRule {
+    OnAir,
+    Away,
+}
+
 impl AutomationRuntime {
+    pub async fn preview(
+        &self,
+        app: &AppHandle,
+        rule: Option<PreviewRule>,
+        mut settings: AutomationSettings,
+    ) -> Result<(), String> {
+        let mut worker = self.worker.lock().await;
+        let Some(rule) = rule else {
+            worker.preview_expires = None;
+            if let Some(restore) = worker.stack.remove(LayerKind::Preview) {
+                worker.restore_or_retry(restore).await;
+            }
+            worker.reconcile(app, &self.settings()).await;
+            return Ok(());
+        };
+        match rule {
+            PreviewRule::OnAir => settings.on_air.enabled = true,
+            PreviewRule::Away => settings.away.enabled = true,
+        }
+        settings.validate()?;
+        crate::commands::entitlements::require(app, Capability::LocalAutomation)?;
+        if worker.locked || worker.suspended {
+            return Err("Unlock this PC to preview lighting.".into());
+        }
+        let [on_air, away] = worker.plans(&settings);
+        let mut plan = match rule {
+            PreviewRule::OnAir => on_air,
+            PreviewRule::Away => away,
+        };
+        plan.kind = LayerKind::Preview;
+        plan.config = json!([
+            match rule {
+                PreviewRule::OnAir => "onAir",
+                PreviewRule::Away => "away",
+            },
+            plan.config
+        ]);
+        plan.wanted = true;
+        plan.restore = true;
+        worker.preview_expires = Some(Instant::now() + Duration::from_secs(15));
+        if worker
+            .stack
+            .get(LayerKind::Preview)
+            .is_some_and(|layer| layer.config == plan.config)
+        {
+            return Ok(());
+        }
+        let previous = worker.stack.remove(LayerKind::Preview);
+        let result = worker.start_layer(app, &plan, previous.as_ref()).await;
+        if let Some(mut previous) = previous {
+            if let Some(next) = worker.stack.get_mut(LayerKind::Preview) {
+                carry_preview_snapshots(&mut previous, next);
+            }
+            worker.restore_or_retry(previous).await;
+        }
+        result
+    }
     pub fn settings(&self) -> AutomationSettings {
         self.settings
             .read()
@@ -132,6 +197,9 @@ impl AutomationRuntime {
     pub fn shutdown_blocking(&self, timeout: Duration) {
         let _ = tauri::async_runtime::block_on(tokio::time::timeout(timeout, async {
             let mut worker = self.worker.lock().await;
+            if let Some(restore) = worker.stack.remove(LayerKind::Preview) {
+                let _ = write_restore(&restore).await;
+            }
             if let Some(restore) = worker.stack.remove(LayerKind::OnAir) {
                 let _ = write_restore(&restore).await;
             }
@@ -188,6 +256,7 @@ pub fn start(app: &AppHandle) {
 #[derive(Clone, Copy)]
 enum Write {
     Color { xy: [f64; 2], brightness: f64 },
+    White { mirek: u16, brightness: f64 },
     Off,
     Dim(f64),
 }
@@ -211,6 +280,29 @@ impl Write {
                     Applied {
                         on: true,
                         brightness: dimmable.then_some(brightness),
+                        xy: light.supports_color.then_some(xy),
+                        mirek: None,
+                    },
+                ))
+            }
+            Self::White { mirek, brightness } => {
+                let mut body = json!({ "on": { "on": true } });
+                if dimmable {
+                    body["dimming"] = json!({ "brightness": brightness });
+                }
+                let mirek = light
+                    .supports_ct
+                    .then(|| mirek.clamp(light.ct_min.unwrap_or(153), light.ct_max.unwrap_or(500)));
+                if let Some(mirek) = mirek {
+                    body["color_temperature"] = json!({ "mirek": mirek });
+                }
+                Some((
+                    body,
+                    Applied {
+                        on: true,
+                        brightness: dimmable.then_some(brightness),
+                        xy: None,
+                        mirek,
                     },
                 ))
             }
@@ -220,6 +312,8 @@ impl Write {
                     Applied {
                         on: false,
                         brightness: None,
+                        xy: None,
+                        mirek: None,
                     },
                 )
             }),
@@ -230,6 +324,8 @@ impl Write {
                         Applied {
                             on: true,
                             brightness: Some(level),
+                            xy: None,
+                            mirek: None,
                         },
                     )
                 }),
@@ -243,7 +339,9 @@ struct Plan {
     wanted: bool,
     config: Value,
     bridge_id: Option<String>,
-    target: Option<AutomationTarget>,
+    targets: Vec<AutomationTarget>,
+    scene: Option<AutomationScene>,
+    scene_brightness: Option<f64>,
     write: Write,
     restore: bool,
 }
@@ -266,6 +364,7 @@ struct Worker {
     errors: HashMap<LayerKind, String>,
     retry_at: HashMap<LayerKind, Instant>,
     pending: Vec<PendingRestore>,
+    preview_expires: Option<Instant>,
 }
 
 impl Worker {
@@ -302,6 +401,17 @@ impl Worker {
     }
 
     async fn reconcile(&mut self, app: &AppHandle, settings: &AutomationSettings) {
+        if self.stack.get(LayerKind::Preview).is_some() {
+            if !self.locked
+                && !self.suspended
+                && self.preview_expires.is_some_and(|at| Instant::now() < at)
+            {
+                return;
+            }
+            if let Some(restore) = self.stack.remove(LayerKind::Preview) {
+                self.restore_or_retry(restore).await;
+            }
+        }
         self.retry_restores().await;
         for plan in self.plans(settings) {
             self.drive(app, plan).await;
@@ -318,14 +428,32 @@ impl Worker {
                 config: json!([
                     on_air.bridge_id,
                     on_air.target,
+                    on_air.targets,
+                    on_air.mode,
                     on_air.color,
+                    on_air.xy,
+                    on_air.mirek,
+                    on_air.scene,
                     on_air.brightness
                 ]),
                 bridge_id: on_air.bridge_id.clone(),
-                target: on_air.target.clone(),
-                write: Write::Color {
-                    xy: on_air.color.xy(),
-                    brightness: on_air.brightness,
+                targets: effective_targets(&on_air.targets, &on_air.target)
+                    .into_iter()
+                    .cloned()
+                    .collect(),
+                scene: (on_air.mode == OnAirMode::Scene)
+                    .then(|| on_air.scene.clone())
+                    .flatten(),
+                scene_brightness: Some(on_air.brightness),
+                write: match on_air.mode {
+                    OnAirMode::White => Write::White {
+                        mirek: on_air.mirek,
+                        brightness: on_air.brightness,
+                    },
+                    _ => Write::Color {
+                        xy: on_air.xy.unwrap_or_else(|| on_air.color.xy()),
+                        brightness: on_air.brightness,
+                    },
                 },
                 restore: true,
             },
@@ -335,13 +463,22 @@ impl Worker {
                 config: json!([
                     away.bridge_id,
                     away.target,
+                    away.targets,
                     away.action,
+                    away.scene,
                     away.dim_brightness
                 ]),
                 bridge_id: away.bridge_id.clone(),
-                target: away.target.clone(),
+                targets: effective_targets(&away.targets, &away.target)
+                    .into_iter()
+                    .cloned()
+                    .collect(),
+                scene: (away.action == AwayAction::Scene)
+                    .then(|| away.scene.clone())
+                    .flatten(),
+                scene_brightness: None,
                 write: match away.action {
-                    AwayAction::Off => Write::Off,
+                    AwayAction::Off | AwayAction::Scene => Write::Off,
                     AwayAction::Dim => Write::Dim(away.dim_brightness),
                 },
                 restore: away.restore_on_return,
@@ -387,7 +524,7 @@ impl Worker {
             return;
         }
 
-        match self.start_layer(app, &plan).await {
+        match self.start_layer(app, &plan, None).await {
             Ok(()) => {
                 self.errors.remove(&plan.kind);
                 self.retry_at.remove(&plan.kind);
@@ -400,8 +537,13 @@ impl Worker {
         }
     }
 
-    async fn start_layer(&mut self, app: &AppHandle, plan: &Plan) -> Result<(), String> {
-        let (Some(bridge_id), Some(target)) = (&plan.bridge_id, &plan.target) else {
+    async fn start_layer(
+        &mut self,
+        app: &AppHandle,
+        plan: &Plan,
+        preview_base: Option<&Restore>,
+    ) -> Result<(), String> {
+        let Some(bridge_id) = &plan.bridge_id else {
             return Err("Choose lights for this automation.".to_string());
         };
         let client = HueClient::new()?;
@@ -412,7 +554,30 @@ impl Worker {
         let application_key = client.get_stored_application_key(app)?;
         let ip = bridge.bridge_ip;
 
-        let members = member_light_ids(&client, &ip, &application_key, target).await?;
+        let mut members = Vec::new();
+        let mut scene_actions = HashMap::new();
+        if let Some(scene) = &plan.scene {
+            let resource = client
+                .get_resource(&ip, &application_key, "scene", Some(&scene.id))
+                .await?
+                .into_iter()
+                .next()
+                .ok_or("This scene no longer exists on the bridge.")?;
+            if let Some(actions) = resource["actions"].as_array() {
+                for entry in actions {
+                    if entry["target"]["rtype"] == "light" {
+                        if let Some(id) = entry["target"]["rid"].as_str() {
+                            members.push(id.to_string());
+                            scene_actions.insert(id.to_string(), entry["action"].clone());
+                        }
+                    }
+                }
+            }
+        } else {
+            for target in &plan.targets {
+                members.extend(member_light_ids(&client, &ip, &application_key, target).await?);
+            }
+        }
         let lights: Vec<HueLight> = client
             .get_lights(&ip, &application_key)
             .await?
@@ -420,18 +585,26 @@ impl Worker {
             .filter(|light| light.reachable && members.contains(&light.id))
             .collect();
         if lights.is_empty() {
-            return Err(format!("No lights in {} can be reached.", target.name));
+            return Err("None of the selected lights can be reached.".into());
         }
 
         let mut owned = Vec::new();
         let mut failures = 0usize;
         for light in &lights {
-            let Some((body, applied)) = plan.write.body_for(light) else {
+            let write = match scene_actions.get(&light.id) {
+                Some(action) => scene_body_for(action, light, plan.scene_brightness),
+                None if plan.kind == LayerKind::Preview => {
+                    preview_body_for(plan.write, light, preview_base)
+                }
+                None => plan.write.body_for(light),
+            };
+            let Some((mut body, applied)) = write else {
                 continue;
             };
             if !owned.is_empty() || failures > 0 {
                 tokio::time::sleep(WRITE_INTERVAL).await;
             }
+            body["dynamics"] = json!({ "duration": 0 });
             match client
                 .update_resource(&ip, &application_key, "light", &light.id, body)
                 .await
@@ -444,12 +617,26 @@ impl Worker {
             }
         }
         if owned.is_empty() && failures > 0 {
-            return Err(format!(
-                "The lights in {} could not be changed.",
-                target.name
-            ));
+            return Err("The selected lights could not be changed.".into());
         }
 
+        // Read the bridge's clamped values before comparing later external edits.
+        if let Ok(current) = client.get_lights(&ip, &application_key).await {
+            for owned in &mut owned {
+                if let Some(now) = current.iter().find(|light| light.id == owned.before.id) {
+                    if owned.applied.on {
+                        // Restoring brightness also restores color, so protect
+                        // manual color changes even for a dim-only automation.
+                        owned.applied.xy = (now.color_mode.as_deref() != Some("ct"))
+                            .then_some(now.xy)
+                            .flatten();
+                        owned.applied.mirek = (now.color_mode.as_deref() == Some("ct"))
+                            .then_some(now.ct)
+                            .flatten();
+                    }
+                }
+            }
+        }
         self.adopt_pending_restores(bridge_id, &mut owned);
         // Recorded even when some writes failed, so what did change goes back.
         self.stack.push(Layer {
@@ -464,8 +651,7 @@ impl Worker {
         });
         if failures > 0 {
             Err(format!(
-                "{failures} of the lights in {} could not be changed.",
-                target.name
+                "{failures} of the selected lights could not be changed."
             ))
         } else {
             Ok(())
@@ -549,6 +735,148 @@ impl Worker {
     }
 }
 
+fn preview_body_for(
+    write: Write,
+    light: &HueLight,
+    previous: Option<&Restore>,
+) -> Option<(Value, Applied)> {
+    let baseline = previous
+        .and_then(|restore| {
+            restore.lights.iter().find(|owned| {
+                owned.before.id == light.id
+                    && layers::unchanged(light.is_on, light.brightness, owned.applied)
+                    && (!light.is_on
+                        || layers::unchanged_color(
+                            light.xy,
+                            light.ct,
+                            light.color_mode.as_deref(),
+                            owned.applied,
+                        ))
+            })
+        })
+        .map(|owned| &owned.before);
+    match write {
+        Write::Off => Some((
+            json!({ "on": { "on": false } }),
+            Applied {
+                on: false,
+                brightness: None,
+                xy: None,
+                mirek: None,
+            },
+        )),
+        Write::Dim(level) => {
+            let on = baseline.map_or(light.is_on, |before| before.on);
+            let brightness = baseline
+                .map_or(light.brightness, |before| before.brightness)
+                .map(|value| value.min(level));
+            let mut body = json!({ "on": { "on": on } });
+            if let Some(brightness) = brightness {
+                body["dimming"] = json!({ "brightness": brightness });
+            }
+            // A different preview may have colored this light. Dim the
+            // original look, preserving whichever color mode was active.
+            let mirek = baseline
+                .filter(|before| light.supports_ct && before.color_mode.as_deref() == Some("ct"))
+                .and_then(|before| before.mirek);
+            let xy = baseline
+                .filter(|before| light.supports_color && before.color_mode.as_deref() != Some("ct"))
+                .and_then(|before| before.xy);
+            if let Some(mirek) = mirek {
+                body["color_temperature"] = json!({ "mirek": mirek });
+            }
+            if let Some(xy) = xy {
+                body["color"] = json!({ "xy": { "x": xy[0], "y": xy[1] } });
+            }
+            Some((
+                body,
+                Applied {
+                    on,
+                    brightness,
+                    xy,
+                    mirek,
+                },
+            ))
+        }
+        _ => write.body_for(light),
+    }
+}
+
+fn carry_preview_snapshots(previous: &mut Restore, next: &mut Layer) {
+    if previous.bridge.bridge_id != next.bridge.bridge_id {
+        return;
+    }
+    previous.lights.retain(|old| {
+        let Some(new) = next
+            .lights
+            .iter_mut()
+            .find(|light| light.before.id == old.before.id)
+        else {
+            return true;
+        };
+        if layers::unchanged(new.before.on, new.before.brightness, old.applied)
+            && (!new.before.on
+                || layers::unchanged_color(
+                    new.before.xy,
+                    new.before.mirek,
+                    new.before.color_mode.as_deref(),
+                    old.applied,
+                ))
+        {
+            new.before = old.before.clone();
+        }
+        false
+    });
+}
+
+/// Only reversible static scene properties; effects/gradients need richer snapshots.
+fn scene_body_for(
+    action: &Value,
+    light: &HueLight,
+    brightness_scale: Option<f64>,
+) -> Option<(Value, Applied)> {
+    let mut body = json!({});
+    let on = action["on"]["on"].as_bool().unwrap_or(light.is_on);
+    body["on"] = json!({ "on": on });
+    let brightness = light
+        .brightness
+        .and_then(|_| action["dimming"]["brightness"].as_f64())
+        .map(|level| (level * brightness_scale.unwrap_or(100.0) / 100.0).clamp(0.0, 100.0));
+    if let Some(brightness) = brightness {
+        body["dimming"] = json!({ "brightness": brightness });
+    }
+    let mirek = light
+        .supports_ct
+        .then(|| action["color_temperature"]["mirek"].as_u64())
+        .flatten()
+        .map(|value| {
+            (value.min(1000) as u16).clamp(light.ct_min.unwrap_or(153), light.ct_max.unwrap_or(500))
+        });
+    let xy = if light.supports_color && mirek.is_none() {
+        action["color"]["xy"]["x"]
+            .as_f64()
+            .zip(action["color"]["xy"]["y"].as_f64())
+            .map(|(x, y)| [x, y])
+    } else {
+        None
+    };
+    if let Some(mirek) = mirek {
+        body["color_temperature"] = json!({ "mirek": mirek });
+    }
+    if let Some(xy) = xy {
+        body["color"] = json!({ "xy": { "x": xy[0], "y": xy[1] } });
+    }
+    Some((
+        body,
+        Applied {
+            on,
+            brightness,
+            xy,
+            mirek,
+        },
+    ))
+}
+
 /// The names of apps that count as a call under these settings.
 fn calling_apps(apps: &[CaptureApp], on_air: &OnAirSettings) -> Vec<String> {
     let mut names: Vec<String> = apps
@@ -620,6 +948,13 @@ async fn write_restore(restore: &Restore) -> Result<(), String> {
                 light.id == owned.before.id
                     && light.reachable
                     && layers::unchanged(light.is_on, light.brightness, owned.applied)
+                    && (!light.is_on
+                        || layers::unchanged_color(
+                            light.xy,
+                            light.ct,
+                            light.color_mode.as_deref(),
+                            owned.applied,
+                        ))
             })
         })
         .map(|owned| owned.before.clone())
@@ -748,5 +1083,142 @@ mod tests {
         worker.observe(Signal::Locked(true));
         worker.observe(Signal::Locked(false));
         assert!(!worker.locked && !worker.suspended);
+    }
+
+    #[test]
+    fn white_obeys_fixture_temperature_range() {
+        let mut fixture = light(false, Some(20.0), true);
+        fixture.supports_ct = true;
+        fixture.ct_min = Some(153);
+        fixture.ct_max = Some(454);
+        let (body, applied) = Write::White {
+            mirek: 500,
+            brightness: 65.0,
+        }
+        .body_for(&fixture)
+        .unwrap();
+        assert_eq!(body["color_temperature"]["mirek"], 454);
+        assert_eq!(applied.mirek, Some(454));
+    }
+
+    #[test]
+    fn scene_uses_static_action_and_scales_brightness() {
+        let action = json!({ "on": { "on": true }, "dimming": { "brightness": 80 }, "color": { "xy": { "x": 0.3, "y": 0.4 } }, "effects": { "effect": "candle" } });
+        let (body, applied) =
+            scene_body_for(&action, &light(false, Some(20.0), true), Some(50.0)).unwrap();
+        assert_eq!(body["dimming"]["brightness"], 40.0);
+        assert_eq!(applied.xy, Some([0.3, 0.4]));
+        assert!(body.get("effects").is_none());
+    }
+
+    #[test]
+    fn preview_changes_keep_original_and_allow_dim_to_increase() {
+        let before = snapshot_of(&light(true, Some(80.0), true));
+        let bridge = BridgeAccess {
+            bridge_id: "bridge".into(),
+            ip: "ip".into(),
+            application_key: "key".into(),
+        };
+        let applied = Applied {
+            on: true,
+            brightness: Some(10.0),
+            xy: None,
+            mirek: None,
+        };
+        let mut previous = Restore {
+            bridge: bridge.clone(),
+            lights: vec![OwnedLight {
+                before: before.clone(),
+                applied,
+            }],
+        };
+        let current = light(true, Some(10.0), true);
+        let (_, next_applied) =
+            preview_body_for(Write::Dim(40.0), &current, Some(&previous)).unwrap();
+        assert_eq!(next_applied.brightness, Some(40.0));
+        let mut next = Layer {
+            kind: LayerKind::Preview,
+            bridge,
+            config: Value::Null,
+            lights: vec![OwnedLight {
+                before: snapshot_of(&current),
+                applied: next_applied,
+            }],
+        };
+        carry_preview_snapshots(&mut previous, &mut next);
+        assert!(previous.lights.is_empty());
+        assert_eq!(next.lights[0].before.brightness, Some(80.0));
+    }
+
+    #[test]
+    fn manual_color_edits_are_not_restored_over() {
+        let applied = Applied {
+            on: true,
+            brightness: Some(50.0),
+            xy: Some([0.3, 0.4]),
+            mirek: None,
+        };
+        assert!(layers::unchanged_color(
+            Some([0.301, 0.399]),
+            None,
+            Some("xy"),
+            applied
+        ));
+        assert!(!layers::unchanged_color(
+            Some([0.6, 0.3]),
+            None,
+            Some("xy"),
+            applied
+        ));
+        assert!(!layers::unchanged_color(
+            Some([0.3, 0.4]),
+            Some(366),
+            Some("ct"),
+            applied
+        ));
+    }
+
+    #[test]
+    fn dim_preview_restores_original_color_or_white_after_color_preview() {
+        for mode in ["xy", "ct"] {
+            let mut original = light(true, Some(80.0), true);
+            original.supports_ct = true;
+            original.color_mode = Some(mode.into());
+            original.xy = Some([0.3, 0.4]);
+            original.ct = Some(366);
+            let mut current = original.clone();
+            current.color_mode = Some("xy".into());
+            current.xy = Some([0.675, 0.322]);
+            current.ct = None;
+            current.brightness = Some(100.0);
+            let previous = Restore {
+                bridge: BridgeAccess {
+                    bridge_id: "bridge".into(),
+                    ip: "ip".into(),
+                    application_key: "key".into(),
+                },
+                lights: vec![OwnedLight {
+                    before: snapshot_of(&original),
+                    applied: Applied {
+                        on: true,
+                        brightness: Some(100.0),
+                        xy: current.xy,
+                        mirek: None,
+                    },
+                }],
+            };
+            let (body, applied) =
+                preview_body_for(Write::Dim(30.0), &current, Some(&previous)).unwrap();
+            assert_eq!(body["dimming"]["brightness"], 30.0);
+            if mode == "ct" {
+                assert_eq!(body["color_temperature"]["mirek"], 366);
+                assert!(body.get("color").is_none());
+                assert_eq!(applied.mirek, Some(366));
+            } else {
+                assert_eq!(body["color"]["xy"], json!({ "x": 0.3, "y": 0.4 }));
+                assert!(body.get("color_temperature").is_none());
+                assert_eq!(applied.xy, original.xy);
+            }
+        }
     }
 }

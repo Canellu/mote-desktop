@@ -12,6 +12,7 @@ use crate::services::entertainment::snapshot::LightSnapshot;
 pub enum LayerKind {
     OnAir,
     Away,
+    Preview,
 }
 
 /// What an automation wrote to a light, so a restore can tell whether anyone
@@ -20,6 +21,8 @@ pub enum LayerKind {
 pub struct Applied {
     pub on: bool,
     pub brightness: Option<f64>,
+    pub xy: Option<[f64; 2]>,
+    pub mirek: Option<u16>,
 }
 
 /// How to reach the bridge a layer changed, kept so its restore still lands
@@ -57,6 +60,9 @@ pub struct LayerStack {
 }
 
 impl LayerStack {
+    pub fn get_mut(&mut self, kind: LayerKind) -> Option<&mut Layer> {
+        self.layers.iter_mut().find(|layer| layer.kind == kind)
+    }
     pub fn get(&self, kind: LayerKind) -> Option<&Layer> {
         self.layers.iter().find(|layer| layer.kind == kind)
     }
@@ -95,8 +101,7 @@ impl LayerStack {
 }
 
 /// Whether a light still shows what an automation set. Someone who changed it
-/// in the meantime keeps their change. Colour is not compared: the bridge
-/// clamps xy to each light's gamut, so a read-back never matches what was sent.
+/// in the meantime keeps their change.
 pub fn unchanged(on: bool, brightness: Option<f64>, applied: Applied) -> bool {
     if on != applied.on {
         return false;
@@ -108,6 +113,25 @@ pub fn unchanged(on: bool, brightness: Option<f64>, applied: Applied) -> bool {
         (Some(set), Some(now)) => (set - now).abs() <= 3.0,
         _ => true,
     }
+}
+
+/// Color is captured after the write so gamut clamping does not look like an edit.
+pub fn unchanged_color(
+    xy: Option<[f64; 2]>,
+    mirek: Option<u16>,
+    mode: Option<&str>,
+    applied: Applied,
+) -> bool {
+    if let Some(set) = applied.mirek {
+        return mode == Some("ct") && mirek.is_some_and(|now| set.abs_diff(now) <= 2);
+    }
+    if let Some(set) = applied.xy {
+        return mode != Some("ct")
+            && xy.is_some_and(|now| {
+                (now[0] - set[0]).abs() < 0.005 && (now[1] - set[1]).abs() < 0.005
+            });
+    }
+    true
 }
 
 #[cfg(test)]
@@ -145,10 +169,14 @@ mod tests {
     const OFF: Applied = Applied {
         on: false,
         brightness: None,
+        xy: None,
+        mirek: None,
     };
     const RED: Applied = Applied {
         on: true,
         brightness: Some(100.0),
+        xy: None,
+        mirek: None,
     };
 
     #[test]

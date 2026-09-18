@@ -128,6 +128,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { AutomationsDemo } from "./AutomationsDemo";
 
 type ButtonVariant = NonNullable<
   VariantProps<typeof buttonVariants>["variant"]
@@ -330,6 +331,12 @@ export const ComponentGallery = () => {
           </Button>
         </header>
 
+        <GallerySection
+          title="Automations"
+          description="Multiple lights, scenes, wheels, and preview with an example bridge."
+        >
+          <AutomationsDemo />
+        </GallerySection>
         <GallerySection
           title="Example"
           description="A realistic slice of the app — components composed together so the tokens can be judged in context, not just in isolation."

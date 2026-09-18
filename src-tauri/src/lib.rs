@@ -50,6 +50,7 @@ pub fn run() {
             commands::automations::get_automation_settings,
             commands::automations::set_automation_settings,
             commands::automations::get_automation_status,
+            commands::automations::preview_automation,
             commands::app_settings::get_app_settings,
             commands::app_settings::set_close_button_behavior,
             commands::app_settings::set_auto_start,

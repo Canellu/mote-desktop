@@ -18,6 +18,7 @@ export const useAutomationStore = create<AutomationState>(() => ({
 }));
 
 let loading: Promise<void> | undefined;
+let confirmedSettings: AutomationSettings | null = null;
 
 /** Loads once per window, then follows the status the Rust runtime publishes. */
 export function loadAutomations(): Promise<void> {
@@ -37,6 +38,7 @@ export function loadAutomations(): Promise<void> {
         invoke<AutomationSettings>("get-automation-settings"),
         invoke<AutomationStatus>("get-automation-status"),
       ]);
+      confirmedSettings = settings;
       useAutomationStore.setState({ settings, status, loadError: null });
     } catch (error) {
       useAutomationStore.setState({ loadError: describeCommandError(error) });
@@ -45,28 +47,36 @@ export function loadAutomations(): Promise<void> {
 }
 
 let saving: Promise<void> = Promise.resolve();
+let saveRevision = 0;
 
 /**
- * Applies a change and saves it. Changes queue, so a quick run of them lands in
- * order and each builds on the settings the one before it saved.
+ * Shows edits immediately while persisting snapshots in order. Older responses
+ * cannot replace a newer edit; failed final saves restore the last confirmed value.
  */
 export function saveAutomationSettings(
   change: (current: AutomationSettings) => AutomationSettings,
 ): Promise<void> {
+  const current = useAutomationStore.getState().settings;
+  if (!current) return Promise.resolve();
+  confirmedSettings ??= current;
+  const next = change(current);
+  const revision = ++saveRevision;
+  useAutomationStore.setState({ settings: next });
   const run = saving.then(async () => {
-    const current = useAutomationStore.getState().settings;
-    if (!current) return;
-    const next = change(current);
-    useAutomationStore.setState({ settings: next });
     try {
       const saved = await invoke<AutomationSettings>(
         "set-automation-settings",
         { settings: next },
       );
-      useAutomationStore.setState({ settings: saved });
+      confirmedSettings = saved;
+      if (revision === saveRevision) {
+        useAutomationStore.setState({ settings: saved });
+      }
     } catch (error) {
-      useAutomationStore.setState({ settings: current });
-      toast.error(describeCommandError(error));
+      if (revision === saveRevision) {
+        useAutomationStore.setState({ settings: confirmedSettings });
+        toast.error(describeCommandError(error));
+      }
     }
   });
   saving = run;

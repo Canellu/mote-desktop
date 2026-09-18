@@ -30,6 +30,32 @@ pub struct AutomationTarget {
     pub name: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutomationScene {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum OnAirMode {
+    #[default]
+    Color,
+    White,
+    Scene,
+}
+
+pub fn effective_targets<'a>(
+    targets: &'a [AutomationTarget],
+    legacy: &'a Option<AutomationTarget>,
+) -> Vec<&'a AutomationTarget> {
+    if targets.is_empty() {
+        legacy.iter().collect()
+    } else {
+        targets.iter().collect()
+    }
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OnAirTrigger {
@@ -68,6 +94,11 @@ pub struct OnAirSettings {
     /// The bridge `target` belongs to.
     pub bridge_id: Option<String>,
     pub target: Option<AutomationTarget>,
+    pub targets: Vec<AutomationTarget>,
+    pub mode: OnAirMode,
+    pub xy: Option<[f64; 2]>,
+    pub mirek: u16,
+    pub scene: Option<AutomationScene>,
     pub trigger: OnAirTrigger,
     pub color: OnAirColor,
     /// 1-100.
@@ -82,6 +113,11 @@ impl Default for OnAirSettings {
             enabled: false,
             bridge_id: None,
             target: None,
+            targets: Vec::new(),
+            mode: OnAirMode::Color,
+            xy: None,
+            mirek: 366,
+            scene: None,
             trigger: OnAirTrigger::default(),
             color: OnAirColor::default(),
             brightness: 100.0,
@@ -96,6 +132,7 @@ pub enum AwayAction {
     #[default]
     Off,
     Dim,
+    Scene,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -105,6 +142,8 @@ pub struct AwaySettings {
     /// The bridge `target` belongs to.
     pub bridge_id: Option<String>,
     pub target: Option<AutomationTarget>,
+    pub targets: Vec<AutomationTarget>,
+    pub scene: Option<AutomationScene>,
     pub action: AwayAction,
     /// 1-100, used by `Dim`.
     pub dim_brightness: f64,
@@ -120,6 +159,8 @@ impl Default for AwaySettings {
             enabled: false,
             bridge_id: None,
             target: None,
+            targets: Vec::new(),
+            scene: None,
             action: AwayAction::default(),
             dim_brightness: 10.0,
             include_sleep: true,
@@ -145,13 +186,26 @@ impl AutomationSettings {
             self.on_air.enabled,
             &self.on_air.bridge_id,
             &self.on_air.target,
+            &self.on_air.targets,
+            (self.on_air.mode == OnAirMode::Scene).then_some(self.on_air.scene.as_ref()),
         )?;
         validate_target(
             "this automation",
             self.away.enabled,
             &self.away.bridge_id,
             &self.away.target,
+            &self.away.targets,
+            (self.away.action == AwayAction::Scene).then_some(self.away.scene.as_ref()),
         )?;
+        if self.on_air.xy.is_some_and(|xy| {
+            xy.iter()
+                .any(|value| !value.is_finite() || !(0.0..=1.0).contains(value))
+        }) {
+            return Err("Choose a valid color.".into());
+        }
+        if !(50..=1000).contains(&self.on_air.mirek) {
+            return Err("Choose a valid white temperature.".into());
+        }
         validate_level("On-air brightness", self.on_air.brightness)?;
         validate_level("The dim level", self.away.dim_brightness)?;
         if self.on_air.ignored_apps.len() > MAX_IGNORED_APPS
@@ -172,8 +226,28 @@ fn validate_target(
     enabled: bool,
     bridge_id: &Option<String>,
     target: &Option<AutomationTarget>,
+    targets: &[AutomationTarget],
+    scene: Option<Option<&AutomationScene>>,
 ) -> Result<(), String> {
-    if let Some(target) = target {
+    if targets.len() > 100 {
+        return Err("Choose at most 100 light targets.".into());
+    }
+    if let Some(scene) = scene {
+        if let Some(scene) = scene {
+            if scene.id.is_empty()
+                || scene.id.len() > MAX_TEXT_LEN
+                || scene.name.len() > MAX_TEXT_LEN
+                || bridge_id.as_deref().is_none_or(str::is_empty)
+            {
+                return Err("Choose the scene again.".into());
+            }
+        } else if enabled {
+            return Err("Choose a scene before turning on this automation.".into());
+        }
+        return Ok(());
+    }
+    let targets = effective_targets(targets, target);
+    for target in &targets {
         if target.id.is_empty()
             || target.id.len() > MAX_TEXT_LEN
             || target.name.len() > MAX_TEXT_LEN
@@ -182,7 +256,7 @@ fn validate_target(
             return Err(format!("Choose the lights for {label} again."));
         }
     }
-    if enabled && target.is_none() {
+    if enabled && targets.is_empty() {
         return Err(format!("Choose lights before turning on {label}."));
     }
     Ok(())
@@ -273,6 +347,50 @@ mod tests {
         settings.away.dim_brightness = 0.0;
         assert!(settings.validate().is_err());
         settings.away.dim_brightness = f64::NAN;
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn legacy_targets_and_colors_survive_loading() {
+        let settings: AutomationSettings = serde_json::from_value(serde_json::json!({
+            "onAir": { "bridgeId": "bridge", "target": { "kind": "light", "id": "one", "name": "Desk" }, "color": "purple" }
+        })).unwrap();
+        assert_eq!(
+            effective_targets(&settings.on_air.targets, &settings.on_air.target)[0].id,
+            "one"
+        );
+        assert_eq!(
+            settings
+                .on_air
+                .xy
+                .unwrap_or_else(|| settings.on_air.color.xy()),
+            [0.2725, 0.1096]
+        );
+    }
+
+    #[test]
+    fn multiple_targets_and_scene_rules_validate() {
+        let mut settings = AutomationSettings::default();
+        settings.on_air.enabled = true;
+        settings.on_air.bridge_id = Some("bridge".into());
+        settings.on_air.targets = vec![
+            target(),
+            AutomationTarget {
+                kind: TargetKind::Light,
+                id: "light".into(),
+                name: "Desk".into(),
+            },
+        ];
+        assert!(settings.validate().is_ok());
+        settings.on_air.mode = OnAirMode::Scene;
+        assert!(settings.validate().is_err());
+        settings.on_air.targets.clear();
+        settings.on_air.scene = Some(AutomationScene {
+            id: "scene".into(),
+            name: "Concentrate".into(),
+        });
+        assert!(settings.validate().is_ok());
+        settings.on_air.xy = Some([f64::NAN, 0.2]);
         assert!(settings.validate().is_err());
     }
 }
