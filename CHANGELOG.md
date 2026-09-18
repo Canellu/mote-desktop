@@ -5,6 +5,8 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.5.0] - 2026-09-18
+
 ### Highlights
 
 - **Your plan, one click away.** The plan control beside the app name opens

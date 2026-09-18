@@ -112,6 +112,14 @@ Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
 
+## What's new in 0.5.0
+
+See your plan at any time: the plan button beside the app name shows what you
+have, next to what Free and Mote Pro each include. When the 14-day Mote Pro
+trial starts, Mote now says so, with what it includes and when it ends. No
+card, and nothing to cancel. Pro features stay marked Pro during the trial, so
+it is clear what goes back to Free when it ends.
+
 ## What's new in 0.4.1
 
 Automations, with Mote Pro: an on-air light that turns the lights you choose a
