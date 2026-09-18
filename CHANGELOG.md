@@ -5,7 +5,7 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
-## [0.4.0] - 2026-09-18
+## [0.4.1] - 2026-09-18
 
 ### Highlights
 
