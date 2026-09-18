@@ -15,13 +15,14 @@ read: correct here first, then carry the change across, because this file is
 where the widget claims below came from in the first place. The trial wording
 went across with the 0.3.0 submission.
 
-**Carry across with 0.4.1 (2026-09-18):** Free became one widget with one
-room, zone, or light, and automations ship for the first time. The description,
-both feature lists, and "What's new in 0.4.1" below say so; the live listing
-still says Free widgets are unlimited and does not mention automations. Update
-it in the same submission as the 0.4.1.0 package, not before. There is no
-0.4.0 release: its 0.4.0.0 package was uploaded to the draft, and Partner Center
-then refused a rebuilt package under the same version, so it shipped as 0.4.1.
+**Carried across with 0.4.1 (Submission 10, in certification 2026-09-18):**
+Free became one widget with one room, zone, or light, and automations ship for
+the first time. Partner Center keeps its own, shorter description; it gained
+both points, the short description mentions automations, the widget features
+were reworded, an on-air feature was added, and "What's new in 0.4.1" below went
+across as written. There is no 0.4.0 release: its 0.4.0.0 package was uploaded
+to the draft, and Partner Center then refused a rebuilt package under the same
+version, so it shipped as 0.4.1.
 
 ## Product name
 

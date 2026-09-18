@@ -1,14 +1,27 @@
 # Windows Store packaging and commerce spike
 
-Status: **0.2.5.0 is live in the Store with Pro enforcement, the purchase
-window fix, the in-app update notice and progress, a desktop shortcut, and
-restart after a Store update, and the Mote Pro add-on is live at NOK 149.
-0.3.0.0, which adds the 14-day Pro trial and starts Mote at sign-in by default,
-is in certification and publishes automatically. Purchase, restore, offline
-licensing, the trial surviving a reinstall, and the startup task are still
-unverified on a Store-installed build.**
+Status: **0.3.0.0 is live in the Store with Pro enforcement, the 14-day Pro
+trial, the in-app update notice, and start at sign-in, and the Mote Pro add-on
+is live at NOK 149. 0.4.1.0, which adds automations, the one-widget Free tier,
+widget corners, and the UI-thread purchase call, is in certification and
+publishes automatically. Purchase, restore, offline licensing, the trial
+surviving a reinstall, and the startup task are still unverified on a
+Store-installed build.**
 
-Last reviewed: **2026-09-17**.
+Last reviewed: **2026-09-18**.
+
+What changed on 2026-09-18: 0.4.1.0 went to certification as Submission 10
+(`1152921505701901277`), carrying `MoteDesktop_0.4.1.0_x64.msix` (9,964,878
+bytes, SHA-256
+`B306B6BA5DB321574CD4C1A5CCC76D022BBE982B1BA4A1A0DB33AD2C8F9A2D50`, tag `v0.4.1`
+at `bd2e416`), set to publish as soon as it passes. There is no 0.4.0 release:
+a 0.4.0.0 package reached the draft, and Partner Center then refused a rebuilt
+0.4.0.0 because every uploaded package, draft or published, must have a unique
+full name. **Once a version is uploaded, it is spent; bump before rebuilding.**
+The package is 35 KB under the 10 MB browser upload limit, so the next release
+may need the upload made another way. The same submission carries the listing
+update for the one-widget Free tier and automations, fixed captions for
+screenshots 6 to 8, and the trailer's missing title and thumbnail.
 
 Purchase investigation on 2026-09-17: **0.3.0.0 is installed from the Store**.
 The Norwegian public catalog still offers `9P3J5KCBFVQZ` as a Durable at
