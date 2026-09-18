@@ -76,7 +76,7 @@ pub enum PurchaseOutcome {
     Owned,
     /// The customer dismissed the purchase without buying. Not an error.
     Declined,
-    /// The Store could not complete it. Worth retrying; nothing was charged.
+    /// The Store could not complete the purchase.
     Unavailable,
 }
 
@@ -213,7 +213,7 @@ pub async fn get_store_commerce_diagnostic(app: tauri::AppHandle) -> StoreCommer
 #[cfg(target_os = "windows")]
 pub async fn purchase_mote_pro(app: tauri::AppHandle) -> Result<PurchaseOutcome, String> {
     use windows::core::HSTRING;
-    use windows::Services::Store::{StoreContext, StorePurchaseStatus};
+    use windows::Services::Store::StoreContext;
 
     let report = get_store_commerce_diagnostic_for_platform(app.clone()).await;
 
@@ -227,30 +227,115 @@ pub async fn purchase_mote_pro(app: tauri::AppHandle) -> Result<PurchaseOutcome,
         })
         .map(|product| product.store_id.clone())
         .ok_or_else(|| {
-            "Mote Pro is not offered by this Store account yet. The add-on must be published \
-             against a published parent package before it can be bought."
-                .to_string()
+            let error = report
+                .owner_window
+                .error
+                .as_ref()
+                .or(report.durable_products.error.as_ref());
+            match error {
+                Some(error) => format!(
+                    "Microsoft Store could not load Mote Pro: {}{}",
+                    error.message,
+                    error
+                        .code
+                        .as_ref()
+                        .map(|code| format!(" ({code})"))
+                        .unwrap_or_default(),
+                ),
+                None => {
+                    "Mote Pro is not currently available from the Microsoft Store for this account."
+                        .to_string()
+                }
+            }
         })?;
 
-    // Initialise the very object RequestPurchaseAsync is called on; see
-    // initialize_with_main_window for why that cannot be skipped.
-    let context = StoreContext::GetDefault().map_err(|error| error.message())?;
-    initialize_with_main_window(&context, &app)?;
+    // Store UI must be started on the window's thread, including its exact
+    // StoreContext's owner-window initialization. Await the agile operation off it.
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let app_for_window = app.clone();
+    app.run_on_main_thread(move || {
+        let operation = (|| {
+            let context = StoreContext::GetDefault()
+                .map_err(|error| purchase_api_error("create the purchase context", error))?;
+            initialize_with_main_window(&context, &app_for_window)?;
+            context
+                .RequestPurchaseAsync(&HSTRING::from(store_id))
+                .map_err(|error| purchase_api_error("open the purchase", error))
+        })();
+        let _ = sender.send(operation);
+    })
+    .map_err(|error| format!("Microsoft Store could not open the purchase window: {error}"))?;
 
-    let result = context
-        .RequestPurchaseAsync(&HSTRING::from(store_id))
-        .map_err(|error| error.message())?
+    let operation = receiver.await.map_err(|_| {
+        "The purchase window closed before Microsoft Store could open it.".to_string()
+    })??;
+    let result = operation
         .await
-        .map_err(|error| error.message())?;
+        .map_err(|error| purchase_api_error("complete the purchase", error))?;
 
-    let status = result.Status().map_err(|error| error.message())?;
+    let status = result
+        .Status()
+        .map_err(|error| purchase_api_error("read the purchase result", error))?;
+    let extended_error = result
+        .ExtendedError()
+        .map_err(|error| purchase_api_error("read the purchase error", error))?;
 
-    Ok(match status {
-        StorePurchaseStatus::Succeeded | StorePurchaseStatus::AlreadyPurchased =>
-            PurchaseOutcome::Owned,
-        StorePurchaseStatus::NotPurchased => PurchaseOutcome::Declined,
-        // NetworkError, ServerError, and anything added later.
-        _ => PurchaseOutcome::Unavailable,
+    map_purchase_result(status, extended_error)
+}
+
+#[cfg(target_os = "windows")]
+fn purchase_api_error(action: &str, error: windows::core::Error) -> String {
+    format!(
+        "Microsoft Store could not {action} ({}): {}",
+        format_hresult(error.code()),
+        error.message(),
+    )
+}
+
+#[cfg(target_os = "windows")]
+fn map_purchase_result(
+    status: windows::Services::Store::StorePurchaseStatus,
+    extended_error: windows::core::HRESULT,
+) -> Result<PurchaseOutcome, String> {
+    use windows::Services::Store::StorePurchaseStatus;
+
+    match status {
+        StorePurchaseStatus::Succeeded | StorePurchaseStatus::AlreadyPurchased => {
+            return Ok(PurchaseOutcome::Owned);
+        }
+        StorePurchaseStatus::NotPurchased if extended_error.is_ok() => {
+            return Ok(PurchaseOutcome::Declined);
+        }
+        _ => {}
+    }
+
+    let status_name = match status {
+        StorePurchaseStatus::NotPurchased => "NotPurchased",
+        StorePurchaseStatus::NetworkError => "NetworkError",
+        StorePurchaseStatus::ServerError => "ServerError",
+        _ => "Unknown",
+    };
+    if extended_error.is_err() {
+        return Err(format!(
+            "Microsoft Store could not complete the purchase ({status_name}, {}): {}",
+            format_hresult(extended_error),
+            windows::core::Error::from_hresult(extended_error).message(),
+        ));
+    }
+
+    Err(match status {
+        StorePurchaseStatus::NetworkError => {
+            "Microsoft Store could not connect to complete the purchase. Check your connection and try again. (NetworkError)"
+                .to_string()
+        }
+        StorePurchaseStatus::ServerError => {
+            "Microsoft Store could not complete the purchase. Try again later; if it continues, contact Microsoft Support. (ServerError)"
+                .to_string()
+        }
+        _ => format!(
+            "Microsoft Store could not complete the purchase (status {}). Try again later; if it continues, contact Microsoft Support.",
+            status.0,
+        ),
     })
 }
 
@@ -281,8 +366,9 @@ fn initialize_with_main_window(
     let hwnd = window.hwnd().map_err(|error| error.to_string())?;
     let initializer = context
         .cast::<IInitializeWithWindow>()
-        .map_err(|error| error.message())?;
-    unsafe { initializer.Initialize(HWND(hwnd.0)) }.map_err(|error| error.message())
+        .map_err(|error| purchase_api_error("configure the Store window", error))?;
+    unsafe { initializer.Initialize(HWND(hwnd.0)) }
+        .map_err(|error| purchase_api_error("attach the Store window", error))
 }
 
 /// Whether the Microsoft Store has a newer Mote Desktop for this installation.
@@ -945,6 +1031,61 @@ fn format_hresult(code: windows::core::HRESULT) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn purchase_result_preserves_ownership_and_clean_cancellation() {
+        use windows::core::HRESULT;
+        use windows::Services::Store::StorePurchaseStatus;
+
+        for status in [
+            StorePurchaseStatus::Succeeded,
+            StorePurchaseStatus::AlreadyPurchased,
+        ] {
+            assert_eq!(
+                map_purchase_result(status, HRESULT(0)),
+                Ok(PurchaseOutcome::Owned)
+            );
+        }
+        assert_eq!(
+            map_purchase_result(StorePurchaseStatus::NotPurchased, HRESULT(0)),
+            Ok(PurchaseOutcome::Declined),
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn failed_purchase_retains_status_and_extended_hresult() {
+        use windows::core::HRESULT;
+        use windows::Services::Store::StorePurchaseStatus;
+
+        for (status, name) in [
+            (StorePurchaseStatus::NotPurchased, "NotPurchased"),
+            (StorePurchaseStatus::NetworkError, "NetworkError"),
+            (StorePurchaseStatus::ServerError, "ServerError"),
+        ] {
+            let error = map_purchase_result(status, HRESULT(0x80072EE7_u32 as i32)).unwrap_err();
+            assert!(error.contains(name));
+            assert!(error.contains("0x80072EE7"));
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn purchase_failure_without_extended_error_is_still_reported() {
+        use windows::core::HRESULT;
+        use windows::Services::Store::StorePurchaseStatus;
+
+        for (status, name) in [
+            (StorePurchaseStatus::NetworkError, "NetworkError"),
+            (StorePurchaseStatus::ServerError, "ServerError"),
+            (StorePurchaseStatus(99), "status 99"),
+        ] {
+            assert!(map_purchase_result(status, HRESULT(0))
+                .unwrap_err()
+                .contains(name));
+        }
+    }
 
     #[test]
     fn store_update_types_serialize_in_the_shape_the_interface_reads() {

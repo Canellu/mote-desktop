@@ -8,7 +8,28 @@ is in certification and publishes automatically. Purchase, restore, offline
 licensing, the trial surviving a reinstall, and the startup task are still
 unverified on a Store-installed build.**
 
-Last reviewed: **2026-09-15**.
+Last reviewed: **2026-09-17**.
+
+Purchase investigation on 2026-09-17: **0.3.0.0 is installed from the Store**.
+The Norwegian public catalog still offers `9P3J5KCBFVQZ` as a Durable at
+NOK 149 with a `Purchase` availability for Windows Desktop. Windows Store
+Operational events confirm the correct add-on was requested, the purchase
+app's guard checks passed, account authentication succeeded, and Microsoft's
+checkout loaded. The checkout then showed its generic payment-processing
+failure. On closing it, StorePurchaseApp logged an `Unknown` PurchaseException
+without a specific failed HRESULT. The reporter also confirmed that adding the
+cards fails directly on the Microsoft account Payment options website, outside
+Mote. That reproduces the card-validation issue independently of the app;
+Microsoft billing support must identify the specific rejection if the billing
+country and address are correct. Successful purchase and restore remain
+unverified.
+
+The source now starts `RequestPurchaseAsync` on the main UI thread, as
+[Microsoft requires](https://learn.microsoft.com/en-us/uwp/api/windows.services.store.storecontext.requestpurchaseasync),
+and retains purchase HRESULTs instead of discarding them. The frontend reports
+these errors only after checking the licence again. These are integration and
+diagnostic fixes, **not a verified fix for the payment rejection**. Validate
+them in a Store-associated build; a development build cannot prove checkout.
 
 What changed on 2026-09-15: 0.2.5.0 published. 0.3.0.0 went to certification
 as Submission 9 (`1152921505701893993`), carrying `MoteDesktop_0.3.0.0_x64.msix`

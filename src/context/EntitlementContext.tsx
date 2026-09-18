@@ -1,4 +1,5 @@
 import { daysLeftUntil } from "@/features/pro/trial";
+import { describeCommandError } from "@/lib/entitlement-errors";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import {
@@ -10,6 +11,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { toast } from "sonner";
 
 /** Mirrors `EntitlementState` in src-tauri/src/services/entitlements.rs. */
 export type EntitlementState = "active" | "inactive" | "unknown";
@@ -168,20 +170,30 @@ export const EntitlementProvider: React.FC<{ children: ReactNode }> = ({
   }, [apply]);
 
   const purchasePro = useCallback(async () => {
+    let purchaseError: unknown;
     try {
       await invoke("purchase-mote-pro");
-    } catch {
-      // A cancelled or failed dialog still falls through to the read below,
-      // which is the only thing that decides what the customer owns.
+    } catch (error) {
+      purchaseError = error;
     }
 
+    // A failed dialog can still leave a completed purchase. Check ownership
+    // before showing its error; only the licence can grant Pro.
     try {
       const next = await invoke<EntitlementSnapshot>("refresh-entitlements");
       apply(next);
-      return next.pro === "active";
-    } catch {
-      return false;
+      if (next.pro === "active") return true;
+    } catch (error) {
+      purchaseError ??= error;
     }
+
+    if (purchaseError != null) {
+      toast.error("The purchase could not be confirmed", {
+        description: describeCommandError(purchaseError),
+        duration: 12000,
+      });
+    }
+    return false;
   }, [apply]);
 
   const setDebugTier = useCallback(
