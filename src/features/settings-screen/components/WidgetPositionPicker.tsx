@@ -302,7 +302,7 @@ export const WidgetPositionPicker = ({
         <div>
           <p className="flex items-center gap-2 text-sm font-medium">
             Position
-            {onProRequired ? <ProTag /> : null}
+            <ProTag />
           </p>
           <p className="text-xs text-muted-foreground">
             Drag the widget, or click a region to move it there.

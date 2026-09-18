@@ -8,6 +8,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useEntitlements } from "@/context/EntitlementContext";
 import { useProUpgrade } from "@/features/pro/proUpgrade";
+import { ProTag } from "@/features/settings-screen/components/ProTag";
 import {
   Select,
   SelectContent,
@@ -149,6 +150,7 @@ const HomeTitle: React.FC<{
             >
               <Plus />
               Add bridge
+              <ProTag className="ml-auto" />
             </DropdownMenuItem>
           </>
         )}
@@ -197,7 +199,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onCreateSection,
 }) => {
   const isCustomLayout = groupingMode === "custom";
-  const { hasPro } = useEntitlements();
+  const { hasPro, purchased } = useEntitlements();
   const { requestPro } = useProUpgrade();
 
   /**
@@ -486,7 +488,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                       <SelectGroup>
                         <SelectLabel>Arrange yourself</SelectLabel>
                         <SelectItem value="custom">
-                          Custom layout{hasPro ? "" : " — Pro"}
+                          Custom layout{purchased ? "" : " — Pro"}
                         </SelectItem>
                       </SelectGroup>
                     </SelectContent>

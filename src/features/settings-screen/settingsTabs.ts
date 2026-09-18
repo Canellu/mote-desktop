@@ -59,6 +59,7 @@ export const settingsTabs = [
     group: "app",
     description: "Choose global keyboard shortcuts for lights and scenes.",
     icon: Keyboard,
+    pro: true,
   },
   {
     value: "automations",
@@ -66,6 +67,7 @@ export const settingsTabs = [
     group: "app",
     description: "Let lights react to calls and to this PC locking.",
     icon: Workflow,
+    pro: true,
   },
   {
     value: "widget",
@@ -123,6 +125,7 @@ export const settingsTabs = [
     group: "connections",
     description: "Set up light sync driven directly by this PC.",
     icon: MonitorPlay,
+    pro: true,
   },
   {
     value: "sync-box",
@@ -137,6 +140,8 @@ export const settingsTabs = [
   group: SettingsGroupValue;
   description: string;
   icon: LucideIcon;
+  /** The whole tab is a Mote Pro feature, so it carries the Pro tag. */
+  pro?: boolean;
 }>;
 
 /** Leaf tabs belonging to a group, in declaration order. */

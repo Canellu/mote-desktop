@@ -45,6 +45,7 @@ import { ShortcutsTab } from "./tabs/ShortcutsTab";
 import { ScenesTab } from "./tabs/ScenesTab";
 import { SpacesTab } from "./tabs/SpacesTab";
 import { WidgetTab } from "./tabs/WidgetTab";
+import { ProTag } from "./components/ProTag";
 import type {
   AppSettings,
   CloseButtonBehavior,
@@ -395,10 +396,11 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                           animate="animate"
                           exit="exit"
                         >
-                          <h1 className="font-heading text-2xl font-semibold tracking-tight">
+                          <h1 className="flex items-center gap-2.5 font-heading text-2xl font-semibold tracking-tight">
                             {openAutomation
                               ? automationRuleInfo[openAutomation].title
                               : activeTabDetails.label}
+                            {activeTabDetails.pro && <ProTag />}
                           </h1>
                           <p className="text-sm text-muted-foreground">
                             {openAutomation
@@ -447,7 +449,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 )}
                 {activeTab === "widget" && (
                   <AddWidgetButton
-                    pro={widgetLimitReached}
+                    // Tagged from the second widget on, trial included, and
+                    // offering Pro only where Free actually stops.
+                    pro={widgets.length > 0}
                     onClick={() =>
                       widgetLimitReached
                         ? requestPro("advanced_widgets")

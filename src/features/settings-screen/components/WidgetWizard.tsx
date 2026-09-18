@@ -725,7 +725,7 @@ export const WidgetWizard = ({
                     >
                       <ToggleRight size={16} />
                       Add toggles card
-                      {hasPro ? null : <ProTag />}
+                      <ProTag />
                     </Button>
                   </TabsContent>
                   <TabsContent value="appearance" className="space-y-5">
@@ -737,7 +737,7 @@ export const WidgetWizard = ({
                           compact
                           icon={<Sparkles size={16} />}
                           title={mode.label}
-                          pro={!hasPro && mode.value !== "system"}
+                          pro={mode.value !== "system"}
                           onClick={() =>
                             !hasPro && mode.value !== "system"
                               ? upgrade()
@@ -748,7 +748,7 @@ export const WidgetWizard = ({
                     </PickerGroup>
                     <PickerGroup title="Corners">
                       {WIDGET_CORNER_OPTIONS.map((option) => {
-                        const pro = !hasPro && option.value !== "rounded";
+                        const pro = option.value !== "rounded";
                         return (
                           <OptionButton
                             key={option.value}
@@ -758,7 +758,9 @@ export const WidgetWizard = ({
                             title={option.label}
                             pro={pro}
                             onClick={() =>
-                              pro ? upgrade() : setCornerMode(option.value)
+                              pro && !hasPro
+                                ? upgrade()
+                                : setCornerMode(option.value)
                             }
                           />
                         );

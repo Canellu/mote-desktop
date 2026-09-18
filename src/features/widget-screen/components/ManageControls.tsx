@@ -887,7 +887,7 @@ export const ManageControls = ({
           >
             <ToggleRight size={16} />
             Add toggles
-            {togglesNeedPro ? <ProTag /> : null}
+            <ProTag />
           </Button>
           <Button
             type="button"
@@ -898,7 +898,7 @@ export const ManageControls = ({
           >
             <Plus size={16} />
             Add control
-            {controlNeedsPro ? <ProTag /> : null}
+            {controls.length > 0 ? <ProTag /> : null}
           </Button>
         </div>
       </div>

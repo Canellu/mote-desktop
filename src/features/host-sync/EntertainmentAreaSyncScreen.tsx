@@ -6,6 +6,7 @@ import { useEntertainmentStore } from "@/stores/EntertainmentStore";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Monitor, Move3d, TriangleAlert, Tv } from "lucide-react";
 import { useState } from "react";
+import { ProTag } from "@/features/settings-screen/components/ProTag";
 import { PcSyncScreen } from "./PcSyncScreen";
 
 const SOURCE_STORAGE_KEY = "hue-sync-hub-source";
@@ -76,6 +77,7 @@ export const EntertainmentAreaSyncScreen = ({ areaId }: { areaId: string }) => {
           <TabsTrigger value="pc">
             <Monitor data-icon="inline-start" />
             This PC
+            <ProTag />
           </TabsTrigger>
           <TabsTrigger value="box">
             <Tv data-icon="inline-start" />

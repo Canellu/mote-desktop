@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { groupTabs, settingsGroups } from "../settingsTabs";
+import { ProTag } from "./ProTag";
 
 /**
  * Full-height settings navigation: a single left rail listing every leaf tab,
@@ -32,7 +33,7 @@ export const SettingsSidebar = ({
               {group.label}
             </p>
             <nav aria-label={group.label} className="flex flex-col gap-1 @2xl:gap-0.5">
-              {groupTabs(group.value).map(({ value, label, icon: Icon }) => {
+              {groupTabs(group.value).map(({ value, label, icon: Icon, pro }) => {
                 const isActive = activeTab === value;
                 const button = (
                   <button
@@ -48,6 +49,7 @@ export const SettingsSidebar = ({
                   >
                     <Icon size={16} className="shrink-0" />
                     <span className="hidden truncate @2xl:inline">{label}</span>
+                    {pro && <ProTag className="ml-auto hidden @2xl:inline-flex" />}
                   </button>
                 );
 

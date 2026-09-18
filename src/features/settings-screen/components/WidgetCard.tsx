@@ -233,7 +233,7 @@ export const WidgetCard = ({
                 <div>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Pinned
-                    {hasPro ? null : <ProTag />}
+                    <ProTag />
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Lock this widget to its current position.
@@ -260,7 +260,7 @@ export const WidgetCard = ({
                 <div>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Always on top
-                    {hasPro ? null : <ProTag />}
+                    <ProTag />
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Keep this widget floating above other windows.
@@ -286,7 +286,7 @@ export const WidgetCard = ({
                 <div>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Theme
-                    {hasPro ? null : <ProTag />}
+                    <ProTag />
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Choose the widget's light or dark appearance.
@@ -309,7 +309,7 @@ export const WidgetCard = ({
                 <div>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Widget size
-                    {hasPro ? null : <ProTag />}
+                    <ProTag />
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Adjust the dimensions of the widget controls.
@@ -332,7 +332,7 @@ export const WidgetCard = ({
                 <div>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Corners
-                    {hasPro ? null : <ProTag />}
+                    <ProTag />
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Round the widget and its cards more or less.
