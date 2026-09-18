@@ -19,6 +19,17 @@ export interface ProPurchase {
   retry: () => void;
 }
 
+/** The buy button's words for each step of a purchase. */
+export function purchaseLabel(phase: ProPhase): string {
+  return phase === "done"
+    ? "Done"
+    : phase === "unavailable"
+      ? "Check again"
+      : phase === "working"
+        ? "Opening the Store…"
+        : "Get Mote Pro";
+}
+
 /**
  * Everything a paywall does, with nothing about how it looks.
  *

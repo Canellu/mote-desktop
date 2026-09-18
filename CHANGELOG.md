@@ -5,6 +5,23 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Highlights
+
+- **Your plan, one click away.** The plan control beside the app name opens
+  your plan next to what Free and Mote Pro each include, so what you bought
+  stays visible after you buy it.
+- **The trial says hello.** When the 14-day Mote Pro trial starts, Mote shows
+  what it includes and when it ends. No card, and nothing to cancel.
+
+### Improvements
+
+- The title bar has one plan control: Get Pro on Free, the countdown during
+  the trial, and the Pro mark once bought. It stays hidden until your first
+  bridge is paired, which is when the trial starts.
+- Pro features stay marked Pro during the trial, so it is clear what goes back
+  to Free when it ends.
+- About & Support links to motedesktop.com.
+
 ## [0.4.1] - 2026-09-18
 
 ### Highlights

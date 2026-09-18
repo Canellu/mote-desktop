@@ -33,7 +33,7 @@ export interface EntitlementSnapshot {
   trial: TrialStatus | null;
 }
 
-/** The development override's stops, in the order the badge steps through. */
+/** The states the development plan menu can put the app in. */
 export type DebugTier =
   | "free"
   | "trial"
@@ -63,6 +63,11 @@ interface EntitlementContextValue {
   hasPro: boolean;
   /** Pro is coming from the trial rather than a purchase. */
   onTrial: boolean;
+  /**
+   * Pro is bought. Pro features are tagged until then, trial included, so a
+   * trial shows what goes back to Free when it ends.
+   */
+  purchased: boolean;
   /** Whole days left on a running trial, counted up; null when not on one. */
   trialDaysLeft: number | null;
   /** The trial is over and the Store says nothing was bought. */
@@ -89,8 +94,11 @@ interface EntitlementContextValue {
   /**
    * Development override, or `null` in a release build. The Rust side compiles
    * the mutable provider out of release entirely, so this is not merely hidden.
+   * Resolves with the snapshot it produced, or null when the override failed.
    */
-  setDebugTier: ((tier: DebugTier) => Promise<void>) | null;
+  setDebugTier:
+    | ((tier: DebugTier) => Promise<EntitlementSnapshot | null>)
+    | null;
 }
 
 const EntitlementContext = createContext<EntitlementContextValue | null>(null);
@@ -205,13 +213,14 @@ export const EntitlementProvider: React.FC<{ children: ReactNode }> = ({
             household: "inactive",
           },
         });
-        apply(
-          await invoke<EntitlementSnapshot>("set-debug-trial", {
-            state: DEBUG_TRIAL[tier],
-          }),
-        );
+        const next = await invoke<EntitlementSnapshot>("set-debug-trial", {
+          state: DEBUG_TRIAL[tier],
+        });
+        apply(next);
+        return next;
       } catch {
         await refresh();
+        return null;
       }
     },
     [apply, refresh],
@@ -226,6 +235,7 @@ export const EntitlementProvider: React.FC<{ children: ReactNode }> = ({
       snapshot,
       hasPro: purchased || onTrial,
       onTrial,
+      purchased,
       trialDaysLeft:
         onTrial && trial ? Math.max(1, daysLeftUntil(trial.endsAt, now)) : null,
       trialEnded: pro === "inactive" && trial !== null && !trial.active,
@@ -256,6 +266,7 @@ export const useEntitlements = (): EntitlementContextValue => {
       snapshot: UNAVAILABLE,
       hasPro: false,
       onTrial: false,
+      purchased: false,
       trialDaysLeft: null,
       trialEnded: false,
       proLapsed: false,

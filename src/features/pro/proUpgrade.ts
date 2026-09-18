@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, type RefObject } from "react";
 
 /** The capabilities a customer can be asked to buy, in their own words. */
 export type ProFeature =
@@ -11,9 +11,21 @@ export type ProFeature =
   | "trial_ended"
   | "general";
 
+export interface PlanOptions {
+  /** The first sight of a new trial, rather than somebody checking their plan. */
+  welcome?: boolean;
+}
+
 export interface ProUpgradeContextValue {
   /** Opens the purchase dialog, leading with the capability that prompted it. */
   requestPro: (feature?: ProFeature) => void;
+  /** Opens the current plan beside what Free and Pro each include. */
+  showPlan: (options?: PlanOptions) => void;
+  /**
+   * The tier badge. The plan grows out of it when it opens and shrinks back
+   * into it when it closes, so the badge reads as where the plan lives.
+   */
+  planAnchorRef: RefObject<HTMLElement | null>;
 }
 
 export const ProUpgradeContext = createContext<ProUpgradeContextValue | null>(
@@ -27,7 +39,11 @@ export const ProUpgradeContext = createContext<ProUpgradeContextValue | null>(
  * asking to buy simply does nothing rather than throwing.
  */
 export const useProUpgrade = (): ProUpgradeContextValue =>
-  useContext(ProUpgradeContext) ?? { requestPro: () => {} };
+  useContext(ProUpgradeContext) ?? {
+    requestPro: () => {},
+    showPlan: () => {},
+    planAnchorRef: { current: null },
+  };
 
 let opener: ((feature: ProFeature) => void) | null = null;
 

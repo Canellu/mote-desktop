@@ -1,4 +1,5 @@
-import { useEntitlements, type DebugTier } from "@/context/EntitlementContext";
+import { useEntitlements } from "@/context/EntitlementContext";
+import { DevPlanMenu } from "@/features/pro/DevPlanMenu";
 import { useProUpgrade } from "@/features/pro/proUpgrade";
 import {
   formatDaysLeft,
@@ -24,37 +25,34 @@ const goldSurface = cn(
   "before:bg-[linear-gradient(to_bottom,oklch(1_0_0/0.6),oklch(1_0_0/0))]",
 );
 
-/** The mark of a bought Pro. A label, so a pill with no icon and no hover. */
+/** The mark of a bought Pro: a plain pill, with no icon to compete with the name. */
 const proMark = cn(
   goldSurface,
   "rounded-full px-2.5 py-px text-[0.8125rem] leading-5 font-semibold tracking-tight",
 );
 
 /**
- * Where the tier stands. Flat, a hairline border on a faint fill, so beside the
- * gold button it reads as status and never as a second thing to press.
+ * The trial's countdown. Flat, a hairline border on a faint fill: it is status,
+ * and Pro is already on, so there is nothing here to sell.
  */
 const statusChip = cn(
-  "flex h-6 items-center gap-1.5 rounded-full border px-2.5",
+  "flex h-6 items-center gap-1.5 rounded-full border pr-2.5 pl-1.5",
   "border-foreground/6 bg-foreground/5",
   "text-[0.8125rem] leading-none font-medium tracking-tight text-foreground/80",
 );
 
 /**
- * The only control in the chrome that asks for money, so it is built like one:
- * the title bar's button height and corners, an icon, a raised gold surface, and
- * hover and press states. It used to be a bold text link, and the dark theme's
- * primary colour is near-white, so it read as one more label.
+ * Free, said as the way out of it. The only thing in the chrome that asks for
+ * money, so it is built like a button: the title bar's button height, an icon
+ * and a raised gold surface. It replaced a "Free" chip that sat beside it and
+ * opened a second dialog for the same purchase.
  */
-const getProButton = cn(
+const getProMark = cn(
   goldSurface,
   "flex h-7 items-center rounded-md px-2.5 text-xs font-semibold shadow-xs",
   // A hairline just outside the gold, darker on light chrome and lighter on
   // dark, so the button's edge holds against the title bar.
   "border border-amber-800/25 dark:border-amber-200/30",
-  "outline-none transition-[filter,transform] duration-150",
-  "hover:brightness-[1.06] active:translate-y-px active:brightness-95",
-  "focus-visible:ring-2 focus-visible:ring-ring",
 );
 
 /** The trial's final stretch starts where its reminders do. */
@@ -90,26 +88,20 @@ const TrialRing = ({ share, ending }: { share: number; ending: boolean }) => {
   );
 };
 
-const DEBUG_TIER_LABEL: Record<DebugTier, string> = {
-  free: "Free",
-  trial: "a new trial",
-  trial_ending: "a trial with 3 days left",
-  trial_ended: "an ended trial",
-  pro: "Pro",
-};
-
 /**
  * Says which tier the running app is in, beside the product name.
  *
- * On Free it also carries the upgrade path. On a trial it counts down and still
- * offers the purchase. On Pro it is just the mark. In a development build the
- * status itself steps through Free, the trial's stages, and Pro, so every state
- * can be seen without a Store purchase or a two-week wait.
+ * On Free it is the way to Pro, on a trial the countdown, and on Pro the mark;
+ * before the first bridge pairs, and with it the trial, it is not there at all.
+ * It is one control whatever the tier: clicking it opens the plan beside what
+ * each tier includes, with the purchase in it on Free and the trial, and the
+ * plan grows out of it and returns to it. A development build adds a menu
+ * beside it that puts the app in each of those states.
  */
 export const ProBadge: React.FC<{ className?: string }> = ({ className }) => {
-  const { snapshot, hasPro, onTrial, trialDaysLeft, trialEnded, setDebugTier } =
+  const { snapshot, hasPro, onTrial, purchased, trialDaysLeft, setDebugTier } =
     useEntitlements();
-  const { requestPro } = useProUpgrade();
+  const { showPlan, planAnchorRef } = useProUpgrade();
 
   // The title bar starts a window drag from its own mousedown, so every control
   // here has to stop the press or clicking it throws the window across the
@@ -121,10 +113,14 @@ export const ProBadge: React.FC<{ className?: string }> = ({ className }) => {
 
   const trial = snapshot.trial;
   const ending = trialDaysLeft !== null && trialDaysLeft <= TRIAL_ENDING_DAYS;
+  // Nothing to say until the first bridge pairs: the trial starts the moment
+  // it does, so Get Pro during setup would read as Free, then a trial, then
+  // Free again. Also covers the instant at launch before entitlements load.
+  const beforeTrial = !purchased && trial === null;
 
   const mark =
     onTrial && trial && trialDaysLeft !== null ? (
-      <span className={cn(statusChip, "pl-1.5")}>
+      <span className={statusChip}>
         <TrialRing
           share={trialShareLeft(trialDaysLeft, trial.startedAt, trial.endsAt)}
           ending={ending}
@@ -147,64 +143,45 @@ export const ProBadge: React.FC<{ className?: string }> = ({ className }) => {
     ) : hasPro ? (
       <span className={proMark}>Pro</span>
     ) : (
-      <span className={cn(statusChip, "text-foreground/70")}>Free</span>
+      <span className={getProMark}>
+        {/* Above the specular band, so the label stays crisp under the shine. */}
+        <span className="relative flex items-center gap-1.5">
+          <Sparkles size={14} strokeWidth={2.2} aria-hidden />
+          Get Pro
+        </span>
+      </span>
     );
-
-  // Free → trial → trial ending → trial ended → Pro → Free.
-  const nextDebugTier: DebugTier =
-    hasPro && !onTrial
-      ? "free"
-      : !onTrial && !trialEnded
-        ? "trial"
-        : onTrial && (trialDaysLeft ?? 0) > 3
-          ? "trial_ending"
-          : onTrial
-            ? "trial_ended"
-            : "pro";
 
   return (
     <span className={cn("flex items-center gap-2", className)}>
-      {setDebugTier ? (
+      {!beforeTrial && (
         <button
+          ref={(element) => {
+            planAnchorRef.current = element;
+          }}
           type="button"
           {...stopDrag}
           onClick={(event) => {
             event.stopPropagation();
-            void setDebugTier(nextDebugTier);
+            showPlan();
           }}
-          title={`Development build: click for ${DEBUG_TIER_LABEL[nextDebugTier]}.`}
+          title={hasPro ? "See your plan" : "See what Mote Pro adds"}
           className={cn(
             // A bare wrapper: no box of its own, so the status is the only thing
             // that paints. Anything else here shows up as a plate behind it.
-            "inline-flex appearance-none rounded-full border-0 bg-transparent p-0",
-            "outline-none transition-[filter] duration-150",
+            "inline-flex appearance-none border-0 bg-transparent p-0",
+            // The focus ring follows the shape inside: a pill, or Get Pro's corners.
+            hasPro ? "rounded-full" : "rounded-md",
+            "outline-none transition-[filter,translate] duration-150",
             "focus-visible:ring-2 focus-visible:ring-ring/50",
-            "hover:brightness-[1.06]",
+            "hover:brightness-[1.06] active:translate-y-px",
           )}
         >
           {mark}
         </button>
-      ) : (
-        mark
       )}
 
-      {(!hasPro || onTrial) && (
-        <button
-          type="button"
-          {...stopDrag}
-          onClick={(event) => {
-            event.stopPropagation();
-            requestPro("general");
-          }}
-          className={getProButton}
-        >
-          {/* Above the specular band, so the label stays crisp under the shine. */}
-          <span className="relative flex items-center gap-1.5">
-            <Sparkles size={14} strokeWidth={2.2} />
-            Get Pro
-          </span>
-        </button>
-      )}
+      {setDebugTier && <DevPlanMenu setDebugTier={setDebugTier} />}
     </span>
   );
 };

@@ -4,7 +4,7 @@ import heroDark from "@/assets/pro-hero-dark.webp";
 import heroLight from "@/assets/pro-hero-light.webp";
 import { BuyButton } from "@/features/pro/BuyButton";
 import type { ProFeature } from "@/features/pro/proUpgrade";
-import type { ProPurchase } from "@/features/pro/useProPurchase";
+import { purchaseLabel, type ProPurchase } from "@/features/pro/useProPurchase";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -98,14 +98,7 @@ export const ProPaywall: React.FC<ProPaywallProps> = ({
 }) => {
   const { offer, phase, buy, retry } = purchase;
 
-  const label =
-    phase === "done"
-      ? "Done"
-      : phase === "unavailable"
-        ? "Check again"
-        : phase === "working"
-          ? "Opening the Store…"
-          : "Get Mote Pro";
+  const label = purchaseLabel(phase);
 
   return (
     <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden md:grid-cols-2 md:grid-rows-1">

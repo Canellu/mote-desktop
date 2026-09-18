@@ -1,5 +1,5 @@
 import { cn } from "@/lib/utils";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 
 /**
  * The buy button, which is deliberately not the ordinary Button.
@@ -19,8 +19,10 @@ export const BuyButton: React.FC<{
   onClick: () => void;
   disabled?: boolean;
   className?: string;
-}> = ({ children, onClick, disabled, className }) => (
+  ref?: Ref<HTMLButtonElement>;
+}> = ({ children, onClick, disabled, className, ref }) => (
   <button
+    ref={ref}
     type="button"
     onClick={onClick}
     disabled={disabled}

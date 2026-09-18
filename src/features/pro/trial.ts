@@ -42,3 +42,25 @@ export function dueTrialReminder(
   const nearest = Math.min(...reached);
   return shown.has(nearest) ? null : nearest;
 }
+
+// Keyed by the trial's start, so the welcome belongs to one trial and never
+// leaks into the next installation's.
+const welcomeKey = (startedAt: number) => `mote-pro-trial-welcome:${startedAt}`;
+
+/** Whether the trial that started at `startedAt` has been welcomed. */
+export function trialWelcomeSeen(startedAt: number): boolean {
+  try {
+    return localStorage.getItem(welcomeKey(startedAt)) !== null;
+  } catch {
+    // Unreadable storage would repeat the welcome on every launch; say seen.
+    return true;
+  }
+}
+
+export function markTrialWelcomeSeen(startedAt: number): void {
+  try {
+    localStorage.setItem(welcomeKey(startedAt), "shown");
+  } catch {
+    // The welcome may then show again next launch, which is harmless.
+  }
+}
