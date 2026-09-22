@@ -7,6 +7,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::StoreExt;
 
+use super::priority::{self, Source};
+
 const STORE_FILE: &str = "automations.json";
 const STORE_KEY: &str = "settings";
 const MAX_IGNORED_APPS: usize = 64;
@@ -169,14 +171,46 @@ impl Default for AwaySettings {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct AutomationSettings {
     pub on_air: OnAirSettings,
     pub away: AwaySettings,
+    /// Highest first: which automation, or PC Sync, keeps a shared light.
+    /// An entry this version does not know is dropped rather than losing every
+    /// other setting.
+    #[serde(deserialize_with = "known_sources")]
+    pub priority: Vec<Source>,
+}
+
+fn known_sources<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<Source>, D::Error> {
+    let values = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    Ok(values
+        .into_iter()
+        .filter_map(|value| serde_json::from_value(value).ok())
+        .collect())
+}
+
+impl Default for AutomationSettings {
+    fn default() -> Self {
+        Self {
+            on_air: OnAirSettings::default(),
+            away: AwaySettings::default(),
+            priority: Source::DEFAULT_ORDER.to_vec(),
+        }
+    }
 }
 
 impl AutomationSettings {
+    /// The priority made whole, whatever an older version or the interface
+    /// saved.
+    pub fn normalized(mut self) -> Self {
+        self.priority = priority::normalize(&self.priority);
+        self
+    }
+
     /// Refuses what the interface should never send. Saving is not a Pro
     /// action: like a shortcut, an automation can be prepared on Free and starts
     /// working once Pro is owned.
@@ -276,8 +310,9 @@ pub fn load<R: Runtime>(app: &AppHandle<R>) -> AutomationSettings {
     };
     store
         .get(STORE_KEY)
-        .and_then(|value| serde_json::from_value(value).ok())
+        .and_then(|value| serde_json::from_value::<AutomationSettings>(value).ok())
         .unwrap_or_default()
+        .normalized()
 }
 
 pub fn save<R: Runtime>(app: &AppHandle<R>, settings: &AutomationSettings) -> Result<(), String> {
@@ -321,6 +356,18 @@ mod tests {
         assert_eq!(value["onAir"]["color"], "red");
         assert_eq!(value["away"]["action"], "off");
         assert!(value["away"].get("dimBrightness").is_some());
+        assert_eq!(value["priority"][0], "onAir");
+    }
+
+    #[test]
+    fn a_saved_priority_is_kept_and_completed() {
+        let settings: AutomationSettings = serde_json::from_value(
+            serde_json::json!({ "priority": ["pcSync", "sunrise", "onAir"] }),
+        )
+        .unwrap();
+        let settings = settings.normalized();
+        assert_eq!(settings.priority[0], Source::PcSync);
+        assert_eq!(settings.priority.len(), Source::DEFAULT_ORDER.len());
     }
 
     #[test]

@@ -28,6 +28,11 @@ mock.module("@tauri-apps/api/event", () => ({
 const { saveAutomationSettings, useAutomationStore } =
   await import("../src/features/automations/store");
 
+test("a missing loaded store reports failure", async () => {
+  useAutomationStore.setState({ settings: null });
+  expect(await saveAutomationSettings((settings) => settings)).toBe(false);
+});
+
 test("rapid selections stay visible, writes serialize, and failed saves restore confirmed settings", async () => {
   const initial: AutomationSettings = {
     onAir: {
@@ -55,6 +60,7 @@ test("rapid selections stay visible, writes serialize, and failed saves restore 
       includeSleep: true,
       restoreOnReturn: true,
     },
+    priority: ["onAir", "away", "focus", "pcSync", "calendar", "presence"],
   };
   useAutomationStore.setState({ settings: initial });
   const add = (id: string) =>
@@ -77,7 +83,7 @@ test("rapid selections stay visible, writes serialize, and failed saves restore 
   await Promise.resolve();
   expect(writes).toHaveLength(1);
   writes[0].resolve();
-  await first;
+  expect(await first).toBe(true);
   expect(selected()).toEqual(["one", "two"]);
   expect(writes).toHaveLength(2);
   expect(writes[1].settings.onAir.targets.map((target) => target.id)).toEqual([
@@ -85,17 +91,17 @@ test("rapid selections stay visible, writes serialize, and failed saves restore 
     "two",
   ]);
   writes[1].resolve();
-  await second;
+  expect(await second).toBe(true);
 
   const third = add("three");
   const fourth = add("four");
   await Promise.resolve();
   writes[2].reject();
-  await third;
+  expect(await third).toBe(false);
   expect(selected()).toEqual(["one", "two", "three", "four"]);
   expect(errors).toHaveLength(0);
   writes[3].reject();
-  await fourth;
+  expect(await fourth).toBe(false);
   expect(selected()).toEqual(["one", "two"]);
   expect(errors).toHaveLength(1);
 });

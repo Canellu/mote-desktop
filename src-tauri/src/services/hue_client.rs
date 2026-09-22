@@ -1664,6 +1664,25 @@ impl HueClient {
         })
     }
 
+    /// The address and key of any paired bridge, active or not, so a restore
+    /// can still reach a bridge after the app switched away from it. `None`
+    /// once the bridge is no longer paired.
+    pub fn paired_bridge_access<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        bridge_id: &str,
+    ) -> Result<Option<(String, String)>, String> {
+        let store = load_bridge_store(app)?;
+        let Some(bridge) = store
+            .bridges
+            .iter()
+            .find(|bridge| bridge_matches(&bridge.bridge_id, bridge_id))
+        else {
+            return Ok(None);
+        };
+        Ok(resolve_bridge_application_key(bridge).map(|key| (bridge.bridge_ip.clone(), key)))
+    }
+
     pub fn get_stored_application_key<R: Runtime>(
         &self,
         app: &AppHandle<R>,

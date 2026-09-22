@@ -7,6 +7,7 @@ import {
   PICKER_TILE_SURFACE,
   PickerGroups,
 } from "./AutomationPickerGroups";
+import type { PickerFolding } from "@/features/automations/usePickerFolding";
 
 /** A saved scene as the automation picker shows it. */
 export interface AutomationSceneOption {
@@ -32,6 +33,7 @@ export function AutomationScenePicker({
   selectedId,
   fallbackName,
   labelledBy,
+  folding,
   onSelect,
 }: {
   scenes: AutomationSceneOption[];
@@ -39,6 +41,8 @@ export function AutomationScenePicker({
   /** Name of a chosen scene that is no longer on the bridge. */
   fallbackName?: string;
   labelledBy: string;
+  /** Shared folded state, for a fold-all button outside the picker. */
+  folding?: PickerFolding;
   onSelect: (scene: AutomationSceneOption) => void;
 }) {
   const groups = scenes.reduce<
@@ -71,12 +75,14 @@ export function AutomationScenePicker({
       )}
       <PickerGroups
         labelledBy={labelledBy}
+        folding={folding}
         groups={groups.map((group) => ({
           id: group.id,
           name: group.name,
-          selected: group.scenes.some((scene) => scene.id === selectedId)
-            ? 1
-            : 0,
+          selectedNames: group.scenes
+            .filter((scene) => scene.id === selectedId)
+            .map((scene) => scene.name),
+          contents: `${group.scenes.length} ${group.scenes.length === 1 ? "scene" : "scenes"}`,
           children: (
             <div className={PICKER_TILE_ROW}>
               {group.scenes.map((scene) => (

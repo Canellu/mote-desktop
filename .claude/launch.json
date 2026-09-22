@@ -22,8 +22,29 @@
     {
       "name": "vite-gallery",
       "runtimeExecutable": "cmd",
-      "runtimeArgs": ["/c", "set VITE_DEV_VIEWS=1&& npx vite --port 5612 --strictPort"],
+      "runtimeArgs": [
+        "/c",
+        "set VITE_DEV_VIEWS=1&& npx vite --port 5612 --strictPort"
+      ],
       "port": 5612
+    },
+    {
+      "name": "vite-gallery-automations",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set VITE_DEV_VIEWS=1&& npx vite --port 5623 --strictPort"
+      ],
+      "port": 5623
+    },
+    {
+      "name": "vite-gallery-focus",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": [
+        "/c",
+        "set VITE_DEV_VIEWS=1&& npx vite --port 5641 --strictPort"
+      ],
+      "port": 5641
     }
   ]
 }

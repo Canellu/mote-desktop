@@ -14,6 +14,11 @@ import {
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
 
+import {
+  INSPECTOR_TRANSITION,
+  useInspectorSettle,
+  useInspectorSettleWidth,
+} from "@/features/space-screen/utils/inspector-layout";
 import type { HueLight } from "@/types/hue";
 import { LightCard } from "./LightCard";
 import { SectionGrip } from "./SectionDragHandle";
@@ -24,10 +29,11 @@ type ControlCommitPhase = "live" | "final";
 /**
  * Forces a re-render whenever `ref`'s element changes size. Layout animations
  * only fire across React renders, but the grid's width changes from CSS-driven
- * events (the inspector pane animating its width, window resizing) that never
- * trigger a render on their own. Observing the element and re-rendering on each
- * size tick lets `motion`'s `layout` re-measure and animate the reflow instead
- * of snapping. The observer is frame-rate bounded and idle unless resizing.
+ * events (window resizing) that never trigger a render on their own. Observing
+ * the element and re-rendering on each size tick lets `motion`'s `layout`
+ * re-measure and animate the reflow instead of snapping. The observer is
+ * frame-rate bounded and idle unless resizing — including while the inspector
+ * pane moves, since the grid is pinned to its settled width then.
  */
 function useAnimateOnResize(ref: React.RefObject<HTMLElement | null>) {
   const [, rerender] = useReducer((n: number) => n + 1, 0);
@@ -73,8 +79,14 @@ export const LightsSection: React.FC<LightsSectionProps> = ({
   onLightToggle,
   onLightBrightness,
 }) => {
+  const sectionRef = useRef<HTMLDivElement>(null);
   const lightsGridRef = useRef<HTMLDivElement>(null);
   useAnimateOnResize(lightsGridRef);
+  // While the inspector pane moves, lay the grid out at the width it will end
+  // at, so it re-columns once as the move starts and glides with the pane.
+  const settle = useInspectorSettle();
+  const settleWidth = useInspectorSettleWidth(sectionRef);
+  const gridStyle = settleWidth != null ? { width: settleWidth } : undefined;
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -101,7 +113,7 @@ export const LightsSection: React.FC<LightsSectionProps> = ({
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={sectionRef} className="flex flex-col gap-3">
       <div className="flex h-7 items-center justify-between gap-3">
         <div className="flex items-center">
           <SectionGrip />
@@ -128,7 +140,10 @@ export const LightsSection: React.FC<LightsSectionProps> = ({
             items={lights.map((light) => light.id)}
             strategy={rectSortingStrategy}
           >
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3">
+            <div
+              className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3"
+              style={gridStyle}
+            >
               {lights.map((light) => (
                 <SortableItem key={light.id} id={light.id} editing>
                   {renderCard(light)}
@@ -141,6 +156,7 @@ export const LightsSection: React.FC<LightsSectionProps> = ({
         <div
           ref={lightsGridRef}
           className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3"
+          style={gridStyle}
         >
           <AnimatePresence mode="popLayout" initial={false}>
             {lights.map((light) => (
@@ -150,7 +166,11 @@ export const LightsSection: React.FC<LightsSectionProps> = ({
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
+                transition={{
+                  duration: 0.2,
+                  ease: "easeOut",
+                  layout: settle ? INSPECTOR_TRANSITION : undefined,
+                }}
               >
                 {renderCard(light)}
               </motion.div>

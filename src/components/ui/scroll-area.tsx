@@ -6,6 +6,7 @@ function ScrollArea({
   className,
   viewportClassName,
   contentClassName,
+  scrollbarClassName,
   viewportProps,
   children,
   fade = false,
@@ -18,6 +19,8 @@ function ScrollArea({
   viewportClassName?: string;
   /** Classes applied to the content wrapper inside the viewport. */
   contentClassName?: string;
+  /** Classes applied to the rendered scrollbar. */
+  scrollbarClassName?: string;
   /** Props applied to the scrollable viewport. */
   viewportProps?: Omit<
     ScrollAreaPrimitive.Viewport.Props,
@@ -87,11 +90,17 @@ function ScrollArea({
       </ScrollAreaPrimitive.Viewport>
       {!hideScrollbar &&
         (orientation === "vertical" || orientation === "both") && (
-          <ScrollAreaScrollbar orientation="vertical" />
+          <ScrollAreaScrollbar
+            orientation="vertical"
+            className={scrollbarClassName}
+          />
         )}
       {!hideScrollbar &&
         (orientation === "horizontal" || orientation === "both") && (
-          <ScrollAreaScrollbar orientation="horizontal" />
+          <ScrollAreaScrollbar
+            orientation="horizontal"
+            className={scrollbarClassName}
+          />
         )}
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>

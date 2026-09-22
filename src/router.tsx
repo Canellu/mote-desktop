@@ -3,11 +3,19 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  redirect,
 } from "@tanstack/react-router";
+import {
+  isAutomationPage,
+  type AutomationsSearch,
+} from "./features/automations/model";
+import { AutomationsRoute } from "./routes/AutomationsRoute";
 import { DeviceDiscoveryRoute } from "./routes/DeviceDiscoveryRoute";
 import { EntertainmentAreaSyncRoute } from "./routes/EntertainmentAreaSyncRoute";
 import { EntertainmentAreaWizardRoute } from "./routes/EntertainmentAreaWizardRoute";
 import { EntertainmentPlacementRoute } from "./routes/EntertainmentPlacementRoute";
+import { FocusRoute } from "./routes/FocusRoute";
+import { FocusWizardRoute } from "./routes/FocusWizardRoute";
 import { HomeRoute } from "./routes/HomeRoute";
 import { validateHomeViewSearch } from "./features/home-map/homeView";
 import { preloadAppSettings } from "./features/settings-screen/appSettingsCache";
@@ -17,6 +25,7 @@ import { SettingsRoute } from "./routes/SettingsRoute";
 import { SpaceRoute } from "./routes/SpaceRoute";
 import { SyncHubRoute } from "./routes/SyncHubRoute";
 import { WidgetWizardRoute } from "./routes/WidgetWizardRoute";
+import { AutomationWizardRoute } from "./routes/AutomationWizardRoute";
 
 // Hash history keeps routes reload-safe in the desktop webview while adding
 // them to its native history, so mouse Back/Forward buttons work.
@@ -48,11 +57,6 @@ const settingsRoute = createRoute({
   path: "/settings",
   validateSearch: (search: Record<string, unknown>) => ({
     tab: typeof search.tab === "string" ? search.tab : undefined,
-    // The open automation lives in the URL so it's a real history entry: mouse
-    // Back returns to the automation list instead of leaving Settings.
-    ...(search.automation === "onAir" || search.automation === "away"
-      ? { automation: search.automation as "onAir" | "away" }
-      : {}),
     ...(typeof search.widgetId === "string"
       ? { widgetId: search.widgetId }
       : {}),
@@ -60,10 +64,38 @@ const settingsRoute = createRoute({
       ? { widgetRequest: search.widgetRequest }
       : {}),
   }),
+  // Automations used to be a Settings tab; a restored history entry still
+  // lands on them.
+  beforeLoad: ({ search }) => {
+    if (search.tab === "automations")
+      throw redirect({ to: "/automations", replace: true });
+  },
   // Fetched before the screen renders (and on hover of the gear), so the window
   // preferences open on their saved values instead of defaults.
   loader: preloadAppSettings,
   component: SettingsRoute,
+});
+
+const automationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/automations",
+  // The open automation lives in the URL so it's a real history entry: mouse
+  // Back returns to the automation list instead of leaving the screen.
+  validateSearch: (search: Record<string, unknown>): AutomationsSearch => ({
+    ...(isAutomationPage(search.automation)
+      ? { automation: search.automation }
+      : {}),
+    ...(typeof search.calendarRuleId === "string"
+      ? { calendarRuleId: search.calendarRuleId }
+      : {}),
+  }),
+  component: AutomationsRoute,
+});
+
+const automationWizardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/automations/new",
+  component: AutomationWizardRoute,
 });
 
 const deviceDiscoveryRoute = createRoute({
@@ -129,10 +161,24 @@ const entertainmentAreaSyncRoute = createRoute({
   component: EntertainmentAreaSyncRoute,
 });
 
+const focusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/focus",
+  component: FocusRoute,
+});
+
+const focusWizardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/focus/new",
+  component: FocusWizardRoute,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   spaceRoute,
   settingsRoute,
+  automationsRoute,
+  automationWizardRoute,
   deviceDiscoveryRoute,
   widgetWizardRoute,
   roomZoneWizardRoute,
@@ -140,6 +186,8 @@ const routeTree = rootRoute.addChildren([
   entertainmentPlacementRoute,
   syncHubRoute,
   entertainmentAreaSyncRoute,
+  focusRoute,
+  focusWizardRoute,
 ]);
 
 export const router = createRouter({

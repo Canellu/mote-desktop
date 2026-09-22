@@ -20,6 +20,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import type { HomeGroupingMode } from "@/types/app-layout";
 import type { BridgeListItem } from "@/context/HueContext";
@@ -33,7 +39,10 @@ import {
   Plus,
   Router,
   Settings,
+  Timer,
   Tv,
+  Workflow,
+  type LucideIcon,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
@@ -58,6 +67,7 @@ interface AppHeaderProps {
   titleActionLabel?: string;
   onTitleAction?: () => void;
   onTitleManage?: () => void;
+  onTitleCreateScene?: () => void;
   titleEditing?: boolean;
   titleManaging?: boolean;
   onCancelTitleEdit?: () => void;
@@ -79,6 +89,14 @@ interface AppHeaderProps {
   onOpenSettings: () => void;
   showSync: boolean;
   onOpenSync: () => void;
+  /** The Focus entry point, on Home beside Sync. */
+  showFocus?: boolean;
+  onOpenFocus?: () => void;
+  /** The Automations entry point, on Home beside Settings. */
+  showAutomations?: boolean;
+  onOpenAutomations?: () => void;
+  /** Automations changing lights right now; marks the Automations button. */
+  runningAutomations?: string[];
   /** Whether the Edit Layout control is available (Home screen only). */
   showEditLayout: boolean;
   groupingMode: HomeGroupingMode;
@@ -89,6 +107,43 @@ interface AppHeaderProps {
   onSaveEditLayout: () => void;
   onCreateSection: () => void;
 }
+
+/**
+ * One of Home's screen buttons. The icons are all it shows, so each names
+ * itself on hover; a dot says something behind it is running.
+ */
+const HeaderNavButton: React.FC<{
+  icon: LucideIcon;
+  label: string;
+  hint?: string;
+  active?: boolean;
+  onClick?: () => void;
+}> = ({ icon: Icon, label, hint, active = false, onClick }) => (
+  <Tooltip>
+    <TooltipTrigger
+      render={
+        <Button
+          variant="ghost"
+          size="icon-xl"
+          aria-label={hint ? `${label}, ${hint}` : label}
+          className="relative"
+          onClick={onClick}
+        />
+      }
+    >
+      <Icon size={26} />
+      {active && (
+        <span
+          aria-hidden="true"
+          className="absolute top-2.5 right-2.5 size-2 rounded-full bg-primary ring-2 ring-background"
+        />
+      )}
+    </TooltipTrigger>
+    <TooltipContent side="bottom">
+      {hint ? `${label} · ${hint}` : label}
+    </TooltipContent>
+  </Tooltip>
+);
 
 /** A stable label for a bridge that hasn't cached its name yet. */
 const bridgeLabel = (bridge: BridgeListItem) =>
@@ -177,6 +232,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   titleActionLabel,
   onTitleAction,
   onTitleManage,
+  onTitleCreateScene,
   titleEditing = false,
   titleManaging = false,
   onCancelTitleEdit,
@@ -189,6 +245,11 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onOpenSettings,
   showSync,
   onOpenSync,
+  showFocus = false,
+  onOpenFocus,
+  showAutomations = false,
+  onOpenAutomations,
+  runningAutomations = [],
   showEditLayout,
   groupingMode,
   onGroupingModeChange,
@@ -435,6 +496,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                       <ListChecks />
                       Manage items
                     </DropdownMenuItem>
+                    {onTitleCreateScene && (
+                      <DropdownMenuItem
+                        onClick={onTitleCreateScene}
+                        className="text-base [&_svg:not([class*='size-'])]:size-5"
+                      >
+                        <Plus />
+                        Create scene
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               ) : null}
@@ -496,32 +566,49 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 </div>
               )}
 
-              {(showSync || showSettings) && (
+              {(showSync || showSettings || showFocus || showAutomations) && (
                 /* Ghost icon buttons carry their own inner padding, so pull the
                   group past the gutter to sit the glyphs on it optically. */
-                <div className="-mr-3 flex items-center">
-                  {showSync && (
-                    <Button
-                      variant="ghost"
-                      size="icon-xl"
-                      aria-label="Sync"
-                      onClick={onOpenSync}
-                    >
-                      <Tv size={26} />
-                    </Button>
-                  )}
-
-                  {showSettings && (
-                    <Button
-                      variant="ghost"
-                      size="icon-xl"
-                      aria-label="Settings"
-                      onClick={onOpenSettings}
-                    >
-                      <Settings size={26} />
-                    </Button>
-                  )}
-                </div>
+                <TooltipProvider>
+                  <div className="-mr-3 flex items-center">
+                    {showFocus && (
+                      <HeaderNavButton
+                        icon={Timer}
+                        label="Focus"
+                        onClick={onOpenFocus}
+                      />
+                    )}
+                    {showSync && (
+                      <HeaderNavButton
+                        icon={Tv}
+                        label="Sync"
+                        onClick={onOpenSync}
+                      />
+                    )}
+                    {showAutomations && (
+                      <HeaderNavButton
+                        icon={Workflow}
+                        label="Automations"
+                        hint={
+                          runningAutomations.length === 1
+                            ? `${runningAutomations[0]} is on`
+                            : runningAutomations.length > 1
+                              ? `${runningAutomations.length} running`
+                              : undefined
+                        }
+                        active={runningAutomations.length > 0}
+                        onClick={onOpenAutomations}
+                      />
+                    )}
+                    {showSettings && (
+                      <HeaderNavButton
+                        icon={Settings}
+                        label="Settings"
+                        onClick={onOpenSettings}
+                      />
+                    )}
+                  </div>
+                </TooltipProvider>
               )}
             </motion.div>
           )}

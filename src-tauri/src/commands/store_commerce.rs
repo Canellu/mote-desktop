@@ -76,8 +76,6 @@ pub enum PurchaseOutcome {
     Owned,
     /// The customer dismissed the purchase without buying. Not an error.
     Declined,
-    /// The Store could not complete the purchase.
-    Unavailable,
 }
 
 #[derive(Debug, Serialize)]
@@ -563,6 +561,118 @@ async fn run_store_update(
     Ok(state)
 }
 
+/// Read by `STORE_UPDATE_PROGRESS_EVENT` in `src/features/updates/api.ts`.
+#[cfg(target_os = "windows")]
+#[derive(Clone, Serialize)]
+struct StoreUpdateProgress {
+    percent: u8,
+}
+
+/// How often the Store's queue is read for download progress.
+#[cfg(target_os = "windows")]
+const QUEUE_PROGRESS_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Sends download progress to the interface, only ever forward.
+///
+/// Microsoft calls an update operation's progress handler once per step, not as
+/// bytes arrive, so a download reported only that way sat at 0% until it was
+/// done. The Store's queue entry for the update does count bytes, so it is read
+/// on a timer as well, and whichever source is further along is shown.
+#[cfg(target_os = "windows")]
+#[derive(Clone)]
+struct DownloadProgress {
+    app: tauri::AppHandle,
+    shown: std::sync::Arc<std::sync::atomic::AtomicU8>,
+}
+
+#[cfg(target_os = "windows")]
+impl DownloadProgress {
+    fn new(app: &tauri::AppHandle) -> Self {
+        Self {
+            app: app.clone(),
+            shown: Default::default(),
+        }
+    }
+
+    /// Nothing is sent until the download has measurably moved, so one the
+    /// Store cannot measure reads as under way rather than stuck at 0%.
+    fn report(&self, percent: Option<u8>) {
+        use std::sync::atomic::Ordering;
+        use tauri::Emitter;
+
+        let Some(percent) = percent.filter(|percent| *percent > 0) else {
+            return;
+        };
+        if self.shown.fetch_max(percent, Ordering::Relaxed) >= percent {
+            return;
+        }
+        let _ = self
+            .app
+            .emit("store-update-progress", StoreUpdateProgress { percent });
+    }
+}
+
+/// Whole percent downloaded across the given packages. Bytes when the Store
+/// knows the sizes. Otherwise its progress value, which a download fills from 0
+/// to 0.8, leaving the rest for an install.
+#[cfg(target_os = "windows")]
+fn download_percent(statuses: &[windows::Services::Store::StorePackageUpdateStatus]) -> Option<u8> {
+    if statuses.is_empty() {
+        return None;
+    }
+    let size: u64 = statuses
+        .iter()
+        .map(|status| status.PackageDownloadSizeInBytes)
+        .sum();
+    let share = if size > 0 {
+        let downloaded: u64 = statuses
+            .iter()
+            .map(|status| {
+                status
+                    .PackageBytesDownloaded
+                    .min(status.PackageDownloadSizeInBytes)
+            })
+            .sum();
+        downloaded as f64 / size as f64
+    } else {
+        let progress: f64 = statuses
+            .iter()
+            .map(|status| status.PackageDownloadProgress)
+            .sum();
+        progress / statuses.len() as f64 / 0.8
+    };
+    Some((share * 100.0).round().clamp(0.0, 100.0) as u8)
+}
+
+/// Reads the Store's queue entries for Mote's updates until it is aborted.
+#[cfg(target_os = "windows")]
+async fn watch_queue_progress(progress: DownloadProgress) {
+    use windows::Services::Store::{StoreContext, StoreQueueItemKind, StoreQueueItemState};
+
+    let Ok(context) = StoreContext::GetDefault() else {
+        return;
+    };
+    loop {
+        tokio::time::sleep(QUEUE_PROGRESS_INTERVAL).await;
+        let Ok(operation) = context.GetAssociatedStoreQueueItemsAsync() else {
+            return;
+        };
+        let Ok(items) = operation.await else {
+            continue;
+        };
+        // Only entries still under way, so one left over from an earlier update
+        // cannot report this download as finished.
+        let statuses: Vec<_> = (&items)
+            .into_iter()
+            .filter(|item| item.InstallKind().ok() == Some(StoreQueueItemKind::Update))
+            .filter_map(|item| item.GetCurrentStatus().ok())
+            .filter(|status| status.PackageInstallState().ok() == Some(StoreQueueItemState::Active))
+            .filter_map(|status| status.UpdateStatus().ok())
+            .collect();
+        progress.report(download_percent(&statuses));
+    }
+}
+
 #[cfg(target_os = "windows")]
 async fn run_store_update_once(
     context: &windows::Services::Store::StoreContext,
@@ -570,7 +680,6 @@ async fn run_store_update_once(
     step: UpdateStep,
     silent: bool,
 ) -> Result<Option<windows::Services::Store::StorePackageUpdateState>, String> {
-    use tauri::Emitter;
     use windows::core::Interface;
     use windows::Services::Store::{
         StorePackageUpdate, StorePackageUpdateState, StorePackageUpdateStatus,
@@ -578,11 +687,9 @@ async fn run_store_update_once(
     use windows_collections::IIterable;
     use windows_future::AsyncOperationProgressHandler;
 
-    /// Read by `STORE_UPDATE_PROGRESS_EVENT` in `src/features/updates/api.ts`.
-    #[derive(Clone, Serialize)]
-    struct StoreUpdateProgress {
-        percent: u8,
-    }
+    // Only the download is shown. The install closes Mote within seconds, and
+    // Microsoft's dialog, when there is one, reports as Pending and is skipped.
+    let progress = (step == UpdateStep::Download).then(|| DownloadProgress::new(app));
 
     let updates = context
         .GetAppAndOptionalStorePackageUpdatesAsync()
@@ -620,28 +727,13 @@ async fn run_store_update_once(
         }
         .map_err(|error| error.message())?;
 
-        // Only the download is shown. The install closes Mote within seconds, and
-        // Microsoft's dialog, when there is one, reports as Pending and is skipped.
-        if step == UpdateStep::Download {
-            let progress_app = app.clone();
+        if let Some(progress) = progress.clone() {
             operation
-                .SetProgress(&AsyncOperationProgressHandler::new(move |_, progress| {
-                    let status: &StorePackageUpdateStatus = &progress;
-                    if status.PackageUpdateState != StorePackageUpdateState::Downloading {
-                        return Ok(());
+                .SetProgress(&AsyncOperationProgressHandler::new(move |_, status| {
+                    let status: &StorePackageUpdateStatus = &status;
+                    if status.PackageUpdateState == StorePackageUpdateState::Downloading {
+                        progress.report(download_percent(std::slice::from_ref(status)));
                     }
-                    // Bytes when the Store knows the size. Otherwise its progress
-                    // value, which a download fills from 0 to 0.8, leaving the
-                    // rest for an install.
-                    let share = if status.PackageDownloadSizeInBytes > 0 {
-                        status.PackageBytesDownloaded as f64
-                            / status.PackageDownloadSizeInBytes as f64
-                    } else {
-                        status.PackageDownloadProgress / 0.8
-                    };
-                    let percent = (share * 100.0).round().clamp(0.0, 100.0) as u8;
-                    let _ = progress_app
-                        .emit("store-update-progress", StoreUpdateProgress { percent });
                     Ok(())
                 }))
                 .map_err(|error| error.message())?;
@@ -649,7 +741,13 @@ async fn run_store_update_once(
         operation
     };
 
-    let result = operation.await.map_err(|error| error.message())?;
+    let watcher =
+        progress.map(|progress| tauri::async_runtime::spawn(watch_queue_progress(progress)));
+    let result = operation.await;
+    if let Some(watcher) = watcher {
+        watcher.abort();
+    }
+    let result = result.map_err(|error| error.message())?;
     result
         .OverallState()
         .map(Some)
@@ -1106,6 +1204,30 @@ mod tests {
             serde_json::to_value(StoreUpdateOutcome::Downloaded).unwrap(),
             serde_json::json!("downloaded")
         );
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn download_percent_prefers_bytes_and_scales_the_store_progress_value() {
+        use windows::Services::Store::StorePackageUpdateStatus;
+
+        let status = |size: u64, downloaded: u64, progress: f64| StorePackageUpdateStatus {
+            PackageDownloadSizeInBytes: size,
+            PackageBytesDownloaded: downloaded,
+            PackageDownloadProgress: progress,
+            ..Default::default()
+        };
+
+        assert_eq!(download_percent(&[]), None);
+        // Bytes across packages, whatever the progress value says.
+        assert_eq!(
+            download_percent(&[status(300, 150, 0.0), status(100, 100, 0.0)]),
+            Some(63)
+        );
+        // No sizes: a download fills the progress value up to 0.8.
+        assert_eq!(download_percent(&[status(0, 0, 0.4)]), Some(50));
+        assert_eq!(download_percent(&[status(0, 0, 0.8)]), Some(100));
+        assert_eq!(download_percent(&[status(0, 0, 0.0)]), Some(0));
     }
 
     fn app_license(active: Option<bool>, succeeded: bool) -> AppLicenseDiagnostic {

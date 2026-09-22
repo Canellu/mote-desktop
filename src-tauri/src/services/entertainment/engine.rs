@@ -147,6 +147,9 @@ struct EngineInner {
     live_tx: Option<watch::Sender<UpdateSyncRequest>>,
     /// Streaming task handle, joined by the bounded exit cleanup.
     task: Option<tauri::async_runtime::JoinHandle<()>>,
+    /// The sync session being run, so an automation that pauses it can start
+    /// the same one again. `None` for the color test.
+    request: Option<StartSyncRequest>,
 }
 
 impl Default for EngineInner {
@@ -159,6 +162,7 @@ impl Default for EngineInner {
             stop_tx: None,
             live_tx: None,
             task: None,
+            request: None,
         }
     }
 }
@@ -546,6 +550,18 @@ impl HostSyncEngine {
         self.inner.lock().unwrap().snapshot()
     }
 
+    /// The running sync session's request, to start it again after an
+    /// automation paused it. `None` when idle or running the color test.
+    pub fn resumable_request(&self) -> Option<StartSyncRequest> {
+        let inner = self.inner.lock().unwrap();
+        matches!(
+            inner.lifecycle,
+            HostSyncLifecycle::Starting | HostSyncLifecycle::Running
+        )
+        .then(|| inner.request.clone())
+        .flatten()
+    }
+
     /// Requests a stop. Returns immediately; the streaming task performs the
     /// capture/DTLS shutdown, area release, and snapshot restore, then
     /// settles at `idle`. Idempotent.
@@ -619,6 +635,10 @@ impl HostSyncEngine {
         #[cfg(windows)]
         {
             let handles = self.begin_session(&request.area_id)?;
+            self.inner.lock().unwrap().request = Some(StartSyncRequest {
+                confirm_takeover: false,
+                ..request.clone()
+            });
             emit_status(app, &handles.status);
 
             match self.start_sync_inner(app, &request, handles).await {
@@ -896,6 +916,7 @@ impl HostSyncEngine {
         inner.warning = None;
         inner.stop_tx = Some(stop_tx);
         inner.live_tx = Some(live_tx);
+        inner.request = None;
         Ok(SessionHandles {
             stop_rx,
             live_rx,
@@ -936,6 +957,24 @@ impl HostSyncEngine {
                     .to_string(),
             );
         }
+
+        // An automation ranked above PC Sync keeps its lights: refuse rather
+        // than start a stream it would pause straight away.
+        if let Some(conflict) = crate::services::automations::runtime::sync_conflict(
+            app,
+            &bridge.bridge_id,
+            &area.light_ids,
+        ) {
+            return Err(conflict);
+        }
+        // Before the snapshot, so no automation writes to these lights while
+        // it is taken; the runtime hears the end from `emit_status`.
+        crate::services::automations::runtime::signal(
+            crate::services::automations::runtime::Signal::SyncStarted {
+                bridge_id: bridge.bridge_id.clone(),
+                light_ids: area.light_ids.clone(),
+            },
+        );
 
         // Snapshot member lights before claiming: the bridge does not restore
         // state when a stream ends, so this is the only path back.
@@ -1256,6 +1295,16 @@ where
 }
 
 fn emit_status<R: Runtime>(app: &AppHandle<R>, status: &HostSyncStatus) {
+    // Idle and Error come only after the stop behavior ran, so automations
+    // write their looks over PC Sync's restore, never under it.
+    if matches!(
+        status.state,
+        HostSyncLifecycle::Idle | HostSyncLifecycle::Error
+    ) {
+        crate::services::automations::runtime::signal(
+            crate::services::automations::runtime::Signal::SyncEnded,
+        );
+    }
     if let Err(_error) = app.emit(STATUS_EVENT, status.clone()) {
         #[cfg(debug_assertions)]
         eprintln!("failed to emit {STATUS_EVENT}: {_error}");

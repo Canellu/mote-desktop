@@ -52,7 +52,8 @@ details are needed to start the trial.
 The Free tier includes one desktop widget holding one room, zone, or light.
 Mote Pro adds PC Sync, global keyboard shortcuts that control your lights from
 anywhere in Windows, an on-air light during calls, lights that dim or turn off
-when you lock the PC, as many widgets as you like with several controls or a
+when you lock the PC, focus sessions, phone presence and calendar based lighting,
+as many widgets as you like with several controls or a
 multi-target toggle group in each, each widget's theme, size, corners and
 placement, a customized and reordered home dashboard, and saving and switching
 among multiple Hue Bridges. PC Sync extends supported displays, games, and
@@ -95,6 +96,9 @@ releases.
 - Turn lights into an on-air sign while an app uses your microphone or camera,
   and dim or turn them off when the PC locks or sleeps, then back on when you
   return.
+- Run focus sessions with timed light changes and breaks. Change lights when
+  selected phones arrive or leave your home network, or around matching events
+  from an iCal calendar address.
 - Create as many desktop widgets as you like, put several controls or a
   multi-target toggle group in each, and choose its theme, size, corners,
   placement, pinning, and always-on-top behavior.
@@ -116,6 +120,18 @@ releases.
 Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
+
+## What's new in 0.6.0 — draft for the next submission
+
+Focus sessions bring timed light changes and breaks to Mote Pro. Presence can
+change lights when selected phones arrive or leave your home network, and
+calendar rules can react to matching events from an iCal feed.
+
+Automations now has its own screen and a guided setup for each rule. Put Focus,
+PC Sync, and automations in your preferred priority order when they share
+lights. Mote restores the previous light state after an interrupted automation.
+
+The Store update screen now shows download progress as it arrives.
 
 ## What's new in 0.5.0
 

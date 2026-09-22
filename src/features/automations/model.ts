@@ -14,6 +14,24 @@ export interface AutomationScene {
 }
 
 export type AutomationRule = "onAir" | "away";
+/** Every page the Automations screen can open: the two rules, and those with editors of their own. */
+export type AutomationPage = AutomationRule | "presence" | "calendar";
+
+const automationPages: readonly AutomationPage[] = [
+  "onAir",
+  "away",
+  "presence",
+  "calendar",
+];
+
+export const isAutomationPage = (value: unknown): value is AutomationPage =>
+  automationPages.includes(value as AutomationPage);
+
+/** The `/automations` search: which page is open, and which calendar rule. */
+export interface AutomationsSearch {
+  automation?: AutomationPage;
+  calendarRuleId?: string;
+}
 export type OnAirMode = "color" | "white" | "scene";
 
 export function automationTargets(settings: {
@@ -72,9 +90,29 @@ export interface AwaySettings {
   restoreOnReturn: boolean;
 }
 
+/** Mirrors `Source` in priority.rs. */
+export type AutomationSource =
+  | "onAir"
+  | "away"
+  | "focus"
+  | "pcSync"
+  | "calendar"
+  | "presence";
+
+export const defaultPriority: AutomationSource[] = [
+  "onAir",
+  "away",
+  "focus",
+  "pcSync",
+  "calendar",
+  "presence",
+];
+
 export interface AutomationSettings {
   onAir: OnAirSettings;
   away: AwaySettings;
+  /** Highest first: which automation, or PC Sync, keeps a shared light. */
+  priority: AutomationSource[];
 }
 
 /** Mirrors `CaptureApp` in capture_use.rs. */
@@ -90,6 +128,10 @@ export interface AutomationStatus {
   onAir: { active: boolean; apps: string[]; error: string | null };
   away: { active: boolean; error: string | null };
   captureApps: CaptureApp[];
+  /** PC Sync paused for an automation ranked above it, until that ends. */
+  pcSync: { pausedFor: AutomationSource | null; error: string | null };
+  /** Lights waiting to go back while the bridge cannot be reached. */
+  restoring: number;
 }
 
 export const onAirTriggers: { value: OnAirTrigger; label: string }[] = [

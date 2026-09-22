@@ -1,33 +1,40 @@
-//! Runs the on-air light and the away automation.
+//! Runs every automation's light changes.
 //!
-//! One task makes every automation's light changes, so the two can hold the
-//! same lights without fighting: Windows' lock and sleep signals and a poll of
-//! microphone and camera use are handled one at a time, in the order they
-//! arrived. What each automation changed is kept in a [`LayerStack`].
+//! One task makes every automation write, so automations never fight over a
+//! light: Windows' lock and sleep signals, PC Sync starting and stopping, and a
+//! poll of microphone and camera use are handled one at a time, in the order
+//! they arrived. [`Ownership`] decides what each light shows under the
+//! person's priority order, and the [`Journal`] keeps what was changed so a
+//! crash never strands a light.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter, Manager};
+use serde_json::json;
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tokio::sync::{mpsc, Mutex};
 
-use crate::services::entertainment::snapshot::{self, LightSnapshot};
+use crate::services::entertainment::engine::{HostSyncEngine, StartSyncRequest};
+use crate::services::entertainment::snapshot;
 use crate::services::entitlements::Capability;
 use crate::services::hue_client::{HueClient, HueLight};
 
+use super::calendar::CalendarService;
 use super::capture_use::{self, CaptureApp};
-use super::layers::{
-    self, Applied, BridgeAccess, Layer, LayerKind, LayerStack, OwnedLight, Restore,
-};
+use super::focus::{self, FocusStatus, Session};
+use super::journal::Journal;
+use super::looks::{self, snapshot_of, Applied, Caps, Write};
+use super::ownership::{ClaimedLight, LightKey, Op, Ownership, SyncHold};
+use super::priority::{Holder, Ranking, Source};
+use super::resolve::{resolve, ClaimSpec, Desire, Looks};
 use super::settings::{
-    self, effective_targets, AutomationScene, AutomationSettings, AutomationTarget, AwayAction,
-    OnAirMode, OnAirSettings, OnAirTrigger, TargetKind,
+    self, effective_targets, AutomationSettings, AwayAction, OnAirMode, OnAirSettings, OnAirTrigger,
 };
 
 const STATUS_EVENT: &str = "automation-status";
+const FOCUS_EVENT: &str = "focus-status";
 const POLL_INTERVAL: Duration = Duration::from_secs(2);
 /// Idle polls before the on-air light goes back, so moving a call from one app
 /// to another does not flicker it.
@@ -35,17 +42,34 @@ const IDLE_POLLS_BEFORE_OFF: u32 = 2;
 /// Wait before trying again after the bridge refused or could not be reached.
 const RETRY_AFTER: Duration = Duration::from_secs(10);
 const RESTORE_RETRY_INTERVAL: Duration = Duration::from_secs(5);
-/// About a minute: long enough for Wi-Fi to come back after the PC wakes.
-const RESTORE_ATTEMPTS: u32 = 12;
+/// About a minute of quick retries, long enough for Wi-Fi to come back after
+/// the PC wakes; after that a slower retry until it lands.
+const RESTORE_QUICK_ATTEMPTS: u32 = 12;
+const RESTORE_SLOW_INTERVAL: Duration = Duration::from_secs(60);
 /// Spacing between light writes, inside the bridge's ~10 commands/second.
 const WRITE_INTERVAL: Duration = Duration::from_millis(100);
+const PREVIEW_LEASE: Duration = Duration::from_secs(15);
 pub const EXIT_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Signal {
     Locked(bool),
     Suspended(bool),
     SettingsChanged,
+    /// PC Sync is about to stream to these lights.
+    SyncStarted {
+        bridge_id: String,
+        light_ids: Vec<String>,
+    },
+    /// PC Sync stopped and has put back its own snapshot.
+    SyncEnded,
+    /// Somebody started or stopped PC Sync themselves, so a sync paused for an
+    /// automation must not come back on its own.
+    SyncByUser,
+    /// Resuming a paused PC Sync failed.
+    SyncResumeFailed(String),
+    /// A consumer (focus, calendar, presence) changed what it wants.
+    Wake,
 }
 
 static SIGNALS: OnceLock<mpsc::UnboundedSender<Signal>> = OnceLock::new();
@@ -77,17 +101,42 @@ pub struct AwayStatus {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct PcSyncCoordination {
+    /// The automation PC Sync was paused for; it resumes when that ends.
+    pub paused_for: Option<Source>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AutomationStatus {
     pub on_air: OnAirStatus,
     pub away: AwayStatus,
     /// Every app capturing now, ignored ones included, so they can be ignored.
     pub capture_apps: Vec<CaptureApp>,
+    pub pc_sync: PcSyncCoordination,
+    /// Lights waiting to go back because the bridge could not be reached,
+    /// including ones an earlier run left changed.
+    pub restoring: usize,
+}
+
+#[derive(Default)]
+struct FocusState {
+    session: Option<Session>,
+    /// Last published, to emit only real changes.
+    published: FocusStatus,
 }
 
 #[derive(Default)]
 pub struct AutomationRuntime {
     settings: RwLock<AutomationSettings>,
     status: RwLock<AutomationStatus>,
+    focus: std::sync::Mutex<FocusState>,
+    /// Set once Mote is exiting, so the task never takes a light back after
+    /// the exit restore.
+    closing: std::sync::atomic::AtomicBool,
+    /// Lights held by something ranked above PC Sync, for its start check.
+    above_sync: RwLock<Vec<(LightKey, Holder)>>,
     worker: Mutex<Worker>,
 }
 
@@ -105,57 +154,72 @@ impl AutomationRuntime {
         rule: Option<PreviewRule>,
         mut settings: AutomationSettings,
     ) -> Result<(), String> {
-        let mut worker = self.worker.lock().await;
         let Some(rule) = rule else {
-            worker.preview_expires = None;
-            if let Some(restore) = worker.stack.remove(LayerKind::Preview) {
-                worker.restore_or_retry(restore).await;
-            }
-            worker.reconcile(app, &self.settings()).await;
-            return Ok(());
+            return self.show_preview(app, None).await;
         };
         match rule {
             PreviewRule::OnAir => settings.on_air.enabled = true,
             PreviewRule::Away => settings.away.enabled = true,
         }
         settings.validate()?;
+        self.show_preview(
+            app,
+            Some(match rule {
+                PreviewRule::OnAir => on_air_desire(&settings.on_air),
+                PreviewRule::Away => away_desire(&settings),
+            }),
+        )
+        .await
+    }
+
+    /// Shows a look on the real lights for a short lease the editor renews,
+    /// above every automation, and puts them back when it ends. `None` ends it.
+    pub async fn show_preview(
+        &self,
+        app: &AppHandle,
+        desire: Option<Desire>,
+    ) -> Result<(), String> {
+        let mut worker = self.worker.lock().await;
+        let ranking = ranking(app, &self.settings());
+        let Some(mut desire) = desire else {
+            worker.preview_expires = None;
+            worker.drop_holder(&Holder::Preview);
+            worker.settle(app, &ranking).await;
+            self.publish_above_sync(&worker, &ranking);
+            return Ok(());
+        };
         crate::commands::entitlements::require(app, Capability::LocalAutomation)?;
         if worker.locked || worker.suspended {
             return Err("Unlock this PC to preview lighting.".into());
         }
-        let [on_air, away] = worker.plans(&settings);
-        let mut plan = match rule {
-            PreviewRule::OnAir => on_air,
-            PreviewRule::Away => away,
-        };
-        plan.kind = LayerKind::Preview;
-        plan.config = json!([
-            match rule {
-                PreviewRule::OnAir => "onAir",
-                PreviewRule::Away => "away",
-            },
-            plan.config
-        ]);
-        plan.wanted = true;
-        plan.restore = true;
-        worker.preview_expires = Some(Instant::now() + Duration::from_secs(15));
-        if worker
-            .stack
-            .get(LayerKind::Preview)
-            .is_some_and(|layer| layer.config == plan.config)
+        desire.holder = Holder::Preview;
+        desire.restore = true;
+        desire.transition_ms = 0;
+        worker.preview_expires = Some(Instant::now() + PREVIEW_LEASE);
+        if worker.specs.get(&Holder::Preview) == Some(&desire)
+            && worker.owners.holds(&Holder::Preview)
         {
             return Ok(());
         }
-        let previous = worker.stack.remove(LayerKind::Preview);
-        let result = worker.start_layer(app, &plan, previous.as_ref()).await;
-        if let Some(mut previous) = previous {
-            if let Some(next) = worker.stack.get_mut(LayerKind::Preview) {
-                carry_preview_snapshots(&mut previous, next);
+        match resolve(app, &desire.spec).await {
+            Ok(lights) => {
+                worker.owners.claim(&Holder::Preview, true, 0, lights);
+                worker.specs.insert(Holder::Preview, desire);
             }
-            worker.restore_or_retry(previous).await;
+            Err(error) => {
+                worker.drop_holder(&Holder::Preview);
+                worker.settle(app, &ranking).await;
+                return Err(error);
+            }
         }
-        result
+        worker.settle(app, &ranking).await;
+        self.publish_above_sync(&worker, &ranking);
+        match worker.write_errors.get(&Holder::Preview) {
+            Some(error) => Err(error.clone()),
+            None => Ok(()),
+        }
     }
+
     pub fn settings(&self) -> AutomationSettings {
         self.settings
             .read()
@@ -191,20 +255,150 @@ impl AutomationRuntime {
         let _ = app.emit(STATUS_EVENT, next);
     }
 
-    /// Puts back an on-air light still showing when Mote exits. The away
-    /// automation is left as it is on purpose: a PC shutting down while locked
-    /// must not switch the lights back on in an empty room.
-    pub fn shutdown_blocking(&self, timeout: Duration) {
+    pub fn focus_status(&self) -> FocusStatus {
+        self.focus
+            .lock()
+            .expect("focus lock poisoned")
+            .published
+            .clone()
+    }
+
+    /// Runs `change` on the focus session, then tells the interface and wakes
+    /// the automation task so the lights follow at once.
+    pub fn with_focus<T>(
+        &self,
+        app: &AppHandle,
+        change: impl FnOnce(&mut Option<Session>, Instant) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let result = {
+            let mut focus = self.focus.lock().expect("focus lock poisoned");
+            change(&mut focus.session, Instant::now())
+        };
+        self.publish_focus(app, None);
+        signal(Signal::Wake);
+        result
+    }
+
+    /// Emits the focus status when it changed. A running clock alone is not a
+    /// change: the interface counts down from `endsAt`.
+    fn publish_focus(&self, app: &AppHandle, error: Option<String>) {
+        let next = {
+            let mut focus = self.focus.lock().expect("focus lock poisoned");
+            let mut next = focus
+                .session
+                .as_ref()
+                .map(|session| session.status(Instant::now()))
+                .unwrap_or_default();
+            next.error = error;
+            let comparable = |status: &FocusStatus| FocusStatus {
+                remaining_ms: if status.ends_at.is_some() {
+                    0
+                } else {
+                    status.remaining_ms
+                },
+                ..status.clone()
+            };
+            if comparable(&focus.published) == comparable(&next) {
+                return;
+            }
+            focus.published = next.clone();
+            next
+        };
+        crate::tray::show_focus(app, &next);
+        let _ = app.emit(FOCUS_EVENT, next);
+    }
+
+    /// Moves the focus clock on, announces a phase change, and returns what
+    /// the lights should show.
+    fn tick_focus(&self, app: &AppHandle, suspended: bool) -> Option<Desire> {
+        let (desire, announcement) = {
+            let mut focus = self.focus.lock().expect("focus lock poisoned");
+            let now = Instant::now();
+            let session = focus.session.as_mut()?;
+            if suspended {
+                session.pause(now, true);
+            }
+            let change = session.tick(now);
+            let announcement = change
+                .filter(|_| session.ritual().notify)
+                .map(|change| focus::announce(change, session.ritual()));
+            (session.desire(now), announcement)
+        };
+        if let Some((title, body)) = announcement {
+            use tauri_plugin_notification::NotificationExt;
+            let _ = app.notification().builder().title(title).body(body).show();
+        }
+        desire
+    }
+
+    fn publish_above_sync(&self, worker: &Worker, ranking: &Ranking) {
+        *self
+            .above_sync
+            .write()
+            .expect("automation ownership lock poisoned") = worker.owners.held_above_sync(ranking);
+    }
+
+    /// Puts back what automations are showing when Mote exits, within the
+    /// timeout; whatever does not make it stays in the journal for the next
+    /// start. The away automation is left as it is on purpose: a PC shutting
+    /// down while locked must not switch the lights back on in an empty room.
+    pub fn shutdown_blocking(&self, app: &AppHandle, timeout: Duration) {
+        let ranking = ranking(app, &self.settings());
+        self.closing
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+        self.focus.lock().expect("focus lock poisoned").session = None;
         let _ = tauri::async_runtime::block_on(tokio::time::timeout(timeout, async {
             let mut worker = self.worker.lock().await;
-            if let Some(restore) = worker.stack.remove(LayerKind::Preview) {
-                let _ = write_restore(&restore).await;
+            for holder in worker.owners.holders() {
+                if holder != Holder::Away {
+                    worker.drop_holder(&holder);
+                }
             }
-            if let Some(restore) = worker.stack.remove(LayerKind::OnAir) {
-                let _ = write_restore(&restore).await;
-            }
+            worker.restores.clear();
+            worker.write_retry.clear();
+            worker.settle(app, &ranking).await;
         }));
     }
+}
+
+/// The ranking the person chose, with calendar rules in their listed order.
+fn ranking<R: Runtime>(app: &AppHandle<R>, settings: &AutomationSettings) -> Ranking {
+    Ranking::new(
+        &settings.priority,
+        app.try_state::<CalendarService>()
+            .map(|calendar| calendar.rule_order())
+            .unwrap_or_default(),
+    )
+}
+
+/// Who holds lights above PC Sync in `light_ids`, as a sentence refusing a
+/// PC Sync start, or `None` when it may start.
+pub fn sync_conflict<R: Runtime>(
+    app: &AppHandle<R>,
+    bridge_id: &str,
+    light_ids: &[String],
+) -> Option<String> {
+    let runtime = app.try_state::<AutomationRuntime>()?;
+    let held = runtime
+        .above_sync
+        .read()
+        .expect("automation ownership lock poisoned");
+    let (_, holder) = held.iter().find(|(key, _)| {
+        key.bridge_id.eq_ignore_ascii_case(bridge_id) && light_ids.contains(&key.light_id)
+    })?;
+    let who = holder
+        .source()
+        .map_or("An automation preview", |source| match source {
+            Source::OnAir => "The on-air light",
+            Source::Away => "The lock automation",
+            Source::Focus => "A focus session",
+            Source::Calendar => "A calendar automation",
+            Source::Presence => "The presence automation",
+            Source::PcSync => "PC Sync",
+        });
+    Some(format!(
+        "{who} is using lights in this area. PC Sync can start once it ends, or move PC Sync above it in Automations, Priority."
+    ))
 }
 
 /// Loads the saved settings and starts the automation task.
@@ -221,6 +415,12 @@ pub fn start(app: &AppHandle) {
 
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
+        {
+            let runtime = app.state::<AutomationRuntime>();
+            let mut worker = runtime.worker.lock().await;
+            worker.journal = Journal::open(&app);
+            worker.recover(&app);
+        }
         let mut poll = tokio::time::interval(POLL_INTERVAL);
         poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
 
@@ -234,8 +434,14 @@ pub fn start(app: &AppHandle) {
             };
 
             let runtime = app.state::<AutomationRuntime>();
+            if runtime.closing.load(std::sync::atomic::Ordering::SeqCst) {
+                return;
+            }
             let settings = runtime.settings();
             let mut worker = runtime.worker.lock().await;
+            if runtime.closing.load(std::sync::atomic::Ordering::SeqCst) {
+                return;
+            }
             match received {
                 None => worker.poll(&settings.on_air, false),
                 Some(Signal::SettingsChanged) => {
@@ -245,126 +451,125 @@ pub fn start(app: &AppHandle) {
                 }
                 Some(next) => worker.observe(next),
             }
-            worker.reconcile(&app, &settings).await;
+            let ranking = ranking(&app, &settings);
+            let mut extra = Vec::new();
+            extra.extend(runtime.tick_focus(&app, worker.suspended));
+            let calendar = app.try_state::<CalendarService>();
+            if let Some(calendar) = &calendar {
+                extra.extend(calendar.desires(chrono::Utc::now()));
+            }
+            worker.reconcile(&app, &settings, &ranking, extra).await;
+            runtime.publish_above_sync(&worker, &ranking);
             let status = worker.status(&settings);
+            let focus_error = worker.error(&Holder::Focus);
+            if let Some(calendar) = &calendar {
+                calendar.publish(
+                    &app,
+                    calendar.status(chrono::Utc::now(), |holder| worker.error(holder)),
+                );
+            }
             drop(worker);
             runtime.publish(&app, status);
+            runtime.publish_focus(&app, focus_error);
         }
     });
 }
 
-#[derive(Clone, Copy)]
-enum Write {
-    Color { xy: [f64; 2], brightness: f64 },
-    White { mirek: u16, brightness: f64 },
-    Off,
-    Dim(f64),
-}
-
-impl Write {
-    /// The body for one light, or `None` when it needs nothing: an off light
-    /// stays off, and a light already dimmer than the level is not brightened.
-    fn body_for(self, light: &HueLight) -> Option<(Value, Applied)> {
-        let dimmable = light.brightness.is_some();
-        match self {
-            Self::Color { xy, brightness } => {
-                let mut body = json!({ "on": { "on": true } });
-                if dimmable {
-                    body["dimming"] = json!({ "brightness": brightness });
-                }
-                if light.supports_color {
-                    body["color"] = json!({ "xy": { "x": xy[0], "y": xy[1] } });
-                }
-                Some((
-                    body,
-                    Applied {
-                        on: true,
-                        brightness: dimmable.then_some(brightness),
-                        xy: light.supports_color.then_some(xy),
-                        mirek: None,
-                    },
-                ))
+fn on_air_desire(on_air: &OnAirSettings) -> Desire {
+    Desire {
+        holder: Holder::OnAir,
+        spec: if on_air.mode == OnAirMode::Scene {
+            ClaimSpec::Scene {
+                bridge_id: on_air.bridge_id.clone(),
+                scene_id: on_air.scene.as_ref().map(|scene| scene.id.clone()),
+                scale: Some(on_air.brightness),
             }
-            Self::White { mirek, brightness } => {
-                let mut body = json!({ "on": { "on": true } });
-                if dimmable {
-                    body["dimming"] = json!({ "brightness": brightness });
-                }
-                let mirek = light
-                    .supports_ct
-                    .then(|| mirek.clamp(light.ct_min.unwrap_or(153), light.ct_max.unwrap_or(500)));
-                if let Some(mirek) = mirek {
-                    body["color_temperature"] = json!({ "mirek": mirek });
-                }
-                Some((
-                    body,
-                    Applied {
-                        on: true,
-                        brightness: dimmable.then_some(brightness),
-                        xy: None,
-                        mirek,
+        } else {
+            ClaimSpec::Lights {
+                bridge_id: on_air.bridge_id.clone(),
+                targets: effective_targets(&on_air.targets, &on_air.target)
+                    .into_iter()
+                    .cloned()
+                    .collect(),
+                looks: Looks::Uniform(match on_air.mode {
+                    OnAirMode::White => Write::White {
+                        mirek: on_air.mirek,
+                        brightness: on_air.brightness,
                     },
-                ))
-            }
-            Self::Off => light.is_on.then(|| {
-                (
-                    json!({ "on": { "on": false } }),
-                    Applied {
-                        on: false,
-                        brightness: None,
-                        xy: None,
-                        mirek: None,
+                    _ => Write::Color {
+                        xy: on_air.xy.unwrap_or_else(|| on_air.color.xy()),
+                        brightness: on_air.brightness,
                     },
-                )
-            }),
-            Self::Dim(level) => (light.is_on && light.brightness.is_some_and(|now| now > level))
-                .then(|| {
-                    (
-                        json!({ "dimming": { "brightness": level } }),
-                        Applied {
-                            on: true,
-                            brightness: Some(level),
-                            xy: None,
-                            mirek: None,
-                        },
-                    )
                 }),
-        }
+            }
+        },
+        restore: true,
+        transition_ms: 0,
     }
 }
 
-/// One automation's wish for this pass.
-struct Plan {
-    kind: LayerKind,
-    wanted: bool,
-    config: Value,
-    bridge_id: Option<String>,
-    targets: Vec<AutomationTarget>,
-    scene: Option<AutomationScene>,
-    scene_brightness: Option<f64>,
-    write: Write,
-    restore: bool,
+fn away_desire(settings: &AutomationSettings) -> Desire {
+    let away = &settings.away;
+    Desire {
+        holder: Holder::Away,
+        spec: if away.action == AwayAction::Scene {
+            ClaimSpec::Scene {
+                bridge_id: away.bridge_id.clone(),
+                scene_id: away.scene.as_ref().map(|scene| scene.id.clone()),
+                scale: None,
+            }
+        } else {
+            ClaimSpec::Lights {
+                bridge_id: away.bridge_id.clone(),
+                targets: effective_targets(&away.targets, &away.target)
+                    .into_iter()
+                    .cloned()
+                    .collect(),
+                looks: Looks::Uniform(match away.action {
+                    AwayAction::Dim => Write::Dim(away.dim_brightness),
+                    _ => Write::Off,
+                }),
+            }
+        },
+        restore: away.restore_on_return,
+        transition_ms: 0,
+    }
 }
 
-struct PendingRestore {
-    restore: Restore,
+struct RestoreRetry {
     attempts: u32,
     next_at: Instant,
 }
 
+/// A PC Sync session an automation paused, to start again once no automation
+/// ranked above it needs its lights.
+struct PausedSync {
+    /// `None` for the color test, which is stopped but never resumed.
+    request: Option<StartSyncRequest>,
+    area: SyncHold,
+    holder: Option<Holder>,
+}
+
 #[derive(Default)]
 struct Worker {
-    stack: LayerStack,
+    owners: Ownership,
+    journal: Journal,
+    /// What each holder last claimed with.
+    specs: HashMap<Holder, Desire>,
+    start_errors: HashMap<Holder, String>,
+    write_errors: HashMap<Holder, String>,
+    retry_at: HashMap<Holder, Instant>,
+    write_retry: HashMap<LightKey, Instant>,
+    restores: HashMap<LightKey, RestoreRetry>,
     capture_apps: Vec<CaptureApp>,
     calling_apps: Vec<String>,
     on_call: bool,
     idle_polls: u32,
     locked: bool,
     suspended: bool,
-    errors: HashMap<LayerKind, String>,
-    retry_at: HashMap<LayerKind, Instant>,
-    pending: Vec<PendingRestore>,
     preview_expires: Option<Instant>,
+    paused_sync: Option<PausedSync>,
+    sync_error: Option<String>,
 }
 
 impl Worker {
@@ -380,6 +585,23 @@ impl Worker {
             }
             Signal::Suspended(suspended) => self.suspended = suspended,
             Signal::SettingsChanged => self.retry_at.clear(),
+            Signal::SyncStarted {
+                bridge_id,
+                light_ids,
+            } => {
+                self.sync_error = None;
+                self.owners.set_sync(Some(SyncHold {
+                    bridge_id,
+                    light_ids: light_ids.into_iter().collect(),
+                }));
+            }
+            Signal::SyncEnded => self.owners.set_sync(None),
+            Signal::SyncByUser => {
+                self.paused_sync = None;
+                self.sync_error = None;
+            }
+            Signal::SyncResumeFailed(error) => self.sync_error = Some(error),
+            Signal::Wake => {}
         }
     }
 
@@ -400,481 +622,474 @@ impl Worker {
         self.capture_apps = apps;
     }
 
-    async fn reconcile(&mut self, app: &AppHandle, settings: &AutomationSettings) {
-        if self.stack.get(LayerKind::Preview).is_some() {
-            if !self.locked
-                && !self.suspended
-                && self.preview_expires.is_some_and(|at| Instant::now() < at)
-            {
-                return;
+    /// Takes back the lights an earlier run left changed. Away's are dropped,
+    /// as on exit, and so are lights on a bridge that is no longer paired.
+    fn recover<R: Runtime>(&mut self, app: &AppHandle<R>) {
+        let Ok(client) = HueClient::new() else {
+            return;
+        };
+        let mut paired: HashMap<String, bool> = HashMap::new();
+        for entry in self.journal.load() {
+            if entry.holder == Holder::Away {
+                continue;
             }
-            if let Some(restore) = self.stack.remove(LayerKind::Preview) {
-                self.restore_or_retry(restore).await;
+            let known = *paired
+                .entry(entry.key.bridge_id.to_uppercase())
+                .or_insert_with(|| {
+                    client
+                        .paired_bridge_access(app, &entry.key.bridge_id)
+                        .is_ok_and(|access| access.is_some())
+                });
+            if known {
+                self.owners.adopt(
+                    entry,
+                    Caps {
+                        dimmable: true,
+                        color: true,
+                        ct: None,
+                    },
+                );
             }
         }
-        self.retry_restores().await;
-        for plan in self.plans(settings) {
-            self.drive(app, plan).await;
-        }
+        self.save_journal();
     }
 
-    fn plans(&self, settings: &AutomationSettings) -> [Plan; 2] {
-        let on_air = &settings.on_air;
+    fn save_journal(&mut self) {
+        let entries = self.owners.journal();
+        // A journal that cannot be written still leaves the lights in memory
+        // to put back; only a crash would lose them.
+        let _ = self.journal.save(entries);
+    }
+
+    fn drop_holder(&mut self, holder: &Holder) {
+        self.owners.release(holder);
+        self.specs.remove(holder);
+        self.start_errors.remove(holder);
+        self.write_errors.remove(holder);
+        self.retry_at.remove(holder);
+    }
+
+    fn desires(&self, settings: &AutomationSettings) -> Vec<Desire> {
+        let mut desires = Vec::new();
+        if settings.on_air.enabled && self.on_call {
+            desires.push(on_air_desire(&settings.on_air));
+        }
         let away = &settings.away;
-        [
-            Plan {
-                kind: LayerKind::OnAir,
-                wanted: on_air.enabled && self.on_call,
-                config: json!([
-                    on_air.bridge_id,
-                    on_air.target,
-                    on_air.targets,
-                    on_air.mode,
-                    on_air.color,
-                    on_air.xy,
-                    on_air.mirek,
-                    on_air.scene,
-                    on_air.brightness
-                ]),
-                bridge_id: on_air.bridge_id.clone(),
-                targets: effective_targets(&on_air.targets, &on_air.target)
-                    .into_iter()
-                    .cloned()
-                    .collect(),
-                scene: (on_air.mode == OnAirMode::Scene)
-                    .then(|| on_air.scene.clone())
-                    .flatten(),
-                scene_brightness: Some(on_air.brightness),
-                write: match on_air.mode {
-                    OnAirMode::White => Write::White {
-                        mirek: on_air.mirek,
-                        brightness: on_air.brightness,
-                    },
-                    _ => Write::Color {
-                        xy: on_air.xy.unwrap_or_else(|| on_air.color.xy()),
-                        brightness: on_air.brightness,
-                    },
-                },
-                restore: true,
-            },
-            Plan {
-                kind: LayerKind::Away,
-                wanted: away.enabled && (self.locked || (away.include_sleep && self.suspended)),
-                config: json!([
-                    away.bridge_id,
-                    away.target,
-                    away.targets,
-                    away.action,
-                    away.scene,
-                    away.dim_brightness
-                ]),
-                bridge_id: away.bridge_id.clone(),
-                targets: effective_targets(&away.targets, &away.target)
-                    .into_iter()
-                    .cloned()
-                    .collect(),
-                scene: (away.action == AwayAction::Scene)
-                    .then(|| away.scene.clone())
-                    .flatten(),
-                scene_brightness: None,
-                write: match away.action {
-                    AwayAction::Off | AwayAction::Scene => Write::Off,
-                    AwayAction::Dim => Write::Dim(away.dim_brightness),
-                },
-                restore: away.restore_on_return,
-            },
-        ]
+        if away.enabled && (self.locked || (away.include_sleep && self.suspended)) {
+            desires.push(away_desire(settings));
+        }
+        desires
     }
 
-    async fn drive(&mut self, app: &AppHandle, plan: Plan) {
-        let same_config = self
-            .stack
-            .get(plan.kind)
-            .map(|layer| layer.config == plan.config);
-        // Ended, or started with settings that have since changed.
-        if same_config.is_some_and(|same| !plan.wanted || !same) {
-            if let Some(restore) = self.stack.remove(plan.kind) {
-                if plan.restore {
-                    self.restore_or_retry(restore).await;
-                }
-            }
-        }
-
-        if !plan.wanted {
-            self.errors.remove(&plan.kind);
-            self.retry_at.remove(&plan.kind);
-            return;
-        }
-        if self.stack.get(plan.kind).is_some()
-            || self
-                .retry_at
-                .get(&plan.kind)
-                .is_some_and(|at| Instant::now() < *at)
-        {
-            return;
-        }
-
-        // Asked on every attempt rather than remembered, so buying Pro mid-call
-        // lights the light straight away. Only starting is gated: whatever is
-        // already showing is always put back.
-        if let Err(refusal) =
-            crate::commands::entitlements::require(app, Capability::LocalAutomation)
-        {
-            self.errors.insert(plan.kind, refusal);
-            return;
-        }
-
-        match self.start_layer(app, &plan, None).await {
-            Ok(()) => {
-                self.errors.remove(&plan.kind);
-                self.retry_at.remove(&plan.kind);
-            }
-            Err(error) => {
-                self.errors.insert(plan.kind, error);
-                self.retry_at
-                    .insert(plan.kind, Instant::now() + RETRY_AFTER);
-            }
-        }
-    }
-
-    async fn start_layer(
+    async fn reconcile(
         &mut self,
         app: &AppHandle,
-        plan: &Plan,
-        preview_base: Option<&Restore>,
-    ) -> Result<(), String> {
-        let Some(bridge_id) = &plan.bridge_id else {
-            return Err("Choose lights for this automation.".to_string());
-        };
-        let client = HueClient::new()?;
-        let bridge = client.get_stored_bridge(app)?;
-        if &bridge.bridge_id != bridge_id {
-            return Err("Switch to the bridge this automation was set up on.".to_string());
+        settings: &AutomationSettings,
+        ranking: &Ranking,
+        extra: Vec<Desire>,
+    ) {
+        let preview_over = self.locked
+            || self.suspended
+            || self.preview_expires.is_none_or(|at| Instant::now() >= at);
+        if preview_over && self.specs.contains_key(&Holder::Preview) {
+            self.preview_expires = None;
+            self.drop_holder(&Holder::Preview);
         }
-        let application_key = client.get_stored_application_key(app)?;
-        let ip = bridge.bridge_ip;
 
-        let mut members = Vec::new();
-        let mut scene_actions = HashMap::new();
-        if let Some(scene) = &plan.scene {
-            let resource = client
-                .get_resource(&ip, &application_key, "scene", Some(&scene.id))
-                .await?
-                .into_iter()
-                .next()
-                .ok_or("This scene no longer exists on the bridge.")?;
-            if let Some(actions) = resource["actions"].as_array() {
-                for entry in actions {
-                    if entry["target"]["rtype"] == "light" {
-                        if let Some(id) = entry["target"]["rid"].as_str() {
-                            members.push(id.to_string());
-                            scene_actions.insert(id.to_string(), entry["action"].clone());
-                        }
+        let mut desires = self.desires(settings);
+        desires.extend(extra);
+        let stale: Vec<Holder> = self
+            .specs
+            .keys()
+            .filter(|holder| **holder != Holder::Preview)
+            .filter(|holder| !desires.iter().any(|desire| &desire.holder == *holder))
+            .cloned()
+            .collect();
+        for holder in stale {
+            self.drop_holder(&holder);
+        }
+        // Errors of automations that are no longer wanted are not news.
+        self.start_errors.retain(|holder, _| {
+            *holder == Holder::Preview || desires.iter().any(|d| &d.holder == holder)
+        });
+
+        for desire in desires {
+            self.take(app, desire).await;
+        }
+        self.settle(app, ranking).await;
+        self.resume_sync(app, ranking);
+    }
+
+    /// Claims the lights one automation wants, if that changed since last time.
+    async fn take(&mut self, app: &AppHandle, desire: Desire) {
+        let holding = self.owners.holds(&desire.holder);
+        if holding && self.specs.get(&desire.holder) == Some(&desire) {
+            return;
+        }
+        if self
+            .retry_at
+            .get(&desire.holder)
+            .is_some_and(|at| Instant::now() < *at)
+        {
+            return;
+        }
+        // Asked on every start rather than remembered, so buying Pro mid-call
+        // lights the light straight away. Only starting is gated: whatever is
+        // already showing is always put back, and a running look may change.
+        if !holding {
+            if let Err(refusal) =
+                crate::commands::entitlements::require(app, Capability::LocalAutomation)
+            {
+                self.start_errors.insert(desire.holder.clone(), refusal);
+                return;
+            }
+        }
+        match resolve(app, &desire.spec).await {
+            Ok(lights) => {
+                self.owners
+                    .claim(&desire.holder, desire.restore, desire.transition_ms, lights);
+                self.start_errors.remove(&desire.holder);
+                self.retry_at.remove(&desire.holder);
+                self.specs.insert(desire.holder.clone(), desire);
+            }
+            Err(error) => {
+                self.start_errors.insert(desire.holder.clone(), error);
+                self.retry_at
+                    .insert(desire.holder.clone(), Instant::now() + RETRY_AFTER);
+            }
+        }
+    }
+
+    /// Makes every light show its top claim, or go back, as far as the bridge
+    /// lets it right now.
+    async fn settle<R: Runtime>(&mut self, app: &AppHandle<R>, ranking: &Ranking) {
+        let Ok(client) = HueClient::new() else {
+            return;
+        };
+        let mut access: HashMap<String, Option<(String, String)>> = HashMap::new();
+        let mut reach = |bridge_id: &str| -> Option<(String, String)> {
+            access
+                .entry(bridge_id.to_uppercase())
+                .or_insert_with(|| client.paired_bridge_access(app, bridge_id).ok().flatten())
+                .clone()
+        };
+
+        // Lights claimed while PC Sync streamed to them: their state now is
+        // the one to return to.
+        let unknown = self.owners.needs_before();
+        let bridges: HashSet<String> = unknown.iter().map(|key| key.bridge_id.clone()).collect();
+        for bridge_id in bridges {
+            let Some((ip, key)) = reach(&bridge_id) else {
+                continue;
+            };
+            if let Ok(lights) = client.get_lights(&ip, &key).await {
+                for wanted in unknown.iter().filter(|key| key.bridge_id == bridge_id) {
+                    if let Some(light) = lights.iter().find(|light| light.id == wanted.light_id) {
+                        self.owners.fill_before(wanted, snapshot_of(light));
                     }
                 }
             }
-        } else {
-            for target in &plan.targets {
-                members.extend(member_light_ids(&client, &ip, &application_key, target).await?);
-            }
-        }
-        let lights: Vec<HueLight> = client
-            .get_lights(&ip, &application_key)
-            .await?
-            .into_iter()
-            .filter(|light| light.reachable && members.contains(&light.id))
-            .collect();
-        if lights.is_empty() {
-            return Err("None of the selected lights can be reached.".into());
         }
 
-        let mut owned = Vec::new();
-        let mut failures = 0usize;
-        for light in &lights {
-            let write = match scene_actions.get(&light.id) {
-                Some(action) => scene_body_for(action, light, plan.scene_brightness),
-                None if plan.kind == LayerKind::Preview => {
-                    preview_body_for(plan.write, light, preview_base)
-                }
-                None => plan.write.body_for(light),
-            };
-            let Some((mut body, applied)) = write else {
-                continue;
-            };
-            if !owned.is_empty() || failures > 0 {
-                tokio::time::sleep(WRITE_INTERVAL).await;
-            }
-            body["dynamics"] = json!({ "duration": 0 });
-            match client
-                .update_resource(&ip, &application_key, "light", &light.id, body)
-                .await
-            {
-                Ok(()) => owned.push(OwnedLight {
-                    before: snapshot_of(light),
+        let plan = self.owners.plan(ranking);
+        if plan.pause_sync {
+            self.pause_sync(app, ranking);
+        }
+
+        let now = Instant::now();
+        let mut writes = Vec::new();
+        let mut restores = Vec::new();
+        for op in plan.ops {
+            match op {
+                Op::Write {
+                    key,
+                    holder,
+                    intent,
+                    body: None,
+                    ..
+                } => self.owners.wrote(&key, &holder, &intent, None),
+                Op::Write { ref key, .. }
+                    if self.write_retry.get(key).is_some_and(|at| now < *at) => {}
+                Op::Write {
+                    key,
+                    holder,
+                    intent,
+                    body: Some(body),
                     applied,
-                }),
-                Err(_) => failures += 1,
+                    transition_ms,
+                } => {
+                    // Recorded before the write so the journal on disk already
+                    // knows about it if Mote dies halfway.
+                    let previous = self.owners.state(&key);
+                    self.owners.wrote(&key, &holder, &intent, Some(applied));
+                    writes.push((key, holder, body, transition_ms, previous));
+                }
+                Op::Restore { ref key, .. }
+                    if self
+                        .restores
+                        .get(key)
+                        .is_some_and(|retry| now < retry.next_at) => {}
+                Op::Restore {
+                    key,
+                    before,
+                    expect,
+                } => restores.push((key, before, expect)),
+                Op::Forget { key } => {
+                    self.owners.settled(&key);
+                    self.restores.remove(&key);
+                    self.write_retry.remove(&key);
+                }
             }
         }
-        if owned.is_empty() && failures > 0 {
-            return Err("The selected lights could not be changed.".into());
+        if writes.is_empty() && restores.is_empty() {
+            self.save_journal();
+            return;
+        }
+        self.save_journal();
+
+        let mut attempted: HashMap<Holder, usize> = HashMap::new();
+        let mut failed: HashMap<Holder, usize> = HashMap::new();
+        let mut landed: Vec<LightKey> = Vec::new();
+        let mut first = true;
+        for (key, holder, mut body, transition_ms, previous) in writes {
+            *attempted.entry(holder.clone()).or_default() += 1;
+            let result = match reach(&key.bridge_id) {
+                Some((ip, application_key)) => {
+                    if !first {
+                        tokio::time::sleep(WRITE_INTERVAL).await;
+                    }
+                    first = false;
+                    body["dynamics"] = json!({ "duration": transition_ms });
+                    client
+                        .update_resource(&ip, &application_key, "light", &key.light_id, body)
+                        .await
+                }
+                None => Err("This bridge is no longer paired.".into()),
+            };
+            match result {
+                Ok(()) => {
+                    self.write_retry.remove(&key);
+                    landed.push(key);
+                }
+                Err(_) => {
+                    if let Some(previous) = previous {
+                        self.owners.revert(&key, previous);
+                    }
+                    self.write_retry.insert(key, Instant::now() + RETRY_AFTER);
+                    *failed.entry(holder).or_default() += 1;
+                }
+            }
+        }
+        for (holder, count) in attempted {
+            match failed.get(&holder) {
+                Some(failures) => {
+                    let message = if *failures == count {
+                        "The selected lights could not be changed.".to_string()
+                    } else {
+                        format!("{failures} of the selected lights could not be changed.")
+                    };
+                    self.write_errors.insert(holder, message);
+                }
+                None => {
+                    self.write_errors.remove(&holder);
+                }
+            }
         }
 
         // Read the bridge's clamped values before comparing later external edits.
-        if let Ok(current) = client.get_lights(&ip, &application_key).await {
-            for owned in &mut owned {
-                if let Some(now) = current.iter().find(|light| light.id == owned.before.id) {
-                    if owned.applied.on {
-                        // Restoring brightness also restores color, so protect
-                        // manual color changes even for a dim-only automation.
-                        owned.applied.xy = (now.color_mode.as_deref() != Some("ct"))
-                            .then_some(now.xy)
-                            .flatten();
-                        owned.applied.mirek = (now.color_mode.as_deref() == Some("ct"))
-                            .then_some(now.ct)
-                            .flatten();
-                    }
-                }
-            }
-        }
-        self.adopt_pending_restores(bridge_id, &mut owned);
-        // Recorded even when some writes failed, so what did change goes back.
-        self.stack.push(Layer {
-            kind: plan.kind,
-            bridge: BridgeAccess {
-                bridge_id: bridge_id.clone(),
-                ip,
-                application_key,
-            },
-            config: plan.config.clone(),
-            lights: owned,
-        });
-        if failures > 0 {
-            Err(format!(
-                "{failures} of the selected lights could not be changed."
-            ))
-        } else {
-            Ok(())
-        }
-    }
-
-    /// A restore still waiting for the bridge would put these lights back
-    /// underneath the automation now holding them. Its original state moves into
-    /// the new layer instead.
-    fn adopt_pending_restores(&mut self, bridge_id: &str, owned: &mut [OwnedLight]) {
-        for pending in &mut self.pending {
-            if pending.restore.bridge.bridge_id != bridge_id {
+        let bridges: HashSet<String> = landed.iter().map(|key| key.bridge_id.clone()).collect();
+        for bridge_id in bridges {
+            let Some((ip, key)) = reach(&bridge_id) else {
                 continue;
-            }
-            pending.restore.lights.retain(|waiting| {
-                match owned
-                    .iter_mut()
-                    .find(|light| light.before.id == waiting.before.id)
-                {
-                    Some(light) => {
-                        light.before = waiting.before.clone();
-                        false
-                    }
-                    None => true,
+            };
+            let Ok(current) = client.get_lights(&ip, &key).await else {
+                continue;
+            };
+            for written in landed.iter().filter(|key| key.bridge_id == bridge_id) {
+                let Some(applied) = self.owners.applied(written) else {
+                    continue;
+                };
+                if let Some(now) = current.iter().find(|light| light.id == written.light_id) {
+                    self.owners.read_back(written, read_back(applied, now));
                 }
-            });
+            }
         }
-        self.pending
-            .retain(|pending| !pending.restore.lights.is_empty());
+
+        let mut current: HashMap<String, Option<Vec<HueLight>>> = HashMap::new();
+        for (key, before, expect) in restores {
+            let Some((ip, application_key)) = reach(&key.bridge_id) else {
+                // Unpaired: nothing can reach it anymore.
+                self.owners.settled(&key);
+                self.restores.remove(&key);
+                continue;
+            };
+            let lights = match current.get(&key.bridge_id) {
+                Some(lights) => lights.clone(),
+                None => {
+                    let lights = client.get_lights(&ip, &application_key).await.ok();
+                    current.insert(key.bridge_id.clone(), lights.clone());
+                    lights
+                }
+            };
+            let outcome = match &lights {
+                None => Err(()),
+                Some(lights) => match lights.iter().find(|light| light.id == key.light_id) {
+                    // Gone, switched off at the wall, or changed by somebody
+                    // since: nothing to put back over.
+                    None => Ok(()),
+                    Some(light) if !light.reachable || !looks::still_shows(light, expect) => Ok(()),
+                    Some(_) => {
+                        if !first {
+                            tokio::time::sleep(WRITE_INTERVAL).await;
+                        }
+                        first = false;
+                        snapshot::restore(
+                            &client,
+                            &ip,
+                            &application_key,
+                            std::slice::from_ref(&before),
+                        )
+                        .await
+                        .map_err(|_| ())
+                    }
+                },
+            };
+            match outcome {
+                Ok(()) => {
+                    self.owners.settled(&key);
+                    self.restores.remove(&key);
+                }
+                Err(()) => {
+                    let retry = self.restores.entry(key).or_insert(RestoreRetry {
+                        attempts: 0,
+                        next_at: Instant::now(),
+                    });
+                    retry.attempts += 1;
+                    retry.next_at = Instant::now()
+                        + if retry.attempts < RESTORE_QUICK_ATTEMPTS {
+                            RESTORE_RETRY_INTERVAL
+                        } else {
+                            RESTORE_SLOW_INTERVAL
+                        };
+                }
+            }
+        }
+        self.save_journal();
     }
 
-    async fn restore_or_retry(&mut self, restore: Restore) {
-        if restore.lights.is_empty() {
+    /// Stops PC Sync for a claim ranked above it, remembering the session so it
+    /// can start again once that claim is over.
+    fn pause_sync<R: Runtime>(&mut self, app: &AppHandle<R>, ranking: &Ranking) {
+        if self.paused_sync.is_some() {
             return;
         }
-        if write_restore(&restore).await.is_err() {
-            self.pending.push(PendingRestore {
-                restore,
-                attempts: 1,
-                next_at: Instant::now() + RESTORE_RETRY_INTERVAL,
-            });
-        }
+        let Some(area) = self.owners.sync().cloned() else {
+            return;
+        };
+        let Some(engine) = app.try_state::<HostSyncEngine>() else {
+            return;
+        };
+        let holder = self
+            .owners
+            .held_above_sync(ranking)
+            .into_iter()
+            .find(|(key, _)| area.covers(key))
+            .map(|(_, holder)| holder);
+        let request = engine.resumable_request();
+        engine.stop(app);
+        self.paused_sync = Some(PausedSync {
+            request,
+            area,
+            holder,
+        });
     }
 
-    async fn retry_restores(&mut self) {
-        let mut waiting = Vec::new();
-        for mut pending in std::mem::take(&mut self.pending) {
-            if Instant::now() < pending.next_at {
-                waiting.push(pending);
-                continue;
-            }
-            if write_restore(&pending.restore).await.is_ok() {
-                continue;
-            }
-            pending.attempts += 1;
-            if pending.attempts < RESTORE_ATTEMPTS {
-                pending.next_at = Instant::now() + RESTORE_RETRY_INTERVAL;
-                waiting.push(pending);
-            }
+    /// Starts a paused PC Sync again once nothing ranked above it needs its
+    /// lights and its stop has finished.
+    fn resume_sync(&mut self, app: &AppHandle, ranking: &Ranking) {
+        let Some(paused) = &self.paused_sync else {
+            return;
+        };
+        if self.owners.sync().is_some() || self.owners.wants_area_above_sync(ranking, &paused.area)
+        {
+            return;
         }
-        self.pending = waiting;
+        let Some(paused) = self.paused_sync.take() else {
+            return;
+        };
+        let Some(request) = paused.request else {
+            return;
+        };
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let result = match crate::commands::entitlements::require(&app, Capability::PcSync) {
+                Ok(()) => {
+                    let engine = app.state::<HostSyncEngine>();
+                    engine.start_sync(&app, request).await.map(|_| ())
+                }
+                Err(refusal) => Err(refusal),
+            };
+            if let Err(error) = result {
+                signal(Signal::SyncResumeFailed(error));
+            }
+        });
+    }
+
+    fn error(&self, holder: &Holder) -> Option<String> {
+        self.start_errors
+            .get(holder)
+            .or_else(|| self.write_errors.get(holder))
+            .cloned()
     }
 
     fn status(&self, settings: &AutomationSettings) -> AutomationStatus {
+        let error = |holder: &Holder| self.error(holder);
         AutomationStatus {
             on_air: OnAirStatus {
-                active: self.stack.get(LayerKind::OnAir).is_some(),
+                active: self.owners.holds(&Holder::OnAir),
                 apps: if settings.on_air.enabled {
                     self.calling_apps.clone()
                 } else {
                     Vec::new()
                 },
-                error: self.errors.get(&LayerKind::OnAir).cloned(),
+                error: error(&Holder::OnAir),
             },
             away: AwayStatus {
-                active: self.stack.get(LayerKind::Away).is_some(),
-                error: self.errors.get(&LayerKind::Away).cloned(),
+                active: self.owners.holds(&Holder::Away),
+                error: error(&Holder::Away),
             },
             capture_apps: self.capture_apps.clone(),
-        }
-    }
-}
-
-fn preview_body_for(
-    write: Write,
-    light: &HueLight,
-    previous: Option<&Restore>,
-) -> Option<(Value, Applied)> {
-    let baseline = previous
-        .and_then(|restore| {
-            restore.lights.iter().find(|owned| {
-                owned.before.id == light.id
-                    && layers::unchanged(light.is_on, light.brightness, owned.applied)
-                    && (!light.is_on
-                        || layers::unchanged_color(
-                            light.xy,
-                            light.ct,
-                            light.color_mode.as_deref(),
-                            owned.applied,
-                        ))
-            })
-        })
-        .map(|owned| &owned.before);
-    match write {
-        Write::Off => Some((
-            json!({ "on": { "on": false } }),
-            Applied {
-                on: false,
-                brightness: None,
-                xy: None,
-                mirek: None,
+            pc_sync: PcSyncCoordination {
+                paused_for: self
+                    .paused_sync
+                    .as_ref()
+                    .and_then(|paused| paused.holder.as_ref())
+                    .and_then(Holder::source),
+                error: self.sync_error.clone(),
             },
-        )),
-        Write::Dim(level) => {
-            let on = baseline.map_or(light.is_on, |before| before.on);
-            let brightness = baseline
-                .map_or(light.brightness, |before| before.brightness)
-                .map(|value| value.min(level));
-            let mut body = json!({ "on": { "on": on } });
-            if let Some(brightness) = brightness {
-                body["dimming"] = json!({ "brightness": brightness });
-            }
-            // A different preview may have colored this light. Dim the
-            // original look, preserving whichever color mode was active.
-            let mirek = baseline
-                .filter(|before| light.supports_ct && before.color_mode.as_deref() == Some("ct"))
-                .and_then(|before| before.mirek);
-            let xy = baseline
-                .filter(|before| light.supports_color && before.color_mode.as_deref() != Some("ct"))
-                .and_then(|before| before.xy);
-            if let Some(mirek) = mirek {
-                body["color_temperature"] = json!({ "mirek": mirek });
-            }
-            if let Some(xy) = xy {
-                body["color"] = json!({ "xy": { "x": xy[0], "y": xy[1] } });
-            }
-            Some((
-                body,
-                Applied {
-                    on,
-                    brightness,
-                    xy,
-                    mirek,
-                },
-            ))
+            restoring: self
+                .owners
+                .entries()
+                .iter()
+                .filter(|entry| entry.claims.is_empty() && entry.applied.is_some() && entry.restore)
+                .count(),
         }
-        _ => write.body_for(light),
     }
 }
 
-fn carry_preview_snapshots(previous: &mut Restore, next: &mut Layer) {
-    if previous.bridge.bridge_id != next.bridge.bridge_id {
-        return;
+/// What the bridge reports for a light just written, in the terms the restore
+/// check compares. Restoring brightness also restores color, so a manual
+/// color change is protected even after a dim-only write.
+fn read_back(applied: Applied, now: &HueLight) -> Applied {
+    if !applied.on {
+        return applied;
     }
-    previous.lights.retain(|old| {
-        let Some(new) = next
-            .lights
-            .iter_mut()
-            .find(|light| light.before.id == old.before.id)
-        else {
-            return true;
-        };
-        if layers::unchanged(new.before.on, new.before.brightness, old.applied)
-            && (!new.before.on
-                || layers::unchanged_color(
-                    new.before.xy,
-                    new.before.mirek,
-                    new.before.color_mode.as_deref(),
-                    old.applied,
-                ))
-        {
-            new.before = old.before.clone();
-        }
-        false
-    });
-}
-
-/// Only reversible static scene properties; effects/gradients need richer snapshots.
-fn scene_body_for(
-    action: &Value,
-    light: &HueLight,
-    brightness_scale: Option<f64>,
-) -> Option<(Value, Applied)> {
-    let mut body = json!({});
-    let on = action["on"]["on"].as_bool().unwrap_or(light.is_on);
-    body["on"] = json!({ "on": on });
-    let brightness = light
-        .brightness
-        .and_then(|_| action["dimming"]["brightness"].as_f64())
-        .map(|level| (level * brightness_scale.unwrap_or(100.0) / 100.0).clamp(0.0, 100.0));
-    if let Some(brightness) = brightness {
-        body["dimming"] = json!({ "brightness": brightness });
+    let ct = now.color_mode.as_deref() == Some("ct");
+    Applied {
+        xy: (!ct).then_some(now.xy).flatten(),
+        mirek: ct.then_some(now.ct).flatten(),
+        ..applied
     }
-    let mirek = light
-        .supports_ct
-        .then(|| action["color_temperature"]["mirek"].as_u64())
-        .flatten()
-        .map(|value| {
-            (value.min(1000) as u16).clamp(light.ct_min.unwrap_or(153), light.ct_max.unwrap_or(500))
-        });
-    let xy = if light.supports_color && mirek.is_none() {
-        action["color"]["xy"]["x"]
-            .as_f64()
-            .zip(action["color"]["xy"]["y"].as_f64())
-            .map(|(x, y)| [x, y])
-    } else {
-        None
-    };
-    if let Some(mirek) = mirek {
-        body["color_temperature"] = json!({ "mirek": mirek });
-    }
-    if let Some(xy) = xy {
-        body["color"] = json!({ "xy": { "x": xy[0], "y": xy[1] } });
-    }
-    Some((
-        body,
-        Applied {
-            on,
-            brightness,
-            xy,
-            mirek,
-        },
-    ))
 }
 
 /// The names of apps that count as a call under these settings.
@@ -894,108 +1109,54 @@ fn calling_apps(apps: &[CaptureApp], on_air: &OnAirSettings) -> Vec<String> {
     names
 }
 
-async fn member_light_ids(
-    client: &HueClient,
-    ip: &str,
-    application_key: &str,
-    target: &AutomationTarget,
-) -> Result<Vec<String>, String> {
-    let missing = || format!("{} no longer exists on this bridge.", target.name);
-    match target.kind {
-        TargetKind::Light => Ok(vec![target.id.clone()]),
-        TargetKind::Room => client
-            .get_rooms(ip, application_key)
-            .await?
-            .into_iter()
-            .find(|room| room.grouped_light_id.as_deref() == Some(&target.id))
-            .map(|room| room.light_ids)
-            .ok_or_else(missing),
-        TargetKind::Zone => client
-            .get_zones(ip, application_key)
-            .await?
-            .into_iter()
-            .find(|zone| zone.grouped_light_id.as_deref() == Some(&target.id))
-            .map(|zone| zone.light_ids)
-            .ok_or_else(missing),
-    }
-}
-
-fn snapshot_of(light: &HueLight) -> LightSnapshot {
-    LightSnapshot {
-        id: light.id.clone(),
-        on: light.is_on,
-        brightness: light.brightness,
-        color_mode: light.color_mode.clone(),
-        xy: light.xy,
-        mirek: light.ct,
-    }
-}
-
-/// Puts back the lights nobody has changed since, with paced writes.
-async fn write_restore(restore: &Restore) -> Result<(), String> {
+/// Claims `lights` for a one-time change, such as a presence scene, ranked as
+/// `source`, and writes what nothing higher holds. Returns how many lights
+/// could not be changed.
+pub async fn one_shot<R: Runtime>(
+    app: &AppHandle<R>,
+    source: Source,
+    lights: Vec<ClaimedLight>,
+) -> Result<usize, String> {
+    let runtime = app
+        .try_state::<AutomationRuntime>()
+        .ok_or("Automations are not ready yet.")?;
+    let ranking = ranking(app, &runtime.settings());
+    let mut worker = runtime.worker.lock().await;
+    let now = worker
+        .owners
+        .one_shot(&ranking, ranking.source(source), lights);
+    let journal = worker.owners.journal();
+    let _ = worker.journal.save(journal);
+    drop(worker);
     let client = HueClient::new()?;
-    let BridgeAccess {
-        ip,
-        application_key,
-        ..
-    } = &restore.bridge;
-    let current = client.get_lights(ip, application_key).await?;
-    let untouched: Vec<LightSnapshot> = restore
-        .lights
-        .iter()
-        .filter(|owned| {
-            current.iter().any(|light| {
-                light.id == owned.before.id
-                    && light.reachable
-                    && layers::unchanged(light.is_on, light.brightness, owned.applied)
-                    && (!light.is_on
-                        || layers::unchanged_color(
-                            light.xy,
-                            light.ct,
-                            light.color_mode.as_deref(),
-                            owned.applied,
-                        ))
-            })
-        })
-        .map(|owned| owned.before.clone())
-        .collect();
-    snapshot::restore(&client, ip, application_key, &untouched).await
+    let mut failures = 0usize;
+    for (index, light) in now.iter().enumerate() {
+        if index > 0 {
+            tokio::time::sleep(WRITE_INTERVAL).await;
+        }
+        let Some((ip, key)) = client.paired_bridge_access(app, &light.key.bridge_id)? else {
+            failures += 1;
+            continue;
+        };
+        let want = light.intent.want(light.caps, &light.current, true);
+        let Some(mut body) = want.body else {
+            continue;
+        };
+        body["dynamics"] = json!({ "duration": 400 });
+        if client
+            .update_resource(&ip, &key, "light", &light.key.light_id, body)
+            .await
+            .is_err()
+        {
+            failures += 1;
+        }
+    }
+    Ok(failures)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn light(is_on: bool, brightness: Option<f64>, supports_color: bool) -> HueLight {
-        HueLight {
-            id: "light-1".into(),
-            device_id: None,
-            device_name: None,
-            name: "Desk".into(),
-            is_on,
-            brightness,
-            reachable: true,
-            color_mode: None,
-            xy: None,
-            ct: None,
-            effect: None,
-            effects: Vec::new(),
-            effect_v2: None,
-            effects_v2: Vec::new(),
-            supports_color,
-            supports_ct: false,
-            ct_min: None,
-            ct_max: None,
-            gamut: None,
-            model_id: None,
-            product_name: None,
-            type_name: None,
-            sw_version: None,
-            unique_id: None,
-            function: None,
-            powerup: None,
-        }
-    }
 
     fn app(id: &str, microphone: bool, camera: bool) -> CaptureApp {
         CaptureApp {
@@ -1004,56 +1165,6 @@ mod tests {
             microphone,
             camera,
         }
-    }
-
-    const RED: Write = Write::Color {
-        xy: [0.675, 0.322],
-        brightness: 100.0,
-    };
-
-    #[test]
-    fn on_air_colours_what_can_show_colour() {
-        let (body, applied) = RED.body_for(&light(false, Some(20.0), true)).unwrap();
-        assert_eq!(
-            body,
-            json!({
-                "on": { "on": true },
-                "dimming": { "brightness": 100.0 },
-                "color": { "xy": { "x": 0.675, "y": 0.322 } }
-            })
-        );
-        assert_eq!(applied.brightness, Some(100.0));
-
-        let (white, _) = RED.body_for(&light(true, Some(20.0), false)).unwrap();
-        assert!(white.get("color").is_none());
-
-        let (plug, applied) = RED.body_for(&light(false, None, false)).unwrap();
-        assert_eq!(plug, json!({ "on": { "on": true } }));
-        assert_eq!(applied.brightness, None);
-    }
-
-    #[test]
-    fn away_leaves_alone_what_needs_nothing() {
-        assert!(Write::Off
-            .body_for(&light(false, Some(50.0), true))
-            .is_none());
-        assert!(Write::Off
-            .body_for(&light(true, Some(50.0), true))
-            .is_some());
-
-        assert!(Write::Dim(10.0)
-            .body_for(&light(true, Some(5.0), true))
-            .is_none());
-        assert!(Write::Dim(10.0)
-            .body_for(&light(false, Some(80.0), true))
-            .is_none());
-        assert!(Write::Dim(10.0)
-            .body_for(&light(true, None, false))
-            .is_none());
-        let (body, _) = Write::Dim(10.0)
-            .body_for(&light(true, Some(80.0), true))
-            .unwrap();
-        assert_eq!(body, json!({ "dimming": { "brightness": 10.0 } }));
     }
 
     #[test]
@@ -1086,139 +1197,84 @@ mod tests {
     }
 
     #[test]
-    fn white_obeys_fixture_temperature_range() {
-        let mut fixture = light(false, Some(20.0), true);
-        fixture.supports_ct = true;
-        fixture.ct_min = Some(153);
-        fixture.ct_max = Some(454);
-        let (body, applied) = Write::White {
-            mirek: 500,
-            brightness: 65.0,
-        }
-        .body_for(&fixture)
-        .unwrap();
-        assert_eq!(body["color_temperature"]["mirek"], 454);
-        assert_eq!(applied.mirek, Some(454));
+    fn the_locked_pc_and_a_call_decide_what_is_wanted() {
+        let mut settings = AutomationSettings::default();
+        settings.on_air.enabled = true;
+        settings.away.enabled = true;
+        let mut worker = Worker::default();
+        assert!(worker.desires(&settings).is_empty());
+        worker.on_call = true;
+        worker.observe(Signal::Suspended(true));
+        let holders: Vec<Holder> = worker
+            .desires(&settings)
+            .into_iter()
+            .map(|d| d.holder)
+            .collect();
+        assert_eq!(holders, [Holder::OnAir, Holder::Away]);
+        settings.away.include_sleep = false;
+        assert_eq!(worker.desires(&settings).len(), 1);
     }
 
     #[test]
-    fn scene_uses_static_action_and_scales_brightness() {
-        let action = json!({ "on": { "on": true }, "dimming": { "brightness": 80 }, "color": { "xy": { "x": 0.3, "y": 0.4 } }, "effects": { "effect": "candle" } });
-        let (body, applied) =
-            scene_body_for(&action, &light(false, Some(20.0), true), Some(50.0)).unwrap();
-        assert_eq!(body["dimming"]["brightness"], 40.0);
-        assert_eq!(applied.xy, Some([0.3, 0.4]));
-        assert!(body.get("effects").is_none());
+    fn away_scene_and_dim_become_the_right_claims() {
+        let mut settings = AutomationSettings::default();
+        settings.away.action = AwayAction::Dim;
+        settings.away.dim_brightness = 15.0;
+        settings.away.restore_on_return = false;
+        let desire = away_desire(&settings);
+        assert!(!desire.restore);
+        assert!(matches!(
+            desire.spec,
+            ClaimSpec::Lights {
+                looks: Looks::Uniform(Write::Dim(level)),
+                ..
+            } if level == 15.0
+        ));
+        settings.away.action = AwayAction::Scene;
+        assert!(matches!(
+            away_desire(&settings).spec,
+            ClaimSpec::Scene { scale: None, .. }
+        ));
     }
 
     #[test]
-    fn preview_changes_keep_original_and_allow_dim_to_increase() {
-        let before = snapshot_of(&light(true, Some(80.0), true));
-        let bridge = BridgeAccess {
-            bridge_id: "bridge".into(),
-            ip: "ip".into(),
-            application_key: "key".into(),
+    fn a_dim_write_protects_the_color_the_bridge_reports() {
+        let mut light = HueLight {
+            id: "desk".into(),
+            device_id: None,
+            device_name: None,
+            name: "Desk".into(),
+            is_on: true,
+            brightness: Some(10.0),
+            reachable: true,
+            color_mode: Some("ct".into()),
+            xy: Some([0.4, 0.4]),
+            ct: Some(366),
+            effect: None,
+            effects: Vec::new(),
+            effect_v2: None,
+            effects_v2: Vec::new(),
+            supports_color: true,
+            supports_ct: true,
+            ct_min: Some(153),
+            ct_max: Some(500),
+            gamut: None,
+            model_id: None,
+            product_name: None,
+            type_name: None,
+            sw_version: None,
+            unique_id: None,
+            function: None,
+            powerup: None,
         };
-        let applied = Applied {
+        let dimmed = Applied {
             on: true,
             brightness: Some(10.0),
             xy: None,
             mirek: None,
         };
-        let mut previous = Restore {
-            bridge: bridge.clone(),
-            lights: vec![OwnedLight {
-                before: before.clone(),
-                applied,
-            }],
-        };
-        let current = light(true, Some(10.0), true);
-        let (_, next_applied) =
-            preview_body_for(Write::Dim(40.0), &current, Some(&previous)).unwrap();
-        assert_eq!(next_applied.brightness, Some(40.0));
-        let mut next = Layer {
-            kind: LayerKind::Preview,
-            bridge,
-            config: Value::Null,
-            lights: vec![OwnedLight {
-                before: snapshot_of(&current),
-                applied: next_applied,
-            }],
-        };
-        carry_preview_snapshots(&mut previous, &mut next);
-        assert!(previous.lights.is_empty());
-        assert_eq!(next.lights[0].before.brightness, Some(80.0));
-    }
-
-    #[test]
-    fn manual_color_edits_are_not_restored_over() {
-        let applied = Applied {
-            on: true,
-            brightness: Some(50.0),
-            xy: Some([0.3, 0.4]),
-            mirek: None,
-        };
-        assert!(layers::unchanged_color(
-            Some([0.301, 0.399]),
-            None,
-            Some("xy"),
-            applied
-        ));
-        assert!(!layers::unchanged_color(
-            Some([0.6, 0.3]),
-            None,
-            Some("xy"),
-            applied
-        ));
-        assert!(!layers::unchanged_color(
-            Some([0.3, 0.4]),
-            Some(366),
-            Some("ct"),
-            applied
-        ));
-    }
-
-    #[test]
-    fn dim_preview_restores_original_color_or_white_after_color_preview() {
-        for mode in ["xy", "ct"] {
-            let mut original = light(true, Some(80.0), true);
-            original.supports_ct = true;
-            original.color_mode = Some(mode.into());
-            original.xy = Some([0.3, 0.4]);
-            original.ct = Some(366);
-            let mut current = original.clone();
-            current.color_mode = Some("xy".into());
-            current.xy = Some([0.675, 0.322]);
-            current.ct = None;
-            current.brightness = Some(100.0);
-            let previous = Restore {
-                bridge: BridgeAccess {
-                    bridge_id: "bridge".into(),
-                    ip: "ip".into(),
-                    application_key: "key".into(),
-                },
-                lights: vec![OwnedLight {
-                    before: snapshot_of(&original),
-                    applied: Applied {
-                        on: true,
-                        brightness: Some(100.0),
-                        xy: current.xy,
-                        mirek: None,
-                    },
-                }],
-            };
-            let (body, applied) =
-                preview_body_for(Write::Dim(30.0), &current, Some(&previous)).unwrap();
-            assert_eq!(body["dimming"]["brightness"], 30.0);
-            if mode == "ct" {
-                assert_eq!(body["color_temperature"]["mirek"], 366);
-                assert!(body.get("color").is_none());
-                assert_eq!(applied.mirek, Some(366));
-            } else {
-                assert_eq!(body["color"]["xy"], json!({ "x": 0.3, "y": 0.4 }));
-                assert!(body.get("color_temperature").is_none());
-                assert_eq!(applied.xy, original.xy);
-            }
-        }
+        assert_eq!(read_back(dimmed, &light).mirek, Some(366));
+        light.color_mode = Some("xy".into());
+        assert_eq!(read_back(dimmed, &light).xy, Some([0.4, 0.4]));
     }
 }

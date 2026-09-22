@@ -120,9 +120,12 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
     setPercent(null);
     let unlisten: UnlistenFn | undefined;
     try {
+      // Two Store sources report progress, and the dialog fallback starts a
+      // second download, so the shown percent only ever climbs.
       unlisten = await listen<StoreUpdateProgress>(
         STORE_UPDATE_PROGRESS_EVENT,
-        ({ payload }) => setPercent(payload.percent),
+        ({ payload }) =>
+          setPercent((current) => Math.max(current ?? 0, payload.percent)),
       );
 
       const outcome = await downloadStoreUpdate();

@@ -42,11 +42,12 @@ export function loadAutomations(): Promise<void> {
       useAutomationStore.setState({ settings, status, loadError: null });
     } catch (error) {
       useAutomationStore.setState({ loadError: describeCommandError(error) });
+      loading = undefined;
     }
   })());
 }
 
-let saving: Promise<void> = Promise.resolve();
+let saving: Promise<unknown> = Promise.resolve();
 let saveRevision = 0;
 
 /**
@@ -55,9 +56,9 @@ let saveRevision = 0;
  */
 export function saveAutomationSettings(
   change: (current: AutomationSettings) => AutomationSettings,
-): Promise<void> {
+): Promise<boolean> {
   const current = useAutomationStore.getState().settings;
-  if (!current) return Promise.resolve();
+  if (!current) return Promise.resolve(false);
   confirmedSettings ??= current;
   const next = change(current);
   const revision = ++saveRevision;
@@ -72,11 +73,13 @@ export function saveAutomationSettings(
       if (revision === saveRevision) {
         useAutomationStore.setState({ settings: saved });
       }
+      return true;
     } catch (error) {
       if (revision === saveRevision) {
         useAutomationStore.setState({ settings: confirmedSettings });
         toast.error(describeCommandError(error));
       }
+      return false;
     }
   });
   saving = run;

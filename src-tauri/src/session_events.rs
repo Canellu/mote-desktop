@@ -16,6 +16,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     WTS_SESSION_LOCK, WTS_SESSION_UNLOCK,
 };
 
+use crate::services::automations::presence;
 use crate::services::automations::runtime::{signal, Signal};
 
 /// Tells this subclass apart from `session_end`'s and tao's on the same window.
@@ -54,9 +55,15 @@ unsafe extern "system" fn session_proc(
     match (message, wparam.0 as u32) {
         (WM_WTSSESSION_CHANGE, WTS_SESSION_LOCK) => signal(Signal::Locked(true)),
         (WM_WTSSESSION_CHANGE, WTS_SESSION_UNLOCK) => signal(Signal::Locked(false)),
-        (WM_POWERBROADCAST, PBT_APMSUSPEND) => signal(Signal::Suspended(true)),
+        (WM_POWERBROADCAST, PBT_APMSUSPEND) => {
+            presence::set_suspended(true);
+            signal(Signal::Suspended(true));
+        }
         // Sent only when a person woke the PC, not a wake timer at 3 a.m.
-        (WM_POWERBROADCAST, PBT_APMRESUMESUSPEND) => signal(Signal::Suspended(false)),
+        (WM_POWERBROADCAST, PBT_APMRESUMESUSPEND) => {
+            presence::set_suspended(false);
+            signal(Signal::Suspended(false));
+        }
         _ => {}
     }
     unsafe { DefSubclassProc(hwnd, message, wparam, lparam) }

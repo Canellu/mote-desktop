@@ -1,6 +1,34 @@
 # Hue Pomodoro / Focus Rituals
 
-Status: **proposed / not started**.
+Status: **built after 0.5.0, not yet released**.
+
+## As built
+
+- `/focus` with a Focus button on Home and a running clock in the title bar on
+  every screen. Rituals are listed and edited there, and a new one is made in
+  the `/focus/new` wizard — Rhythm, Lights, Vibe, Review, one step at a time,
+  with every step already answered staying reachable from its header; a
+  session shows
+  a ring countdown, round dots, pause/resume, add time, skip, and end, a
+  ten-second intermission with Start now and more time, and a completion
+  summary with Run again.
+- `services/automations/focus.rs` runs the session on monotonic time in the
+  automation task, pauses it when the PC sleeps, and hands the lights to the
+  runtime as the `Focus` holder, so snapshots, priority, PC Sync, and restoring
+  come from the runtime. Rituals and the last-used ritual live in `focus.json`.
+  Sessions end at exit and are not resumed; the runtime journal puts the
+  lights back after a crash.
+- All four personalities, with a capability-aware tint: XY on color lights,
+  the nearest white on white-ambiance lights, and brightness on dimmers. Calm
+  holds, then warms in quarter steps over the last 40%; Journey shifts a
+  four-stop gradient each quarter; Light Race fills in twentieths; Minimal
+  changes for the last minute only.
+- Windows notifications between phases (per ritual), and a tray tooltip and
+  menu with pause/resume, skip, and end.
+- Conflicts with PC Sync follow the priority list instead of blocking startup.
+- Not built: locking other controls on session lights, chimes, reduced-motion
+  variants beyond the ring's transition, and keyboard controls other than
+  Space to pause.
 
 Shared runtime prerequisite: [automation-runtime-plan.md](./automation-runtime-plan.md).
 

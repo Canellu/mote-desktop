@@ -2,6 +2,7 @@ import {
   Blocks,
   Boxes,
   Cable,
+  CalendarDays,
   CircleHelp,
   Home,
   Keyboard,
@@ -12,7 +13,6 @@ import {
   SlidersHorizontal,
   Sparkles,
   Tv,
-  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -59,14 +59,6 @@ export const settingsTabs = [
     group: "app",
     description: "Choose global keyboard shortcuts for lights and scenes.",
     icon: Keyboard,
-    pro: true,
-  },
-  {
-    value: "automations",
-    label: "Automations",
-    group: "app",
-    description: "Let lights react to calls and to this PC locking.",
-    icon: Workflow,
     pro: true,
   },
   {
@@ -133,6 +125,14 @@ export const settingsTabs = [
     group: "connections",
     description: "Manage your Hue Play HDMI Sync Box connection.",
     icon: Tv,
+  },
+  {
+    value: "calendars",
+    label: "Calendars",
+    group: "connections",
+    description: "Connect the calendars your calendar automations read.",
+    icon: CalendarDays,
+    pro: true,
   },
 ] satisfies Array<{
   value: string;

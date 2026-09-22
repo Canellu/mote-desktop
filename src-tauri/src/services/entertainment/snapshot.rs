@@ -8,6 +8,7 @@
 
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
 use crate::services::hue_client::HueClient;
@@ -15,7 +16,7 @@ use crate::services::hue_client::HueClient;
 /// Spacing between restore writes (~10 commands/second).
 const RESTORE_WRITE_INTERVAL: Duration = Duration::from_millis(100);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LightSnapshot {
     pub id: String,
     pub on: bool,
@@ -112,7 +113,7 @@ pub async fn turn_off(
 
 /// A light that was off is restored with a single `on: false` write; sending
 /// color to an off bulb would flash it awake.
-fn restore_body(snapshot: &LightSnapshot) -> Value {
+pub fn restore_body(snapshot: &LightSnapshot) -> Value {
     let mut body = Map::new();
     body.insert("on".to_string(), json!({ "on": snapshot.on }));
     if !snapshot.on {

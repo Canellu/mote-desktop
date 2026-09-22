@@ -20,6 +20,7 @@ pub fn set_automation_settings(
     app: AppHandle,
     settings: AutomationSettings,
 ) -> Result<AutomationSettings, String> {
+    let settings = settings.normalized();
     settings.validate()?;
     save_settings(&app, &settings)?;
     if let Some(runtime) = app.try_state::<AutomationRuntime>() {

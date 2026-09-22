@@ -30,6 +30,6 @@ export const installStoreUpdate = () =>
 export const STORE_UPDATE_PROGRESS_EVENT = "store-update-progress";
 
 export interface StoreUpdateProgress {
-  /** Whole percent of the download. */
+  /** Whole percent of the download. Never 0: nothing is sent until it moves. */
   percent: number;
 }

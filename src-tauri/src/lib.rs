@@ -6,11 +6,9 @@ pub mod services;
 mod session_end;
 #[cfg(target_os = "windows")]
 mod session_events;
+mod tray;
 
-use tauri::{
-    menu::{Menu, MenuItem},
-    Manager,
-};
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,6 +19,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_notification::init())
         .plugin(
             // Let the plugin restore size/position, but not visibility — the
             // setup hook decides whether to show the window so a login launch
@@ -38,6 +37,8 @@ pub fn run() {
         )
         .manage(services::entitlements::EntitlementRuntime::default())
         .manage(services::automations::runtime::AutomationRuntime::default())
+        .manage(services::automations::presence::PresenceService::default())
+        .manage(services::automations::calendar::CalendarService::default())
         .manage(commands::events::EventStreamState::default())
         .manage(commands::home_map::HomeMapStorageState::default())
         .manage(services::entertainment::engine::HostSyncEngine::default())
@@ -51,6 +52,30 @@ pub fn run() {
             commands::automations::set_automation_settings,
             commands::automations::get_automation_status,
             commands::automations::preview_automation,
+            commands::focus::get_focus_data,
+            commands::focus::save_focus_ritual,
+            commands::focus::delete_focus_ritual,
+            commands::focus::start_focus,
+            commands::focus::pause_focus,
+            commands::focus::resume_focus,
+            commands::focus::skip_focus_phase,
+            commands::focus::extend_focus_phase,
+            commands::focus::stop_focus,
+            commands::focus::dismiss_focus,
+            commands::focus::preview_focus_look,
+            commands::presence::get_presence_settings,
+            commands::presence::set_presence_settings,
+            commands::presence::get_presence_status,
+            commands::presence::probe_presence_device,
+            commands::presence::test_presence_action,
+            commands::presence::scan_presence_devices,
+            commands::calendar::get_calendar_data,
+            commands::calendar::add_calendar_feed,
+            commands::calendar::remove_calendar_feed,
+            commands::calendar::set_calendar_settings,
+            commands::calendar::refresh_calendars,
+            commands::calendar::preview_calendar_rule,
+            commands::calendar::preview_calendar_look,
             commands::app_settings::get_app_settings,
             commands::app_settings::set_close_button_behavior,
             commands::app_settings::set_auto_start,
@@ -173,43 +198,11 @@ pub fn run() {
             }
 
             services::automations::runtime::start(app.handle());
+            services::automations::presence::start(app.handle());
+            services::automations::calendar::start(app.handle());
 
             #[cfg(desktop)]
-            {
-                let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
-
-                let show_item =
-                    MenuItem::with_id(app, "show", "Show Mote Desktop", true, None::<&str>)?;
-                let quit_item = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-                let menu = Menu::with_items(app, &[&show_item, &quit_item])?;
-
-                tauri::tray::TrayIconBuilder::with_id("main")
-                    .icon(icon)
-                    .tooltip("Mote Desktop")
-                    .menu(&menu)
-                    .show_menu_on_left_click(false)
-                    .on_menu_event(|app, event| match event.id().as_ref() {
-                        "show" => {
-                            let _ = commands::app_settings::show_main_window(app);
-                        }
-                        "quit" => app.exit(0),
-                        _ => {}
-                    })
-                    .on_tray_icon_event(|tray, event| match event {
-                        tauri::tray::TrayIconEvent::Click {
-                            button: tauri::tray::MouseButton::Left,
-                            ..
-                        }
-                        | tauri::tray::TrayIconEvent::DoubleClick {
-                            button: tauri::tray::MouseButton::Left,
-                            ..
-                        } => {
-                            let _ = commands::app_settings::show_main_window(tray.app_handle());
-                        }
-                        _ => {}
-                    })
-                    .build(app)?;
-            }
+            tray::build(app.handle())?;
 
             if let Some(window) = app.get_webview_window("main") {
                 let app_handle = app.handle().clone();
@@ -291,8 +284,10 @@ pub fn run() {
                 if let Some(automations) =
                     app_handle.try_state::<services::automations::runtime::AutomationRuntime>()
                 {
-                    automations
-                        .shutdown_blocking(services::automations::runtime::EXIT_CLEANUP_TIMEOUT);
+                    automations.shutdown_blocking(
+                        app_handle,
+                        services::automations::runtime::EXIT_CLEANUP_TIMEOUT,
+                    );
                 }
             }
         });

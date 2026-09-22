@@ -1,5 +1,6 @@
-import { Fragment } from "react";
+import { useRef } from "react";
 import type { LucideIcon } from "lucide-react";
+import { motion } from "motion/react";
 import {
   DndContext,
   PointerSensor,
@@ -19,6 +20,11 @@ import {
   SensorReadingPill,
 } from "@/components/SensorReadingPill";
 import { Card } from "@/components/ui/card";
+import {
+  INSPECTOR_TRANSITION,
+  useInspectorSettle,
+  useInspectorSettleWidth,
+} from "@/features/space-screen/utils/inspector-layout";
 import type { HueAccessory, HueAccessoryService } from "@/types/hue";
 import { SectionGrip } from "./SectionDragHandle";
 import { SortableItem } from "./SortableItem";
@@ -46,6 +52,11 @@ export const AccessorySection: React.FC<{
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
+  // While the inspector pane moves, lay the grid out at the width it will end
+  // at, so it re-columns once as the move starts and glides with the pane.
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const settle = useInspectorSettle();
+  const settleWidth = useInspectorSettleWidth(sectionRef);
 
   if (accessories.length === 0) return null;
 
@@ -113,21 +124,34 @@ export const AccessorySection: React.FC<{
   };
 
   const grid = (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
+    <div
+      className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3"
+      style={settleWidth != null ? { width: settleWidth } : undefined}
+    >
       {accessories.map((accessory) =>
         reordering ? (
           <SortableItem key={accessory.id} id={accessory.id} editing>
             {renderCard(accessory)}
           </SortableItem>
         ) : (
-          <Fragment key={accessory.id}>{renderCard(accessory)}</Fragment>
+          // A one-cell grid so the card still stretches to its row's height.
+          <motion.div
+            key={accessory.id}
+            layout="position"
+            transition={
+              settle ? INSPECTOR_TRANSITION : { duration: 0.2, ease: "easeOut" }
+            }
+            className="grid"
+          >
+            {renderCard(accessory)}
+          </motion.div>
         ),
       )}
     </div>
   );
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={sectionRef} className="flex flex-col gap-3">
       <div className="flex h-7 items-center justify-between gap-3">
         <div className="flex items-center">
           <SectionGrip />

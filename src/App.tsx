@@ -11,6 +11,7 @@ import { ErrorScreen } from "@/components/ErrorScreen";
 import { ComponentGallery } from "@/features/dev-gallery/ComponentGallery";
 import { DeviceGallery } from "@/features/dev-gallery/DeviceGallery";
 import { FeedbackButton } from "@/features/feedback/FeedbackButton";
+import { FocusStatusButton } from "@/features/focus/FocusStatusButton";
 import { UpdateButton } from "@/features/updates/UpdateButton";
 import {
   sampleSyncBoxSession,
@@ -385,6 +386,7 @@ function App() {
         }
         actions={
           <>
+            <FocusStatusButton />
             <UpdateButton />
             <FeedbackButton />
           </>

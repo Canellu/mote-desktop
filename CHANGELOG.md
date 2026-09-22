@@ -5,6 +5,83 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.6.0] - 2026-09-23
+
+### Highlights
+
+- **Focus sessions (Mote Pro).** Pick a rhythm, your lights, and a vibe, and
+  the lights keep time: they shift as a focus block goes by, change for your
+  breaks, and go back to how they were when you are done. The clock follows
+  you in the title bar and the tray, with a notification between phases.
+- **Presence (Mote Pro).** Mote finds the phones on your home Wi-Fi so you can
+  pick yours from a list. When every phone has been gone for ten minutes, the
+  lights you choose turn off; when someone is back, a scene comes on. Mote
+  follows a phone if the router gives it a new address.
+- **Calendar (Mote Pro).** Add a Google, Outlook, or iCloud calendar by its iCal
+  address, and lights change around matching events: red for meetings, a
+  scene for focus blocks, a few minutes early if you like.
+- **You decide which automation wins.** Priority, at the foot of Automations,
+  lists every automation, Focus, and PC Sync; drag them into the order you
+  want. When two want the same light, the higher one keeps it, and anything
+  above PC Sync pauses it and starts it again afterwards.
+
+### Improvements
+
+- Automations has its own screen, opened from Home beside Focus and Sync
+  instead of from inside Settings. A dot on its button shows when one is
+  changing your lights, and hovering any of Home's buttons names it.
+- A new focus ritual is made one step at a time — its rhythm, its lights, its
+  vibe, then a last look before it is saved — and every step you have answered
+  stays one click away at the top, so going back to change something does not
+  lose the rest. Editing a ritual you already have still shows everything on
+  one page.
+- A ritual's rhythm is a plain list now: a preset to start from, then a row
+  each for focus, break, long break and rounds. Above them the session is
+  charted — a column per stretch, as tall as its minutes, the rounds numbered
+  and the breaks barely rising between them — beside the time it all adds up
+  to, the focus and the breaks each counted for you. Each preset carries the
+  same chart in miniature, so the difference between a long stretch and a
+  quick one is visible before you pick, and the card takes a wash of the
+  ritual's own light colours.
+- A ritual's lights can be chosen a whole room at a time. Rooms shows one card
+  per room and zone; Lights opens them up for single bulbs, as before.
+- The vibe step says what it is choosing: how the lights move, then the
+  colours they move between, with a line naming what the chosen movement does
+  with those colours. Picking a movement never overwrites a colour. The
+  movements are a list, and beside them a panel plays the one you picked:
+  four lights in your ritual's colours going through a whole round, the focus
+  phase and then the break, so the difference can be watched instead of read.
+- Every step of the ritual wizard is open from the start, since none of them
+  waits on another, and the row along the top ticks the ones that have what
+  they need. A ritual with no lights says so on the last step, with a way
+  back to choose them.
+- The last step of the ritual wizard shows the session, the lights and the
+  colours themselves instead of listing them in words.
+- The focus clock sits in the middle of the window and grows with it.
+- Editing an automation keeps a summary to the right of its settings: whether
+  it is on, anything left to set up before it can run (each a jump to where
+  to fix it), what it does in one sentence, a list of its sections showing
+  what each is set to, and Save. In a narrow window Save floats at the bottom
+  instead.
+- Light and scene pickers fold each room to one line naming what you picked
+  there, so a big home no longer means a long page. Rooms open and close with
+  a slide, a room's lights can be picked or cleared in one go, and one button
+  in the section's title folds or opens every room at once.
+- Calendars you connect now live in Settings, Connections, Calendars, beside
+  the bridge and the Sync Box. You can still connect one while making a rule.
+
+- Lights an automation changed go back even if Mote closes unexpectedly: they
+  are put back the next time it starts.
+- The on-air light now stays on when you lock the PC during a call. Move
+  When this PC locks above it in Priority for the old behavior.
+- PC Sync says when an automation paused it, and refuses to start on lights a
+  higher automation is using rather than fighting over them.
+
+### Fixes
+
+- The Update button's download percent now climbs as the update arrives,
+  instead of sitting at 0% until it is done.
+
 ## [0.5.0] - 2026-09-18
 
 ### Highlights

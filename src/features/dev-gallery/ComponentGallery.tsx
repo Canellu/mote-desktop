@@ -129,6 +129,9 @@ import {
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { AutomationsDemo } from "./AutomationsDemo";
+import { FocusDemo } from "./FocusDemo";
+import { PresenceDemo } from "./PresenceDemo";
+import { CalendarDemo } from "./CalendarDemo";
 
 type ButtonVariant = NonNullable<
   VariantProps<typeof buttonVariants>["variant"]
@@ -336,6 +339,24 @@ export const ComponentGallery = () => {
           description="Multiple lights, scenes, wheels, and preview with an example bridge."
         >
           <AutomationsDemo />
+        </GallerySection>
+        <GallerySection
+          title="Focus"
+          description="A routine in the editor, a running session, the pause between phases, and the end."
+        >
+          <FocusDemo />
+        </GallerySection>
+        <GallerySection
+          title="Presence"
+          description="Phones on the home Wi-Fi, what leaving does, and what coming back does."
+        >
+          <PresenceDemo />
+        </GallerySection>
+        <GallerySection
+          title="Calendar"
+          description="Calendars Mote reads and the rules that change lights around their events."
+        >
+          <CalendarDemo />
         </GallerySection>
         <GallerySection
           title="Example"

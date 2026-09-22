@@ -17,7 +17,10 @@ export const SettingsSection = ({
   return (
     <section className="grid gap-4">
       <h2 className="text-base font-semibold text-foreground">{title}</h2>
-      <div className="grid min-w-0 gap-4 rounded-2xl bg-(--settings-surface) p-4 @3xl:p-5">
+      {/* A row component can render nothing (the Store update row outside a
+          Store install), which would leave its separator dangling. Hide any
+          separator that no longer sits between two rows. */}
+      <div className="grid min-w-0 gap-4 rounded-2xl bg-(--settings-surface) p-4 @3xl:p-5 [&>[data-slot=separator]:is(:first-child,:last-child,:has(+[data-slot=separator]))]:hidden">
         {rows.map((row, index) => (
           <Fragment key={`settings-row-${index}`}>
             {index > 0 && <Separator />}

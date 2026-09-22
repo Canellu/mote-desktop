@@ -1,15 +1,19 @@
 # Windows Store packaging and commerce spike
 
-Status: **0.3.0.0 is live in the Store with Pro enforcement, the 14-day Pro
-trial, the in-app update notice, and start at sign-in, and the Mote Pro add-on
-is live at NOK 149. 0.5.0.0, which adds automations, the one-widget Free tier,
-widget corners, and the UI-thread purchase call from 0.4.1, plus the plan view,
-the trial welcome, and Pro tags through the trial, is in certification and
-publishes automatically. Purchase, restore, offline licensing, the trial
-surviving a reinstall, and the startup task are still unverified on a
-Store-installed build.**
+Release preparation on 2026-09-23: the unsigned 0.6.0.0 MSIX builds and is
+10,589,723 bytes (SHA-256
+`A1E472D6E052E95241AB5A48CB9BC52C6BA8EE8C5369F564AE4B4936C52A9DE1`).
+Submission 11 is a draft with the published 0.5.0.0 package still selected;
+0.6.0.0 has not been uploaded. The package exceeds the 10 MB threshold noted
+below from the previous browser upload. Partner Center's current package page
+does not state that threshold, so confirm its actual upload behavior before
+changing release optimization or treating 0.6.0.0 as spent.
 
-Last reviewed: **2026-09-18**.
+Status: **0.5.0.0 is live in the Store, and the Mote Pro add-on is live at NOK
+149. Purchase, restore, offline licensing, the trial surviving a reinstall,
+and the startup task are still unverified on a Store-installed build.**
+
+Last reviewed: **2026-09-23**.
 
 Later on 2026-09-18: Submission 10's certification was cancelled while it was
 still in the certification step, its 0.4.1.0 package was replaced with

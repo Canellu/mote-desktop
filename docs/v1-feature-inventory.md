@@ -142,8 +142,9 @@ Routes are internal desktop-webview navigation and are not public web URLs.
 - Household subscriptions, shared entitlements, and unreviewed third-party
   commerce. The Store-managed Mote Pro add-on, purchase and restore flows, and
   Free/Pro enforcement are required v1 scope and must pass their release gates.
-- Calendar integration, Pomodoro, local-network presence rules, and the shared
-  automation runtime.
+- Calendar rules, focus sessions (Pomodoro), presence, and the automation
+  priority and recovery journal. They were built after 0.5.0 and ship in a
+  later release; see the plan index.
 - Combined multi-bridge dashboards or cross-bridge control.
 - Multiple or per-bridge Sync Box management.
 - Public feature voting and roadmap services.

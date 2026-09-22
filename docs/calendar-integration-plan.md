@@ -1,6 +1,37 @@
 # Local Calendar Integration
 
-Status: **proposed / not started**.
+Status: **v1 built after 0.5.0 as calendar subscriptions, not yet
+released**. The OAuth providers, CalDAV, and the calendar views below remain
+proposed.
+
+## As built
+
+- Calendars are iCalendar addresses: Google's secret iCal address, an Outlook
+  published calendar, an iCloud public calendar, or any `https:`/`webcal:`
+  `.ics` link. That covers the three providers without registering OAuth
+  clients, which need the publisher's accounts and Google's verification.
+- The address is a secret and lives in the keyring (`calendar-feed:<id>`);
+  `calendar.json` holds names, ids, and rules. Feeds are fetched with
+  certificate checks on start and every 15 minutes (five after a failure),
+  with ETag and Last-Modified. Event contents are never written to disk, so
+  SQLite and cache encryption were not needed.
+- `calendar/ics.rs` reads VEVENT, RRULE (daily to yearly, INTERVAL, COUNT,
+  UNTIL, BYDAY with ordinals, BYMONTHDAY, BYMONTH, BYSETPOS), EXDATE, moved and
+  cancelled instances, DURATION, all-day and floating times, and VTIMEZONE
+  blocks, expanding in the event's wall-clock time. A zone a feed does not
+  describe falls back to local time.
+- A rule picks calendars, title words to include and exclude, busy only, and
+  all-day events; starts up to an hour before and ends up to an hour after;
+  and sets a color, a white, a scene, a dim level, or off, with restore
+  optional. It holds its look for the whole window as the `Calendar(rule)`
+  holder, so a restart during an event takes the lights back without a
+  trigger ledger. Rules rank in list order inside the calendar's place in the
+  priority list.
+- Rules are edited in Automations; connected calendars live in Settings →
+  Connections → Calendars. The rule editor shows the week's
+  matching events and a live preview.
+- Not built: Google and Microsoft OAuth, CalDAV, Agenda/Week/Month views,
+  display settings, tray pause controls, and notifications.
 
 Shared runtime prerequisite: [automation-runtime-plan.md](./automation-runtime-plan.md).
 

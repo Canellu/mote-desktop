@@ -248,6 +248,13 @@ repositories are public. The value must match the `APP_TOKEN` secret on the
 - Theme preference: `localStorage` key `themeMode`
 - Home custom layout: `localStorage` key `hue-dashboard-layout`
 - Home grouping mode: `localStorage` key `hue-dashboard-grouping-mode`
+- Automations: Tauri store files `automations.json` (on-air, away, and the
+  priority order), `focus.json`, `presence.json`, and `calendar.json`; the
+  recovery journal `automation-journal.json` in the app config directory,
+  written through a temporary file and a rename. Calendar addresses are
+  secrets: keyring service `com.motedesktop.mote`, account
+  `calendar-feed:<id>`. No automation file holds a bridge key or event
+  content.
 
 ## Hue Data Rules
 

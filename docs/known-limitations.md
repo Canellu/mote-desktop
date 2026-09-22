@@ -31,6 +31,12 @@ Last reviewed: **2026-09-11**.
   app that keeps the microphone open outside calls has to be ignored in
   Settings. Shutting down or restarting the PC does not count as stepping away,
   and on PCs with Modern Standby, sleep is noticed only once the PC locks.
+- Unreleased (after 0.5.0): focus sessions end when Mote quits. Presence works
+  on the PC's home network only, and a sleeping phone can take a few minutes
+  to answer; a phone that rotates its private Wi-Fi address has to be set to a
+  fixed one for that network. Calendars are iCal addresses only: there is no
+  Google or Microsoft sign-in and no calendar view, and a time zone a feed
+  does not describe is read as this PC's.
 - Global keyboard shortcuts can be configured without Pro but will not fire
   until it is owned. The refusal happens in the backend, so a shortcut prepared
   in advance starts working the moment Pro is unlocked.
@@ -40,9 +46,9 @@ Last reviewed: **2026-09-11**.
 - Mote Pro cannot be bought yet. The durable add-on was submitted on 2026-09-11
   and publishes manually, so until it is published the app has no Pro to sell
   and every gated capability refuses.
-- Mote accounts, shared homes, cloud control, Household subscriptions, calendar
-  rules, Pomodoro, presence automation, and public roadmap voting are not
-  included.
+- Mote accounts, shared homes, cloud control, Household subscriptions, and
+  public roadmap voting are not included. Calendar rules, focus sessions, and
+  presence are built but not in 0.5.0.
 - The first release does not include automatic analytics, automatic crash
   uploads, or a hosted in-app feedback uploader. The persistent feedback action
   prepares an editable email in the user's default email app.

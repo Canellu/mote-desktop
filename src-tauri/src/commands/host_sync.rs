@@ -1,6 +1,7 @@
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
+use crate::services::automations::runtime as automations;
 use crate::services::entitlements::Capability;
 use crate::services::entertainment::credentials::{self, EntertainmentCredentialStatus};
 use crate::services::entertainment::displays::{self, DisplayInfo};
@@ -129,6 +130,7 @@ pub async fn start_host_sync(
     request: StartSyncRequest,
 ) -> Result<HostSyncStatus, String> {
     crate::commands::entitlements::require(&app, Capability::PcSync)?;
+    automations::signal(automations::Signal::SyncByUser);
     engine.start_sync(&app, request).await
 }
 
@@ -157,6 +159,7 @@ pub async fn start_host_sync_color_test(
     engine: State<'_, HostSyncEngine>,
     request: ColorTestRequest,
 ) -> Result<HostSyncStatus, String> {
+    automations::signal(automations::Signal::SyncByUser);
     engine.start_color_test(&app, request).await
 }
 
@@ -172,6 +175,7 @@ pub fn update_host_sync(
 
 #[tauri::command(rename = "stop-host-sync")]
 pub fn stop_host_sync(app: AppHandle, engine: State<'_, HostSyncEngine>) -> HostSyncStatus {
+    automations::signal(automations::Signal::SyncByUser);
     engine.stop(&app)
 }
 

@@ -1,6 +1,32 @@
 # Local Network Presence Plan
 
-Status: **proposed / not started**.
+Status: **built after 0.5.0, not yet released** (Windows).
+
+## As built
+
+- Presence is an automation in Automations rather than a Home
+  tab. Phones are found with **Find phones on this network**: a sweep of the
+  router's /24 (or the /24 around this PC on a larger network) with fresh ARP
+  requests, named by Apple's mDNS announcements or reverse DNS, likely phones
+  first. The owner decided on 2026-09-19 to scan rather than make people type
+  addresses; typing one stays possible.
+- A phone is known by its Wi-Fi hardware address. When it stops answering at
+  its IP, Mote looks it up again (ARP cache first, then a sweep at most every
+  two minutes) and follows it to its new address, so no DHCP reservation is
+  needed.
+- Probes use `ResolveIpNetEntry2`, which flushes the cached entry and sends a
+  new ARP request, then a one-second ping, so a phone that just left is not
+  seen from the cache. The Hue Bridge doubles as the network check: when it is
+  silent too, absence does not count.
+- `services/automations/presence.rs` holds the detector (two answers to
+  arrive, ten quiet minutes to leave, a fresh grace period after sleep, a lost
+  network, or a stalled poll), settings in `presence.json`, and the last
+  settled occupancy so a restart repeats nothing. `presence_probe.rs` and
+  `presence_scan.rs` hold the Windows calls.
+- Leaving turns chosen lights off and arriving sets a scene, as one-time
+  changes ranked by the priority list, so PC Sync's lights are skipped unless
+  presence is moved above it.
+- Not built: macOS and Linux probes.
 
 Shared runtime prerequisite: [automation-runtime-plan.md](./automation-runtime-plan.md).
 

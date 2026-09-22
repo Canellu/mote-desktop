@@ -62,6 +62,7 @@ import { AccessorySection } from "./components/AccessorySection";
 import { GroupControls } from "./components/GroupControls";
 import { LightsSection } from "./components/LightsSection";
 import { ScenesSection } from "./components/ScenesSection";
+import { CreateSceneDialog } from "./components/CreateSceneDialog";
 import {
   SectionGrip,
   SectionGripProvider,
@@ -71,6 +72,10 @@ import {
   type LightFunction,
   type SpaceEditOperation,
 } from "./spaceEditActions";
+import {
+  INSPECTOR_TRANSITION,
+  useInspectorSettle,
+} from "./utils/inspector-layout";
 import { isSceneDynamicActive } from "./utils/scene-status";
 
 type ControlCommitPhase = "live" | "final";
@@ -294,6 +299,9 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
   onRefresh,
 }) => {
   const reduceMotion = useReducedMotion();
+  // Re-render as an inspector pane move starts, so the section wrappers glide
+  // with it when a section above changes height (see ScenesSection's rows).
+  const inspectorSettle = useInspectorSettle();
   const syncedLightIds = useEntertainmentStore((store) => store.syncedLightIds);
   const syncedIds = new Set(syncedLightIds);
   const syncedLightCount = lights.filter((light) =>
@@ -301,6 +309,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
   ).length;
   const [editing, setEditing] = useState(false);
   const [managing, setManaging] = useState(false);
+  const [creatingScene, setCreatingScene] = useState(false);
   const [selection, setSelection] = useState<{
     category: EditCategory;
     ids: Set<string>;
@@ -387,12 +396,15 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
       setActionDialog("space-icon");
     };
     window.addEventListener("hue-space-edit-request", startEditing);
+    const createScene = () => setCreatingScene(true);
+    window.addEventListener("hue-space-create-scene", createScene);
     window.addEventListener("hue-space-manage-request", startManaging);
     window.addEventListener("hue-space-edit-save", finishEditing);
     window.addEventListener("hue-space-edit-cancel", finishEditing);
     window.addEventListener("hue-space-edit-icon", editIcon);
     return () => {
       window.removeEventListener("hue-space-edit-request", startEditing);
+      window.removeEventListener("hue-space-create-scene", createScene);
       window.removeEventListener("hue-space-manage-request", startManaging);
       window.removeEventListener("hue-space-edit-save", finishEditing);
       window.removeEventListener("hue-space-edit-cancel", finishEditing);
@@ -684,13 +696,17 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
               return (
                 <motion.div
                   key={sectionId}
-                  layout={!reduceMotion}
+                  // Position only: a section that changes height (the scene
+                  // rail switching rows as the inspector opens) would otherwise
+                  // be scaled into its new size, squashing everything in it.
+                  layout={reduceMotion ? false : "position"}
                   initial={{ opacity: 0, y: -12 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -12 }}
                   transition={{
                     duration: reduceMotion ? 0 : 0.2,
                     ease: "easeOut",
+                    layout: inspectorSettle ? INSPECTOR_TRANSITION : undefined,
                   }}
                 >
                   <SortableSection
@@ -849,6 +865,14 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
         </AnimatePresence>,
         document.body,
       )}
+      <CreateSceneDialog
+        key={roomZone.id}
+        open={creatingScene}
+        onOpenChange={setCreatingScene}
+        roomZone={roomZone}
+        hasLights={lights.length > 0}
+        onRefresh={onRefresh}
+      />
       <Dialog
         open={actionDialog != null}
         onOpenChange={(open) => {

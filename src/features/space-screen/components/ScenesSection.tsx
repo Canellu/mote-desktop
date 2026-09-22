@@ -15,6 +15,7 @@ import {
   arrayMove,
   rectSortingStrategy,
 } from "@dnd-kit/sortable";
+import { animate, useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
@@ -27,6 +28,10 @@ import {
 } from "@/components/ui/carousel";
 import { CarouselDots } from "@/components/ui/carousel-dots";
 import type { HueGalleryScenePreset } from "@/features/space-screen/data/hueSceneGallery";
+import {
+  INSPECTOR_TRANSITION,
+  useInspectorSettleWidth,
+} from "@/features/space-screen/utils/inspector-layout";
 import type { HueScene } from "@/types/hue";
 import { SceneCard } from "./SceneCard";
 import { SceneGalleryCard } from "./SceneGalleryCard";
@@ -73,20 +78,17 @@ const DragCarouselRemeasurer: React.FC<{
  * lets the rail pick "one row / two rows / carousel" from the actual space
  * available rather than hardcoded breakpoints.
  */
-function useColumnCount(ref: React.RefObject<HTMLDivElement | null>): number {
+function useColumnCount(
+  ref: React.RefObject<HTMLDivElement | null>,
+  settleWidth: number | null,
+): number {
   const [columns, setColumns] = useState(1);
 
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
 
-    const measure = () => {
-      const width = el.clientWidth;
-      const fit = Math.floor(
-        (width + SCENE_GAP) / (SCENE_CARD_WIDTH + SCENE_GAP),
-      );
-      setColumns(Math.max(1, fit));
-    };
+    const measure = () => setColumns(columnsFitting(el.clientWidth));
 
     measure();
     const observer = new ResizeObserver(measure);
@@ -94,8 +96,11 @@ function useColumnCount(ref: React.RefObject<HTMLDivElement | null>): number {
     return () => observer.disconnect();
   }, [ref]);
 
-  return columns;
+  return settleWidth != null ? columnsFitting(settleWidth) : columns;
 }
+
+const columnsFitting = (width: number) =>
+  Math.max(1, Math.floor((width + SCENE_GAP) / (SCENE_CARD_WIDTH + SCENE_GAP)));
 
 interface ScenesSectionProps {
   roomZoneName: string;
@@ -153,7 +158,11 @@ export const ScenesSection: React.FC<ScenesSectionProps> = ({
   const dragScrollTimerRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
-  const columnsThatFit = useColumnCount(containerRef);
+  // While the inspector pane moves, the rail lays out at the width it ends at:
+  // it switches rows, and gains or loses its paging chrome, once as the move
+  // starts rather than partway through.
+  const settleWidth = useInspectorSettleWidth(containerRef);
+  const columnsThatFit = useColumnCount(containerRef, settleWidth);
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
   );
@@ -244,6 +253,43 @@ export const ScenesSection: React.FC<ScenesSectionProps> = ({
   const tiles = tileIds.map((id) => ({ id, scene: sceneById.get(id) }));
 
   const rows = tiles.length <= columnsThatFit ? 1 : MAX_ROWS;
+  // Switching rows re-deals every tile into a new slot (column-major). The rail
+  // eases from its old height to its new one, so the sections below slide
+  // instead of jumping, and fades the re-dealt tiles in rather than blinking
+  // straight to the new order. The old height is read here, before the
+  // re-dealt rail replaces it.
+  const railRef = useRef<HTMLDivElement>(null);
+  const [deal, setDeal] = useState<{ rows: number; fromHeight: number | null }>(
+    { rows, fromHeight: null },
+  );
+  if (rows !== deal.rows) {
+    setDeal({ rows, fromHeight: railRef.current?.offsetHeight ?? null });
+  }
+  const reduceMotion = useReducedMotion();
+
+  useLayoutEffect(() => {
+    const rail = railRef.current;
+    if (!rail || deal.fromHeight == null || reduceMotion) return;
+    const toHeight = rail.offsetHeight;
+    // Start from the old height before the first paint, not a frame later.
+    rail.style.height = `${deal.fromHeight}px`;
+    rail.style.opacity = "0";
+    const controls = animate(
+      rail,
+      { height: `${toHeight}px`, opacity: 1 },
+      {
+        ...INSPECTOR_TRANSITION,
+        opacity: {
+          duration: INSPECTOR_TRANSITION.duration * 0.7,
+          ease: "easeOut",
+        },
+      },
+    );
+    void controls.then(() => {
+      rail.style.height = "";
+    });
+    return () => controls.stop();
+  }, [deal, reduceMotion]);
 
   // Column-major chunking: each carousel slide is a vertical stack of `rows`
   // tiles, matching the original top-to-bottom-then-rightward reading order.
@@ -360,46 +406,52 @@ export const ScenesSection: React.FC<ScenesSectionProps> = ({
                 padding is unconditional, so toggling edit mode never shifts the
                 rail. `-ml-3` still pairs with each item's `pl-3` for the gap;
                 the `px-1.5` then insets the first/last tile off the edges. */}
-            <CarouselContent fade className="-ml-3 px-1.5 py-3">
-              {columns.map((column) => (
-                <CarouselItem
-                  key={column.map((tile) => tile.id).join("|")}
-                  className="basis-auto pl-3"
-                >
-                  <div className="flex flex-col gap-3">
-                    {column.map((tile) => (
-                      <SortableItem
-                        key={tile.id}
-                        id={tile.id}
-                        editing={reordering}
-                        transitionDisabled={carouselMoving}
-                      >
-                        {tile.id === GALLERY_TILE_ID ? (
-                          <SceneGalleryCard
-                            editing={editing}
-                            disabled={fullSync}
-                            onOpen={() => setSceneGalleryOpen(true)}
-                          />
-                        ) : (
-                          <SceneCard
-                            scene={tile.scene!}
-                            active={tile.id === activeSceneId}
-                            editing={editing}
-                            disabled={
-                              fullSync || (partialSync && tile.scene!.smart)
-                            }
-                            playDisabled={syncedLightCount > 0}
-                            onApply={onSceneApply}
-                            onInspect={onSceneInspect}
-                            onTogglePlay={onSceneTogglePlay}
-                          />
-                        )}
-                      </SortableItem>
-                    ))}
-                  </div>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
+            <div
+              ref={railRef}
+              className="overflow-hidden"
+              style={settleWidth != null ? { width: settleWidth } : undefined}
+            >
+              <CarouselContent fade className="-ml-3 px-1.5 py-3">
+                {columns.map((column) => (
+                  <CarouselItem
+                    key={column.map((tile) => tile.id).join("|")}
+                    className="basis-auto pl-3"
+                  >
+                    <div className="flex flex-col gap-3">
+                      {column.map((tile) => (
+                        <SortableItem
+                          key={tile.id}
+                          id={tile.id}
+                          editing={reordering}
+                          transitionDisabled={carouselMoving}
+                        >
+                          {tile.id === GALLERY_TILE_ID ? (
+                            <SceneGalleryCard
+                              editing={editing}
+                              disabled={fullSync}
+                              onOpen={() => setSceneGalleryOpen(true)}
+                            />
+                          ) : (
+                            <SceneCard
+                              scene={tile.scene!}
+                              active={tile.id === activeSceneId}
+                              editing={editing}
+                              disabled={
+                                fullSync || (partialSync && tile.scene!.smart)
+                              }
+                              playDisabled={syncedLightCount > 0}
+                              onApply={onSceneApply}
+                              onInspect={onSceneInspect}
+                              onTogglePlay={onSceneTogglePlay}
+                            />
+                          )}
+                        </SortableItem>
+                      ))}
+                    </div>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+            </div>
             <CarouselDots api={api} />
           </SortableContext>
           <DragOverlay dropAnimation={null}>

@@ -1,6 +1,6 @@
 # Plan index
 
-Last reviewed: **2026-09-02**.
+Last reviewed: **2026-09-19**.
 
 The product name is **Mote Desktop**, the publisher display name is **Anton
 Vo**, the permanent application identifier is `com.motedesktop.mote`, and
@@ -29,10 +29,11 @@ fallback shortlist is recorded in the Microsoft Store release plan.
 | [Feature voting, public roadmap, and release history](./feedback-roadmap-and-release-history-plan.md) | Future                                | Public feature requests, voting, roadmap statuses, What's New, and version-linked release history    |
 | [Feedback and public roadmap delivery](./feedback-and-roadmap-delivery-plan.md)                       | Feedback done; roadmap not started    | Feedback endpoint and app wiring as built, plus the roadmap backend, schema, surface, and phasing    |
 | [Bridgeless Hue control spike](./bridgeless-hue-control-spike.md)                                     | Research complete; closed for v1      | Whether Mote can control Hue without a Bridge over Bluetooth LE or Matter, and why v1 does not       |
-| [Automation runtime](./automation-runtime-plan.md)                                                    | Proposed shared prerequisite          | Task ownership, light snapshots, recovery, conflicts, tray execution, and notifications              |
-| [Calendar integration](./calendar-integration-plan.md)                                                | Proposed                              | Calendar accounts, event rules, and calendar UX                                                      |
-| [Pomodoro focus rituals](./pomodoro-focus-rituals-plan.md)                                            | Proposed                              | Focus-session state machine and UX                                                                   |
-| [Local network presence](./local-network-presence-plan.md)                                            | Proposed                              | Presence detection and presence-rule UX                                                              |
+| [Automation runtime](./automation-runtime-plan.md)                                                    | Built, unreleased                     | Task ownership, light snapshots, recovery, conflicts, tray execution, and notifications              |
+| [Automations UX](./automations-ux-implementation-plan.md)                                             | Proposed                              | Configured overview, type chooser, guided creation, isolated drafts, and direct editing              |
+| [Calendar integration](./calendar-integration-plan.md)                                                | Subscriptions built, unreleased       | Calendar accounts, event rules, and calendar UX                                                      |
+| [Pomodoro focus rituals](./pomodoro-focus-rituals-plan.md)                                            | Built, unreleased                     | Focus-session state machine and UX                                                                   |
+| [Local network presence](./local-network-presence-plan.md)                                            | Built, unreleased (Windows)           | Presence detection and presence-rule UX                                                              |
 
 ## Boundaries that prevent duplicate work
 

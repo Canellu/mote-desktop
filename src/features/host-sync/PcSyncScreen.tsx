@@ -76,6 +76,7 @@ import {
   paletteToSelectValue,
   selectValueToPalette,
 } from "./constants";
+import { AutomationSyncNotice } from "./AutomationSyncNotice";
 import { EnablePcSyncCard } from "./EnablePcSyncCard";
 import { useHostSync } from "./useHostSync";
 
@@ -310,6 +311,7 @@ export const PcSyncScreen = ({ areaId }: { areaId: string }) => {
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-5 pb-8">
+      {!running && <AutomationSyncNotice />}
       {(actionError ?? status.error) && (
         <div
           role="alert"

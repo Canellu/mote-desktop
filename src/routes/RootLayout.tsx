@@ -3,6 +3,10 @@ import { Button } from "@/components/ui/button";
 import { useEntitlements } from "@/context/EntitlementContext";
 import { useHue } from "@/context/HueContext";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  useAutomationsHeader,
+  useRunningAutomations,
+} from "@/features/automations/useOpenAutomation";
 import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-icons";
 import { readStoredGroupingMode } from "@/features/home-screen/utils/homeLayout";
 import {
@@ -13,6 +17,11 @@ import { GroupPane } from "@/features/space-screen/components/GroupPane";
 import { LightPane } from "@/features/space-screen/components/LightPane";
 import { ScenePane } from "@/features/space-screen/components/ScenePane";
 import { useInspector } from "@/features/space-screen/hooks/useInspector";
+import {
+  INSPECTOR_TRANSITION,
+  InspectorSettleContext,
+  type InspectorSettle,
+} from "@/features/space-screen/utils/inspector-layout";
 import { cn } from "@/lib/utils";
 import {
   HueResourcesStoreEffects,
@@ -29,9 +38,13 @@ import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import {
   AnimatePresence,
+  animate,
   motion,
   useAnimate,
+  useMotionValue,
   useReducedMotion,
+  useTransform,
+  type MotionValue,
 } from "motion/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { SyncBoxSession } from "@/types/sync-box";
@@ -54,12 +67,78 @@ const getInspectorPaneWidth = () => {
   );
 };
 
+// The content keeps its `pr-12` gutter whether or not the pane is open; the
+// open pane tucks into all but PANE_GAP of it, so no padding snaps as it moves.
+const CONTENT_GUTTER = 48;
+const PANE_GAP = 8;
+
 /**
- * The inspector's real flex width animates so it continuously pushes the main
- * content aside. The full-width panel translates in from beyond the right edge
- * in sync, giving it the same movement as a sheet without using an overlay.
+ * Drives the inspector pane from one 0–1 progress value, so the width it takes
+ * from the content and the panel sliding in never drift apart. Also reports the
+ * move to the content (see `useInspectorSettleWidth`), so grids re-column once
+ * at the start instead of reshuffling as the column narrows under them.
  */
-const LightInspector: React.FC = () => {
+const useInspectorPane = (open: boolean) => {
+  const reduceMotion = useReducedMotion();
+  const [paneWidth, setPaneWidth] = useState(getInspectorPaneWidth);
+  const reach = paneWidth - (CONTENT_GUTTER - PANE_GAP);
+  const progress = useMotionValue(open ? 1 : 0);
+  const [settle, setSettle] = useState<InspectorSettle | null>(null);
+  const [wasOpen, setWasOpen] = useState(open);
+
+  // Derived during render so the content lays out at its settled width in the
+  // same commit that starts the move. Measured from wherever the pane is now,
+  // which is mid-move when a close interrupts an open.
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    setSettle(
+      reduceMotion
+        ? null
+        : {
+            id: (settle?.id ?? 0) + 1,
+            delta: (progress.get() - (open ? 1 : 0)) * reach,
+          },
+    );
+  }
+
+  useEffect(() => {
+    const updatePaneWidth = () => setPaneWidth(getInspectorPaneWidth());
+    window.addEventListener("resize", updatePaneWidth);
+    return () => window.removeEventListener("resize", updatePaneWidth);
+  }, []);
+
+  useLayoutEffect(() => {
+    let superseded = false;
+    const controls = animate(progress, open ? 1 : 0, {
+      ...INSPECTOR_TRANSITION,
+      duration: reduceMotion ? 0 : INSPECTOR_TRANSITION.duration,
+      onComplete: () => {
+        if (!superseded) setSettle(null);
+      },
+    });
+    return () => {
+      // `stop()` first ticks the animation to now, which completes it if its
+      // time is up; that must not clear the settle the next move just set.
+      superseded = true;
+      controls.stop();
+    };
+  }, [open, progress, reduceMotion]);
+
+  return { progress, paneWidth, reach, settle };
+};
+
+/**
+ * The inspector's real flex width grows so it pushes the main content aside,
+ * while the full-width panel translates in from beyond the right edge in step,
+ * giving it the movement of a sheet without using an overlay.
+ */
+const LightInspector: React.FC<{
+  open: boolean;
+  progress: MotionValue<number>;
+  paneWidth: number;
+  reach: number;
+  settling: boolean;
+}> = ({ open, progress, paneWidth, reach, settling }) => {
   const {
     lights,
     scenes,
@@ -83,7 +162,7 @@ const LightInspector: React.FC = () => {
 
   // The pane's open state and selection both live in the URL (see useInspector),
   // so mouse Back/Forward walk in and out of it like any other navigation.
-  const { selection, isOpen, close } = useInspector();
+  const { selection, close } = useInspector();
   const selectedLightId = selection?.kind === "light" ? selection.id : null;
   const selectedGroupId = selection?.kind === "group" ? selection.id : null;
   const selectedSceneId = selection?.kind === "scene" ? selection.id : null;
@@ -129,19 +208,12 @@ const LightInspector: React.FC = () => {
     syncedLightIds,
   ]);
 
-  const open = isOpen;
   const reduceMotion = useReducedMotion();
-  const [paneWidth, setPaneWidth] = useState(getInspectorPaneWidth);
-  const transition = {
-    duration: reduceMotion ? 0 : 0.3,
-    ease: [0.4, 0, 0.2, 1] as const,
-  };
-
-  useEffect(() => {
-    const updatePaneWidth = () => setPaneWidth(getInspectorPaneWidth());
-    window.addEventListener("resize", updatePaneWidth);
-    return () => window.removeEventListener("resize", updatePaneWidth);
-  }, []);
+  const width = useTransform(progress, (p) => p * reach);
+  const x = useTransform(progress, (p) => (1 - p) * paneWidth);
+  // Opaque for most of the travel: closing, the content re-laid at its wider
+  // width slides out from under the panel and mustn't ghost through it.
+  const opacity = useTransform(progress, [0, 0.4], [0, 1]);
 
   // Keep showing the last content while the panel animates closed, so it
   // doesn't blank out before it is fully clipped.
@@ -149,83 +221,79 @@ const LightInspector: React.FC = () => {
   useEffect(() => {
     if (current) setShown(current);
   }, [current]);
+  useEffect(() => {
+    if (!open && !settling) setShown(null);
+  }, [open, settling]);
 
   const content = current ?? (open ? null : shown);
   const contentKey = content ? `${content.kind}:${content.id}` : "empty";
 
   return (
-    <motion.aside
-      initial={false}
-      animate={{ width: open ? paneWidth : 0 }}
-      transition={transition}
-      className="relative shrink-0"
-      inert={!open}
-      onAnimationComplete={() => {
-        if (!open) setShown(null);
-      }}
-    >
+    <motion.aside className="relative shrink-0" style={{ width }} inert={!open}>
       <motion.div
-        initial={false}
-        animate={{
-          x: open ? 0 : paneWidth,
-          opacity: open ? 1 : 0,
-        }}
-        transition={transition}
         className="absolute inset-y-0 right-0 h-full shrink-0 p-6 pl-0"
-        style={{ width: paneWidth }}
+        style={{ width: paneWidth, x, opacity }}
       >
         <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground">
           <AnimatePresence initial={false} mode="wait">
-            <motion.div
-              key={contentKey}
-              initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{
-                duration: reduceMotion ? 0 : 0.18,
-                ease: "easeOut",
-              }}
-              className="h-full"
-            >
-              {content ? (
-                content.kind === "light" ? (
-                  <LightPane
-                    light={content.light}
-                    space={activeSpace}
-                    hueEventRevision={hueEventRevision}
-                    onClose={close}
-                    onLightToggle={(l, on) => setLightState(l, on, null)}
-                    onLightBrightness={(l, pct, phase) =>
-                      setLightState(l, pct > 0, pct, phase)
-                    }
-                    onLightColor={(l, change) => setLightColor(l, change)}
-                  />
-                ) : content.kind === "group" ? (
-                  <GroupPane
-                    roomZone={content.roomZone}
-                    lights={content.lights}
-                    hueEventRevision={hueEventRevision}
-                    onClose={close}
-                    onToggle={(g, on) => setRoomZoneState(g, on, null)}
-                    onBrightness={(g, pct, phase) =>
-                      setRoomZoneState(g, pct > 0, pct, phase)
-                    }
-                    onLightColor={(l, change) => setLightColor(l, change)}
-                  />
+            {/* Nothing renders while closed, so opening slides the content in
+                with the panel, whole; only swaps between resources fade. */}
+            {(content || open) && (
+              <motion.div
+                key={contentKey}
+                initial={
+                  shown == null
+                    ? false
+                    : { opacity: 0, y: reduceMotion ? 0 : 12 }
+                }
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{
+                  duration: reduceMotion ? 0 : 0.18,
+                  ease: "easeOut",
+                }}
+                className="h-full"
+              >
+                {content ? (
+                  content.kind === "light" ? (
+                    <LightPane
+                      light={content.light}
+                      space={activeSpace}
+                      hueEventRevision={hueEventRevision}
+                      onClose={close}
+                      onLightToggle={(l, on) => setLightState(l, on, null)}
+                      onLightBrightness={(l, pct, phase) =>
+                        setLightState(l, pct > 0, pct, phase)
+                      }
+                      onLightColor={(l, change) => setLightColor(l, change)}
+                    />
+                  ) : content.kind === "group" ? (
+                    <GroupPane
+                      roomZone={content.roomZone}
+                      lights={content.lights}
+                      hueEventRevision={hueEventRevision}
+                      onClose={close}
+                      onToggle={(g, on) => setRoomZoneState(g, on, null)}
+                      onBrightness={(g, pct, phase) =>
+                        setRoomZoneState(g, pct > 0, pct, phase)
+                      }
+                      onLightColor={(l, change) => setLightColor(l, change)}
+                    />
+                  ) : (
+                    <ScenePane scene={content.scene} onClose={close} />
+                  )
                 ) : (
-                  <ScenePane scene={content.scene} onClose={close} />
-                )
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
-                  <p className="font-heading text-lg font-medium text-foreground">
-                    Nothing selected
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Click a light or scene tile to show it here.
-                  </p>
-                </div>
-              )}
-            </motion.div>
+                  <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center">
+                    <p className="font-heading text-lg font-medium text-foreground">
+                      Nothing selected
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Click a light or scene tile to show it here.
+                    </p>
+                  </div>
+                )}
+              </motion.div>
+            )}
           </AnimatePresence>
         </div>
       </motion.div>
@@ -307,12 +375,18 @@ const ShellHeader: React.FC = () => {
     : null;
   const onDeviceDiscovery = pathname === "/settings/device-discovery";
   const onWidgetWizard = pathname === "/settings/widget-wizard";
+  const onAutomations = pathname === "/automations";
+  const onAutomationWizard = pathname === "/automations/new";
+  const automationsHeader = useAutomationsHeader();
+  const runningAutomations = useRunningAutomations();
   const onSpacesWizard = pathname === "/settings/spaces-wizard";
   const onEntertainmentWizard = pathname === "/settings/entertainment-wizard";
   const entertainmentWizardFrom = useRouterState({
     select: (s) => (s.location.search as { from?: string }).from,
   });
   const onSync = pathname === "/sync";
+  const onFocus = pathname === "/focus";
+  const onFocusWizard = pathname === "/focus/new";
   const entertainmentAreas = useEntertainmentStore((state) => state.areas);
   const placementAreaId = pathname.startsWith(
     "/settings/entertainment-placement/",
@@ -337,78 +411,103 @@ const ShellHeader: React.FC = () => {
     ? "Add devices"
     : onWidgetWizard
       ? "Create widget"
-      : onSpacesWizard
-        ? "Create room or zone"
-        : onEntertainmentWizard
-          ? "Create entertainment area"
-          : placementAreaId
-            ? "Light placement"
-            : activeSyncArea
-              ? activeSyncArea.name
-              : onSync
-                ? "Sync"
-                : pathname === "/settings"
-                  ? "Settings"
-                  : activeSpace?.name;
+      : onAutomationWizard
+        ? "Add automation"
+        : onFocusWizard
+          ? "Create a routine"
+          : onSpacesWizard
+            ? "Create room or zone"
+            : onEntertainmentWizard
+              ? "Create entertainment area"
+              : placementAreaId
+                ? "Light placement"
+                : activeSyncArea
+                  ? activeSyncArea.name
+                  : onSync
+                    ? "Sync"
+                    : onFocus
+                      ? "Focus"
+                      : onAutomations
+                        ? automationsHeader.title
+                        : pathname === "/settings"
+                          ? "Settings"
+                          : activeSpace?.name;
   const description = onDeviceDiscovery
     ? "Discover and place Hue devices"
     : onWidgetWizard
       ? "Build a pinned desktop widget"
-      : onSpacesWizard
-        ? "Group your devices and lights"
-        : onEntertainmentWizard
-          ? "Choose compatible lights and place them"
-          : placementAreaId
-            ? (placementArea?.name ?? "Place your lights around the room")
-            : activeSyncArea
-              ? "Choose what drives this entertainment area"
-              : onSync
-                ? "Light sync from this PC or the HDMI Sync Box"
-                : pathname === "/settings"
-                  ? "Bridge & app preferences"
-                  : undefined;
+      : onAutomationWizard
+        ? "Let your lights respond to your day"
+        : onFocusWizard
+          ? "A focus rhythm and the lights that keep it"
+          : onSpacesWizard
+            ? "Group your devices and lights"
+            : onEntertainmentWizard
+              ? "Choose compatible lights and place them"
+              : placementAreaId
+                ? (placementArea?.name ?? "Place your lights around the room")
+                : activeSyncArea
+                  ? "Choose what drives this entertainment area"
+                  : onSync
+                    ? "Light sync from this PC or the HDMI Sync Box"
+                    : onFocus
+                      ? "Timed sessions your lights keep time for"
+                      : onAutomations
+                        ? automationsHeader.description
+                        : pathname === "/settings"
+                          ? "Bridge & app preferences"
+                          : undefined;
   return (
     <AppHeader
       onBack={
         onHome
           ? undefined
-          : () =>
-              void (onDeviceDiscovery
-                ? navigate({ to: "/settings", search: { tab: "devices" } })
-                : placementAreaId
-                  ? navigate(
-                      placementFrom === "sync"
-                        ? {
-                            to: "/sync/$areaId",
-                            params: { areaId: placementAreaId },
-                          }
-                        : {
-                            to: "/settings",
-                            search: { tab: "entertainment" },
-                          },
-                    )
-                  : activeSyncArea
-                    ? navigate({ to: "/sync", search: { source: undefined } })
-                    : onWidgetWizard
-                      ? navigate({ to: "/settings", search: { tab: "widget" } })
-                      : onSpacesWizard
+          : onAutomations && automationsHeader.pageOpen
+            ? automationsHeader.closePage
+            : () =>
+                void (onDeviceDiscovery
+                  ? navigate({ to: "/settings", search: { tab: "devices" } })
+                  : placementAreaId
+                    ? navigate(
+                        placementFrom === "sync"
+                          ? {
+                              to: "/sync/$areaId",
+                              params: { areaId: placementAreaId },
+                            }
+                          : {
+                              to: "/settings",
+                              search: { tab: "entertainment" },
+                            },
+                      )
+                    : activeSyncArea
+                      ? navigate({ to: "/sync", search: { source: undefined } })
+                      : onWidgetWizard
                         ? navigate({
                             to: "/settings",
-                            search: { tab: "spaces" },
+                            search: { tab: "widget" },
                           })
-                        : onEntertainmentWizard
-                          ? navigate(
-                              entertainmentWizardFrom === "sync"
-                                ? {
-                                    to: "/sync",
-                                    search: { source: undefined },
-                                  }
-                                : {
-                                    to: "/settings",
-                                    search: { tab: "entertainment" },
-                                  },
-                            )
-                          : navigate({ to: "/" }))
+                        : onAutomationWizard
+                          ? navigate({ to: "/automations" })
+                          : onFocusWizard
+                            ? navigate({ to: "/focus" })
+                            : onSpacesWizard
+                              ? navigate({
+                                  to: "/settings",
+                                  search: { tab: "spaces" },
+                                })
+                              : onEntertainmentWizard
+                                ? navigate(
+                                    entertainmentWizardFrom === "sync"
+                                      ? {
+                                          to: "/sync",
+                                          search: { source: undefined },
+                                        }
+                                      : {
+                                          to: "/settings",
+                                          search: { tab: "entertainment" },
+                                        },
+                                  )
+                                : navigate({ to: "/" }))
       }
       title={title}
       description={description}
@@ -425,6 +524,14 @@ const ShellHeader: React.FC = () => {
           >
             <Plus size={20} />
             Add entertainment areas
+          </Button>
+        ) : onAutomations && !automationsHeader.pageOpen ? (
+          <Button
+            size="xl"
+            onClick={() => void navigate({ to: "/automations/new" })}
+          >
+            <Plus size={20} />
+            Add automation
           </Button>
         ) : undefined
       }
@@ -452,6 +559,9 @@ const ShellHeader: React.FC = () => {
       onTitleManage={() =>
         window.dispatchEvent(new CustomEvent("hue-space-manage-request"))
       }
+      onTitleCreateScene={() =>
+        window.dispatchEvent(new CustomEvent("hue-space-create-scene"))
+      }
       titleEditing={activeSpace != null && spaceEditMode === "customize"}
       titleManaging={activeSpace != null && spaceEditMode === "manage"}
       onCancelTitleEdit={() =>
@@ -469,6 +579,11 @@ const ShellHeader: React.FC = () => {
         void navigate({ to: "/settings", search: { tab: undefined } })
       }
       showSync={onHome}
+      showFocus={onHome}
+      onOpenFocus={() => void navigate({ to: "/focus" })}
+      showAutomations={onHome}
+      onOpenAutomations={() => void navigate({ to: "/automations" })}
+      runningAutomations={runningAutomations}
       onOpenSync={() =>
         void navigate({ to: "/sync", search: { source: undefined } })
       }
@@ -496,13 +611,19 @@ export const RootLayout: React.FC = () => {
   const routeOwnsScroll =
     pathname === "/settings" ||
     pathname === "/" ||
+    pathname === "/automations/new" ||
+    pathname === "/focus/new" ||
     (pathname.startsWith("/settings/") &&
       (pathname.endsWith("-wizard") ||
         pathname.startsWith("/settings/entertainment-placement/")));
-  // The placement editor and Home draw to the viewport edge, so the shared
-  // padding would frame them in.
+  // Focus centers its clock in the space under the header, so the content
+  // stretches to the viewport's height instead of hugging the route.
+  const routeFillsHeight = pathname === "/focus";
+  // Full-bleed editors and scrollers own their inner content padding so their
+  // canvas or scrollbar can reach the viewport edge.
   const routeIsFullBleed =
     pathname.startsWith("/settings/entertainment-placement/") ||
+    pathname === "/focus/new" ||
     pathname === "/";
   const reduceMotion = useReducedMotion();
   /**
@@ -534,6 +655,7 @@ export const RootLayout: React.FC = () => {
     select: (state) =>
       (state.location.search as { inspect?: string }).inspect != null,
   });
+  const inspectorPane = useInspectorPane(inspectorPaneOpen);
   const roomZones = useHueResourcesStore((state) => state.roomZones);
   const bridgeConnected = useHueResourcesStore(
     (state) => state.bridgeConnected,
@@ -758,30 +880,40 @@ export const RootLayout: React.FC = () => {
           </div>
         )}
         <div className="flex min-h-0 flex-1">
-          <ScrollArea
-            fade
-            hideScrollbar
-            viewportRef={viewportRef}
-            viewportProps={
-              routeOwnsScroll ? { style: { overflowY: "hidden" } } : undefined
-            }
-            className="min-h-0 min-w-0 flex-1"
-            viewportClassName={cn(
-              !routeIsFullBleed && [
-                "py-6 pl-12",
-                inspectorPaneOpen ? "pr-2" : "pr-12",
-              ],
-            )}
-            contentClassName={cn(
-              "min-w-0!",
-              routeOwnsScroll ? "h-full" : "min-h-full",
-            )}
-          >
-            <div ref={routeFade} className="h-full">
-              <Outlet />
-            </div>
-          </ScrollArea>
-          <LightInspector />
+          <InspectorSettleContext.Provider value={inspectorPane.settle}>
+            <ScrollArea
+              fade
+              hideScrollbar
+              viewportRef={viewportRef}
+              viewportProps={
+                routeOwnsScroll ? { style: { overflowY: "hidden" } } : undefined
+              }
+              className="min-h-0 min-w-0 flex-1"
+              viewportClassName={cn(!routeIsFullBleed && "px-12 py-6")}
+              contentClassName={cn(
+                "min-w-0!",
+                routeOwnsScroll
+                  ? "h-full"
+                  : routeFillsHeight
+                    ? "flex min-h-full flex-col"
+                    : "min-h-full",
+              )}
+            >
+              <div
+                ref={routeFade}
+                className={routeFillsHeight ? "flex flex-1 flex-col" : "h-full"}
+              >
+                <Outlet />
+              </div>
+            </ScrollArea>
+          </InspectorSettleContext.Provider>
+          <LightInspector
+            open={inspectorPaneOpen}
+            progress={inspectorPane.progress}
+            paneWidth={inspectorPane.paneWidth}
+            reach={inspectorPane.reach}
+            settling={inspectorPane.settle != null}
+          />
         </div>
       </div>
     </>

@@ -20,6 +20,13 @@ an app uses the microphone or camera, and lights that change when the PC locks
 or sleeps. Setting one up is free; starting one is gated in the Rust runtime,
 and whatever an automation already changed is always put back.
 
+Focus sessions, presence, and calendar rules were built on 2026-09-19 under
+the same `local_automation` capability, as the future table below had planned,
+together with the priority order that decides shared lights. Rituals, phones,
+calendars, and rules can be set up on Free, as other automations can; starting a
+session, running a presence action, and a calendar rule taking lights are
+gated in Rust. The priority order itself is not a paid setting.
+
 Desktop widgets were narrowed on 2026-09-18, by the owner's decision: Free is
 now one widget with one room, zone, or light, at the standard size, corners,
 and system theme. Until then Free had no limit on how many widgets could exist and only
@@ -81,8 +88,9 @@ Pro brings everything back as it was.
 - Global shortcuts refuse at execution, as before.
 - A PC Sync session already running is left to finish; starting the next one
   requires `pc_sync`.
-- An on-air light or away change already showing is still put back when it
-  ends; starting the next one requires `local_automation`.
+- An automation's look already showing is still put back when it ends; a
+  running focus session finishes; starting the next session, presence action,
+  or calendar rule requires `local_automation`.
 
 This document defines the initial product boundary for functionality that exists
 today and establishes rules for future paid features. Store-specific product IDs
@@ -115,7 +123,7 @@ and APIs must map into the provider-neutral capabilities defined here.
 | Hue Play HDMI Sync Box          | All current single-box discovery, pairing, source, mode, intensity, brightness, sync, restore, and removal controls     | Future workflows that combine several boxes, bridges, or automations may be Pro                                                               | —                         |
 | Desktop widgets                 | One widget with one single-target control, standard size and corners, system theme, and normal window behavior          | Any number of widgets; multiple controls or multi-target toggle groups; customize theme, size, corners, placement, pinning, and always-on-top | `advanced_widgets`        |
 | Global keyboard shortcuts       | Explain the capability and show the upgrade entry point; shortcuts can be prepared but do not fire                      | System-wide hotkeys for lights, rooms, zones, and scenes, active whenever Mote runs, including from the tray                                  | `global_shortcuts`        |
-| Automations                     | Explain the capability and show the upgrade entry point; automations can be set up but do not start                     | On-air light while an app uses the microphone or camera; dim or turn off lights when the PC locks or sleeps, and put them back on return      | `local_automation`        |
+| Automations                     | Explain the capability and show the upgrade entry point; automations can be set up but do not start; the priority order | On-air light; lights when the PC locks or sleeps; focus sessions; presence from phones on the home Wi-Fi; calendar rules                      | `local_automation`        |
 | Appearance and desktop behavior | Light/dark/system theme, close behavior, tray behavior, start-on-login, window state, and navigation                    | No current essential application setting is reserved for Pro                                                                                  | —                         |
 | About and support               | Version, legal/support links, privacy summary, release notes, diagnostics, purchase status, and restore-purchase action | No support or privacy control is reserved for Pro                                                                                             | —                         |
 
@@ -201,15 +209,14 @@ automatically when it passes.
 
 ## Future functionality
 
-| Product area                                                                         | Tier                                   | Capability                |
-| ------------------------------------------------------------------------------------ | -------------------------------------- | ------------------------- |
-| Combined multi-bridge dashboard and cross-bridge control                             | Pro                                    | `multi_bridge_control`    |
-| Calendar rules, Pomodoro rituals, and presence rules, beside the shipped automations | Pro                                    | `local_automation`        |
-| Personal Hue cloud control                                                           | Pro                                    | `personal_remote_control` |
-| Personal cloud settings sync                                                         | Pro while operating cost remains small | `personal_cloud_settings` |
-| Shared homes, invitations, and roles                                                 | Household                              | `shared_homes`            |
-| Shared settings and automations                                                      | Household                              | `shared_home_settings`    |
-| Guest command relay using an owner's Hue credential                                  | Household                              | `shared_home_relay`       |
+| Product area                                             | Tier                                   | Capability                |
+| -------------------------------------------------------- | -------------------------------------- | ------------------------- |
+| Combined multi-bridge dashboard and cross-bridge control | Pro                                    | `multi_bridge_control`    |
+| Personal Hue cloud control                               | Pro                                    | `personal_remote_control` |
+| Personal cloud settings sync                             | Pro while operating cost remains small | `personal_cloud_settings` |
+| Shared homes, invitations, and roles                     | Household                              | `shared_homes`            |
+| Shared settings and automations                          | Household                              | `shared_home_settings`    |
+| Guest command relay using an owner's Hue credential      | Household                              | `shared_home_relay`       |
 
 Future scope must be added here before implementation. A feature must not infer
 its tier from a route name, platform, Store product ID, or UI location.

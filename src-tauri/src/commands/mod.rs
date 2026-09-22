@@ -1,14 +1,17 @@
 pub mod app_settings;
 pub mod automations;
 pub mod bridges;
+pub mod calendar;
 pub mod discovery;
 pub mod entitlements;
 pub mod events;
 pub mod feedback;
+pub mod focus;
 pub mod grouped_lights;
 pub mod home_map;
 pub mod host_sync;
 pub mod lights;
+pub mod presence;
 pub mod rooms;
 pub mod scenes;
 pub mod settings;
