@@ -3,6 +3,12 @@
 Release preparation on 2026-09-23: the unsigned 0.6.0.0 MSIX builds and is
 10,589,723 bytes (SHA-256
 `A1E472D6E052E95241AB5A48CB9BC52C6BA8EE8C5369F564AE4B4936C52A9DE1`).
+The owner directed publication before a physical Hue acceptance pass. Automated
+frontend and Rust tests and the Windows release build passed, but focus,
+presence, calendar, priority handoffs with PC Sync, light restoration after a
+crash, and purchase/offline behavior have not been tested on a Store-installed
+0.6.0 build with real hardware. Follow up after publication and issue a patch
+release for any defect found.
 Submission 11 is a draft with the published 0.5.0.0 package still selected;
 0.6.0.0 has not been uploaded. The package exceeds the 10 MB threshold noted
 below from the previous browser upload. Partner Center's current package page
