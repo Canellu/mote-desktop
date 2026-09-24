@@ -121,7 +121,13 @@ Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
 
-## What's new in 0.6.0 — draft for the next submission
+## What's new in 0.6.1
+
+Creating a scene now opens its own page: pick a room or zone, place each light
+on the color or white wheel, set the brightness, and preview it on your lights
+before you save. The lights on the wheels are larger and easier to grab.
+
+## What's new in 0.6.0
 
 Focus sessions bring timed light changes and breaks to Mote Pro. Presence can
 change lights when selected phones arrive or leave your home network, and

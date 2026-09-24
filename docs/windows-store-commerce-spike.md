@@ -1,5 +1,11 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-09-25: the unsigned 0.6.1.0 MSIX builds and is
+10,589,703 bytes (SHA-256
+`3BB153D9A4A58B34F6F3CFBEDCE9768434AAC379B2F7C99476E8C43774072B0A`, tag
+`v0.6.1`). It is a patch release for the new scene editor and is not yet
+uploaded to Partner Center.
+
 Release preparation on 2026-09-23: the unsigned 0.6.0.0 MSIX builds and is
 10,589,723 bytes (SHA-256
 `A1E472D6E052E95241AB5A48CB9BC52C6BA8EE8C5369F564AE4B4936C52A9DE1`).

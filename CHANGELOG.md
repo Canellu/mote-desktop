@@ -5,6 +5,20 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.6.1] - 2026-09-25
+
+### Improvements
+
+- Creating a scene opens its own page instead of saving the lights as they
+  are. Pick a room or zone and a name, place each light on the color or white
+  wheel, set the brightness and whether the lights are on, and press Preview
+  to see it on your lights before you save. Turning Preview off puts them
+  back.
+- The lights on the color and white wheels grow with the wheel, so they are
+  easier to see and grab on a large window, here and in a room's side pane.
+- Rename and Edit placement in Settings are labelled buttons instead of bare
+  icons.
+
 ## [0.6.0] - 2026-09-23
 
 ### Highlights
