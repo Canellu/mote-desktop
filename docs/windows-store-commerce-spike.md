@@ -3,8 +3,11 @@
 Release preparation on 2026-09-25: the unsigned 0.6.1.0 MSIX builds and is
 10,589,703 bytes (SHA-256
 `3BB153D9A4A58B34F6F3CFBEDCE9768434AAC379B2F7C99476E8C43774072B0A`, tag
-`v0.6.1`). It is a patch release for the new scene editor and is not yet
-uploaded to Partner Center.
+`v0.6.1`), a patch release for the new scene editor. It went to
+certification the same day as Submission 12, replacing the 0.6.0.0 package
+and with a new "What's new", set to publish as soon as it passes. The owner
+uploaded it by drag and drop: at 10.1 MB it was over the automation's 10 MB
+file limit, and Partner Center accepted it after a retry.
 
 Release preparation on 2026-09-23: the unsigned 0.6.0.0 MSIX builds and is
 10,589,723 bytes (SHA-256
