@@ -238,22 +238,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     toast.success("Membership updated");
   };
 
-  const createScene = async (name: string, space: HueRoomZone) => {
-    setSettingsError(null);
-    try {
-      await invoke("create-hue-scene", {
-        name,
-        groupId: space.id,
-        groupType: space.resourceType,
-      });
-      await refreshSettings();
-      toast.success("Scene created from current light state");
-    } catch (error) {
-      setSettingsError(String(error) || "Unable to create scene.");
-      throw error;
-    }
-  };
-
   const saveSwitchConfig = async (
     id: string,
     body: Record<string, unknown>,
@@ -485,7 +469,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   scenes={scenes}
                   onRename={renameResource}
                   onDelete={deleteResource}
-                  onCreateScene={createScene}
+                  onCreate={() => void navigate({ to: "/settings/scenes/new" })}
                 />
               </TabsContent>
 

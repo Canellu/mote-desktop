@@ -141,8 +141,9 @@ export const EntertainmentAreasTab = ({ lights }: { lights: HueLight[] }) => {
                 actions={
                   <Button
                     type="button"
-                    size="icon"
-                    variant="ghost"
+                    size="default"
+                    variant="outline"
+                    className="gap-2"
                     aria-label={`Edit light placement for ${area.metadata.name}`}
                     title="Edit light placement"
                     onClick={() =>
@@ -154,6 +155,7 @@ export const EntertainmentAreasTab = ({ lights }: { lights: HueLight[] }) => {
                     }
                   >
                     <Move3d />
+                    Edit placement
                   </Button>
                 }
               />

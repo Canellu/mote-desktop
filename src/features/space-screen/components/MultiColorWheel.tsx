@@ -14,6 +14,11 @@ import {
 } from "@/features/space-screen/utils/wheel-color";
 import type { HueLight } from "@/types/hue";
 import { getLightIcon } from "@/features/space-screen/utils/light-icons";
+import {
+  wheelThumbClasses,
+  wheelThumbHitRadius,
+  wheelThumbStyle,
+} from "@/features/space-screen/utils/wheel-thumb";
 import { foregroundForBackground } from "@/lib/tile-theme";
 import { useEffect, useRef, useState } from "react";
 
@@ -29,10 +34,6 @@ interface MultiColorWheelProps {
 }
 
 const THROTTLE_MS = 180;
-// Half the thumb's rendered diameter (size-7 = 28px). A press within this many
-// pixels of a thumb centre drags it from where it is; a press farther away
-// grabs the nearest thumb and snaps it to the cursor.
-const THUMB_HIT_RADIUS = 14;
 const SNAP_RADIUS = 0.065;
 const EXPANDED_RING_RADIUS = 0.27;
 const EXPANDED_PAGE_SIZE = 8;
@@ -263,7 +264,7 @@ export const MultiColorWheel: React.FC<MultiColorWheelProps> = ({
         nearest = light.id;
       }
     }
-    const grabbed = best <= THUMB_HIT_RADIUS ? nearest : null;
+    const grabbed = best <= wheelThumbHitRadius(rect.width) ? nearest : null;
     activeId.current = grabbed;
     onFocusedIdChange(grabbed);
     dragOffset.current = { x: 0, y: 0 };
@@ -323,7 +324,8 @@ export const MultiColorWheel: React.FC<MultiColorWheelProps> = ({
     <div className="flex w-full flex-col gap-3">
       <div
         ref={containerRef}
-        className="relative aspect-square w-full cursor-pointer touch-none rounded-full"
+        className="@container relative aspect-square w-full cursor-pointer touch-none rounded-full"
+        style={wheelThumbStyle}
         onPointerDown={(e) => {
           e.currentTarget.setPointerCapture(e.pointerId);
           grabNearest(e.clientX, e.clientY);
@@ -461,7 +463,7 @@ export const MultiColorWheel: React.FC<MultiColorWheelProps> = ({
           return (
             <span
               key={light.id}
-              className={`absolute flex size-7 -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center border-2 border-white shadow-md ring-black/30 transition-[width,height,opacity,clip-path,box-shadow,transform] ${draggingPin || snapTarget || armedPin ? "size-10 rounded-[50%_50%_50%_0]" : "rounded-full"} ${draggingPin || snapTarget ? "opacity-75" : ""} ${selected ? "z-20 ring-2" : "z-10 ring-1"} ${focused ? "scale-110 ring-2 ring-ring" : "hover:size-8.5"}`}
+              className={`absolute flex -translate-x-1/2 -translate-y-1/2 cursor-pointer items-center justify-center border-2 border-white shadow-md ring-black/30 transition-[width,height,opacity,clip-path,box-shadow,transform] ${draggingPin || snapTarget || armedPin ? `${wheelThumbClasses.lifted} rounded-[50%_50%_50%_0]` : `${wheelThumbClasses.base} rounded-full`} ${draggingPin || snapTarget ? "opacity-75" : ""} ${selected ? "z-20 ring-2" : "z-10 ring-1"} ${focused ? "scale-110 ring-2 ring-ring" : wheelThumbClasses.hover}`}
               style={{
                 left: `${displayPin.x * 100}%`,
                 top: `${displayPin.y * 100}%`,
@@ -469,7 +471,7 @@ export const MultiColorWheel: React.FC<MultiColorWheelProps> = ({
                 color: foregroundForBackground(fill),
                 translate:
                   draggingPin || snapTarget
-                    ? "-50% calc(-50% - 28px)"
+                    ? wheelThumbClasses.liftTranslate
                     : "-50% -50%",
                 transform:
                   draggingPin || snapTarget || armedPin
@@ -497,7 +499,7 @@ export const MultiColorWheel: React.FC<MultiColorWheelProps> = ({
                 </span>
               ) : (
                 <Icon
-                  className="size-4"
+                  className={wheelThumbClasses.icon}
                   style={{
                     transform:
                       draggingPin || snapTarget || armedPin

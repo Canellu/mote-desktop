@@ -106,17 +106,19 @@ export const EditableResourceRow = ({
               </p>
             )}
           </div>
-          <div className="flex shrink-0 gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {actions}
             {showRenameAction && (
               <Button
                 type="button"
-                size="icon"
-                variant="ghost"
+                size="default"
+                variant="outline"
+                className="gap-2"
                 onClick={() => setIsEditing(true)}
                 aria-label={`Rename ${name}`}
               >
                 <Pencil />
+                Rename
               </Button>
             )}
             {onDelete && (

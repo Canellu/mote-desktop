@@ -22,6 +22,7 @@ import { preloadAppSettings } from "./features/settings-screen/appSettingsCache"
 import { RoomZoneWizardRoute } from "./routes/RoomZoneWizardRoute";
 import { RootLayout } from "./routes/RootLayout";
 import { SettingsRoute } from "./routes/SettingsRoute";
+import { CreateSceneRoute } from "./routes/CreateSceneRoute";
 import { SpaceRoute } from "./routes/SpaceRoute";
 import { SyncHubRoute } from "./routes/SyncHubRoute";
 import { WidgetWizardRoute } from "./routes/WidgetWizardRoute";
@@ -127,6 +128,12 @@ const roomZoneWizardRoute = createRoute({
   component: RoomZoneWizardRoute,
 });
 
+const createSceneRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/scenes/new",
+  component: CreateSceneRoute,
+});
+
 const entertainmentAreaWizardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/settings/entertainment-wizard",
@@ -182,6 +189,7 @@ const routeTree = rootRoute.addChildren([
   deviceDiscoveryRoute,
   widgetWizardRoute,
   roomZoneWizardRoute,
+  createSceneRoute,
   entertainmentAreaWizardRoute,
   entertainmentPlacementRoute,
   syncHubRoute,

@@ -1,17 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { hueDynamicSpeedValueToStep } from "@/lib/hue-speed";
 import type { HueRoomZone, HueScene } from "@/types/hue";
-import { Loader2, Plus } from "lucide-react";
-import { useMemo, useState, type FormEvent } from "react";
+import { Plus } from "lucide-react";
+import { useMemo } from "react";
 import { EditableResourceRow } from "../components/EditableResourceRow";
 import { EmptyText } from "../components/EmptyText";
 import { Panel } from "../components/Panel";
@@ -22,13 +13,13 @@ export const ScenesTab = ({
   scenes,
   onRename,
   onDelete,
-  onCreateScene,
+  onCreate,
 }: {
   roomZones: HueRoomZone[];
   scenes: HueScene[];
   onRename: RenameResource;
   onDelete: DeleteResource;
-  onCreateScene: (name: string, space: HueRoomZone) => Promise<void>;
+  onCreate: () => void;
 }) => {
   const spacesById = useMemo(
     () => new Map(roomZones.map((roomZone) => [roomZone.id, roomZone])),
@@ -38,7 +29,15 @@ export const ScenesTab = ({
   return (
     <div className="space-y-5">
       <Panel title="Create Scene">
-        <CreateSceneForm roomZones={roomZones} onCreateScene={onCreateScene} />
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <p className="max-w-md text-sm text-muted-foreground">
+            Arrange a room or zone's lights and save the result as a scene.
+          </p>
+          <Button type="button" onClick={onCreate}>
+            <Plus />
+            Create scene
+          </Button>
+        </div>
       </Panel>
       <Panel title="Scenes">
         <div className="grid gap-3">
@@ -55,93 +54,6 @@ export const ScenesTab = ({
         </div>
       </Panel>
     </div>
-  );
-};
-
-const CreateSceneForm = ({
-  roomZones,
-  onCreateScene,
-}: {
-  roomZones: HueRoomZone[];
-  onCreateScene: (name: string, space: HueRoomZone) => Promise<void>;
-}) => {
-  const [name, setName] = useState("");
-  const [selectedSpaceId, setSelectedSpaceId] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const items = useMemo(() => {
-    const map: Record<string, string> = {};
-    for (const space of roomZones) {
-      map[space.id] =
-        `${space.resourceType === "room" ? "Room" : "Zone"} · ${space.name}`;
-    }
-    return map;
-  }, [roomZones]);
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    const trimmed = name.trim();
-    const space = roomZones.find(
-      (candidate) => candidate.id === selectedSpaceId,
-    );
-    if (!trimmed || !space || isSaving) return;
-    setIsSaving(true);
-    try {
-      await onCreateScene(trimmed, space);
-      setName("");
-      setSelectedSpaceId(null);
-    } catch {
-      // Surfaced by the orchestrator in the shared settings error banner.
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <form
-      className="grid items-end gap-3 sm:grid-cols-[1fr_auto_auto]"
-      onSubmit={(event) => void submit(event)}
-    >
-      <div className="grid gap-2">
-        <Label htmlFor="scene-name">Scene name</Label>
-        <Input
-          id="scene-name"
-          size="lg"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          placeholder="Enter scene name"
-          disabled={isSaving}
-        />
-      </div>
-      <div className="grid gap-2">
-        <Label htmlFor="scene-space">Room or zone</Label>
-        <Select
-          items={items}
-          value={selectedSpaceId}
-          onValueChange={(value) => setSelectedSpaceId(value as string | null)}
-          disabled={isSaving}
-        >
-          <SelectTrigger id="scene-space" className="h-10 w-full sm:w-56">
-            <SelectValue placeholder="Choose a space" />
-          </SelectTrigger>
-          <SelectContent>
-            {roomZones.map((space) => (
-              <SelectItem key={space.id} value={space.id}>
-                {space.resourceType === "room" ? "Room" : "Zone"} · {space.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <Button
-        type="submit"
-        className="gap-2"
-        disabled={!name.trim() || !selectedSpaceId || isSaving}
-      >
-        {isSaving ? <Loader2 className="animate-spin" /> : <Plus />}
-        Save scene
-      </Button>
-    </form>
   );
 };
 

@@ -380,6 +380,7 @@ const ShellHeader: React.FC = () => {
   const automationsHeader = useAutomationsHeader();
   const runningAutomations = useRunningAutomations();
   const onSpacesWizard = pathname === "/settings/spaces-wizard";
+  const onCreateScene = pathname === "/settings/scenes/new";
   const onEntertainmentWizard = pathname === "/settings/entertainment-wizard";
   const entertainmentWizardFrom = useRouterState({
     select: (s) => (s.location.search as { from?: string }).from,
@@ -417,21 +418,23 @@ const ShellHeader: React.FC = () => {
           ? "Create a routine"
           : onSpacesWizard
             ? "Create room or zone"
-            : onEntertainmentWizard
-              ? "Create entertainment area"
-              : placementAreaId
-                ? "Light placement"
-                : activeSyncArea
-                  ? activeSyncArea.name
-                  : onSync
-                    ? "Sync"
-                    : onFocus
-                      ? "Focus"
-                      : onAutomations
-                        ? automationsHeader.title
-                        : pathname === "/settings"
-                          ? "Settings"
-                          : activeSpace?.name;
+            : onCreateScene
+              ? "Create scene"
+              : onEntertainmentWizard
+                ? "Create entertainment area"
+                : placementAreaId
+                  ? "Light placement"
+                  : activeSyncArea
+                    ? activeSyncArea.name
+                    : onSync
+                      ? "Sync"
+                      : onFocus
+                        ? "Focus"
+                        : onAutomations
+                          ? automationsHeader.title
+                          : pathname === "/settings"
+                            ? "Settings"
+                            : activeSpace?.name;
   const description = onDeviceDiscovery
     ? "Discover and place Hue devices"
     : onWidgetWizard
@@ -442,21 +445,23 @@ const ShellHeader: React.FC = () => {
           ? "A focus rhythm and the lights that keep it"
           : onSpacesWizard
             ? "Group your devices and lights"
-            : onEntertainmentWizard
-              ? "Choose compatible lights and place them"
-              : placementAreaId
-                ? (placementArea?.name ?? "Place your lights around the room")
-                : activeSyncArea
-                  ? "Choose what drives this entertainment area"
-                  : onSync
-                    ? "Light sync from this PC or the HDMI Sync Box"
-                    : onFocus
-                      ? "Timed sessions your lights keep time for"
-                      : onAutomations
-                        ? automationsHeader.description
-                        : pathname === "/settings"
-                          ? "Bridge & app preferences"
-                          : undefined;
+            : onCreateScene
+              ? "Arrange a room or zone's lights"
+              : onEntertainmentWizard
+                ? "Choose compatible lights and place them"
+                : placementAreaId
+                  ? (placementArea?.name ?? "Place your lights around the room")
+                  : activeSyncArea
+                    ? "Choose what drives this entertainment area"
+                    : onSync
+                      ? "Light sync from this PC or the HDMI Sync Box"
+                      : onFocus
+                        ? "Timed sessions your lights keep time for"
+                        : onAutomations
+                          ? automationsHeader.description
+                          : pathname === "/settings"
+                            ? "Bridge & app preferences"
+                            : undefined;
   return (
     <AppHeader
       onBack={
@@ -495,19 +500,24 @@ const ShellHeader: React.FC = () => {
                                   to: "/settings",
                                   search: { tab: "spaces" },
                                 })
-                              : onEntertainmentWizard
-                                ? navigate(
-                                    entertainmentWizardFrom === "sync"
-                                      ? {
-                                          to: "/sync",
-                                          search: { source: undefined },
-                                        }
-                                      : {
-                                          to: "/settings",
-                                          search: { tab: "entertainment" },
-                                        },
-                                  )
-                                : navigate({ to: "/" }))
+                              : onCreateScene
+                                ? navigate({
+                                    to: "/settings",
+                                    search: { tab: "scenes" },
+                                  })
+                                : onEntertainmentWizard
+                                  ? navigate(
+                                      entertainmentWizardFrom === "sync"
+                                        ? {
+                                            to: "/sync",
+                                            search: { source: undefined },
+                                          }
+                                        : {
+                                            to: "/settings",
+                                            search: { tab: "entertainment" },
+                                          },
+                                    )
+                                  : navigate({ to: "/" }))
       }
       title={title}
       description={description}
@@ -618,12 +628,14 @@ export const RootLayout: React.FC = () => {
         pathname.startsWith("/settings/entertainment-placement/")));
   // Focus centers its clock in the space under the header, so the content
   // stretches to the viewport's height instead of hugging the route.
-  const routeFillsHeight = pathname === "/focus";
+  const routeFillsHeight =
+    pathname === "/focus" || pathname === "/settings/scenes/new";
   // Full-bleed editors and scrollers own their inner content padding so their
   // canvas or scrollbar can reach the viewport edge.
   const routeIsFullBleed =
     pathname.startsWith("/settings/entertainment-placement/") ||
     pathname === "/focus/new" ||
+    pathname === "/settings/scenes/new" ||
     pathname === "/";
   const reduceMotion = useReducedMotion();
   /**
@@ -883,7 +895,7 @@ export const RootLayout: React.FC = () => {
           <InspectorSettleContext.Provider value={inspectorPane.settle}>
             <ScrollArea
               fade
-              hideScrollbar
+              hideScrollbar={pathname !== "/settings/scenes/new"}
               viewportRef={viewportRef}
               viewportProps={
                 routeOwnsScroll ? { style: { overflowY: "hidden" } } : undefined

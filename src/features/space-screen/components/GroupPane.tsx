@@ -1,26 +1,15 @@
 import { PacedSlider } from "@/components/PacedSlider";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-icons";
 import { roomZoneTileColor } from "@/features/space-screen/utils/color-state";
 import { activeTileTheme } from "@/lib/tile-theme";
 import { cn } from "@/lib/utils";
 import type { LightColorChange } from "@/stores/HueResourcesStore";
 import type { HueLight, HueRoomZone } from "@/types/hue";
-import { useEffect, useMemo, useState } from "react";
-import { GroupLightRail } from "./GroupLightRail";
-import { MultiColorWheel } from "./MultiColorWheel";
-import { MultiTemperatureWheel } from "./MultiTemperatureWheel";
+import { GroupLightWheels } from "./GroupLightWheels";
 import { SidePane } from "./SidePane";
 
 type ControlCommitPhase = "live" | "final";
-
-type Tab = "color" | "kelvin";
-
-const TAB_LABELS: Record<Tab, string> = {
-  color: "Color",
-  kelvin: "White",
-};
 
 interface GroupPaneProps {
   roomZone: HueRoomZone;
@@ -52,39 +41,6 @@ export const GroupPane: React.FC<GroupPaneProps> = ({
   onBrightness,
   onLightColor,
 }) => {
-  const colorLights = useMemo(
-    () => lights.filter((light) => light.supportsColor),
-    [lights],
-  );
-  const ctLights = useMemo(
-    () => lights.filter((light) => light.supportsCt),
-    [lights],
-  );
-
-  const availableTabs = useMemo<Tab[]>(() => {
-    const tabs: Tab[] = [];
-    if (colorLights.length > 0) tabs.push("color");
-    if (ctLights.length > 0) tabs.push("kelvin");
-    return tabs;
-  }, [colorLights.length, ctLights.length]);
-
-  const [tab, setTab] = useState<Tab>("color");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [focusedId, setFocusedId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const memberIds = new Set(lights.map((light) => light.id));
-    setSelectedIds(
-      (current) => new Set([...current].filter((id) => memberIds.has(id))),
-    );
-  }, [lights]);
-
-  useEffect(() => {
-    if (availableTabs.length > 0 && !availableTabs.includes(tab)) {
-      setTab(availableTabs[0]);
-    }
-  }, [availableTabs, tab]);
-
   const onLights = lights.filter((light) => light.isOn);
   const anyOn = onLights.length > 0;
   const brightnessPct =
@@ -154,93 +110,19 @@ export const GroupPane: React.FC<GroupPaneProps> = ({
         />
       </div>
 
-      {availableTabs.length > 0 && (
-        <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
-          {availableTabs.length > 1 && (
-            <TabsList className="w-full">
-              {availableTabs.map((id) => (
-                <TabsTrigger key={id} value={id}>
-                  {TAB_LABELS[id]}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          )}
-
-          {colorLights.length > 0 && (
-            <TabsContent
-              value="color"
-              className="flex w-full flex-col gap-4 p-8"
-            >
-              <MultiColorWheel
-                lights={colorLights}
-                selectedIds={selectedIds}
-                focusedId={focusedId}
-                onFocusedIdChange={setFocusedId}
-                onPickMany={(picks) =>
-                  picks.forEach(({ light, xy, vividHex }) =>
-                    onLightColor(light, { xy, vividHex }),
-                  )
-                }
-              />
-              <GroupLightRail
-                lights={colorLights}
-                selectedIds={selectedIds}
-                focusedId={focusedId}
-                onToggle={(id) =>
-                  setSelectedIds((current) => {
-                    const next = new Set(current);
-                    if (next.has(id)) next.delete(id);
-                    else next.add(id);
-                    return next;
-                  })
-                }
-                onSelectAll={() =>
-                  setSelectedIds(new Set(colorLights.map((light) => light.id)))
-                }
-                onClear={() => setSelectedIds(new Set())}
-                onFocusedIdChange={setFocusedId}
-              />
-            </TabsContent>
-          )}
-
-          {ctLights.length > 0 && (
-            <TabsContent
-              value="kelvin"
-              className="flex w-full flex-col gap-4 p-8"
-            >
-              <MultiTemperatureWheel
-                lights={ctLights}
-                selectedIds={selectedIds}
-                focusedId={focusedId}
-                onFocusedIdChange={setFocusedId}
-                onPickMany={(picks) =>
-                  picks.forEach(({ light, value }) =>
-                    onLightColor(light, { ct: value }),
-                  )
-                }
-              />
-              <GroupLightRail
-                lights={ctLights}
-                selectedIds={selectedIds}
-                focusedId={focusedId}
-                onToggle={(id) =>
-                  setSelectedIds((current) => {
-                    const next = new Set(current);
-                    if (next.has(id)) next.delete(id);
-                    else next.add(id);
-                    return next;
-                  })
-                }
-                onSelectAll={() =>
-                  setSelectedIds(new Set(ctLights.map((light) => light.id)))
-                }
-                onClear={() => setSelectedIds(new Set())}
-                onFocusedIdChange={setFocusedId}
-              />
-            </TabsContent>
-          )}
-        </Tabs>
-      )}
+      <GroupLightWheels
+        lights={lights}
+        onColorPickMany={(picks) =>
+          picks.forEach(({ light, xy, vividHex }) =>
+            onLightColor(light, { xy, vividHex }),
+          )
+        }
+        onTemperaturePickMany={(picks) =>
+          picks.forEach(({ light, value }) =>
+            onLightColor(light, { ct: value }),
+          )
+        }
+      />
     </div>
   );
 

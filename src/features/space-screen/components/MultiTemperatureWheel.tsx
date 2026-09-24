@@ -9,6 +9,11 @@ import {
 } from "@/features/space-screen/utils/wheel-color";
 import type { HueLight } from "@/types/hue";
 import { getLightIcon } from "@/features/space-screen/utils/light-icons";
+import {
+  wheelThumbClasses,
+  wheelThumbHitRadius,
+  wheelThumbStyle,
+} from "@/features/space-screen/utils/wheel-thumb";
 import { foregroundForBackground } from "@/lib/tile-theme";
 import { useEffect, useRef, useState } from "react";
 
@@ -24,7 +29,6 @@ interface MultiTemperatureWheelProps {
 const DEFAULT_CT_MIN = 153;
 const DEFAULT_CT_MAX = 500;
 const THROTTLE_MS = 180;
-const THUMB_HIT_RADIUS = 14;
 const SNAP_RADIUS = 0.065;
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
@@ -227,7 +231,7 @@ export const MultiTemperatureWheel: React.FC<MultiTemperatureWheelProps> = ({
         nearest = light.id;
       }
     });
-    const grabbed = best <= THUMB_HIT_RADIUS ? nearest : null;
+    const grabbed = best <= wheelThumbHitRadius(rect.width) ? nearest : null;
     activeId.current = grabbed;
     onFocusedIdChange(grabbed);
     dragOffset.current = { x: 0, y: 0 };
@@ -236,7 +240,8 @@ export const MultiTemperatureWheel: React.FC<MultiTemperatureWheelProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative aspect-square w-full cursor-pointer touch-none rounded-full"
+      className="@container relative aspect-square w-full cursor-pointer touch-none rounded-full"
+      style={wheelThumbStyle}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         grabNearest(e.clientX, e.clientY);
@@ -316,7 +321,7 @@ export const MultiTemperatureWheel: React.FC<MultiTemperatureWheelProps> = ({
         return (
           <span
             key={light.id}
-            className={`absolute flex size-7 cursor-pointer items-center justify-center border-2 border-white shadow-md ring-black/30 transition-[width,height,opacity,border-radius,box-shadow,transform] ${draggingPin || snapTarget ? "size-10 rounded-[50%_50%_50%_0] opacity-75" : "rounded-full"} ${selected ? "z-20 ring-2" : "z-10 ring-1"} ${focused ? "scale-110 ring-2 ring-ring" : "hover:size-8.5"}`}
+            className={`absolute flex cursor-pointer items-center justify-center border-2 border-white shadow-md ring-black/30 transition-[width,height,opacity,border-radius,box-shadow,transform] ${draggingPin || snapTarget ? `${wheelThumbClasses.lifted} rounded-[50%_50%_50%_0] opacity-75` : `${wheelThumbClasses.base} rounded-full`} ${selected ? "z-20 ring-2" : "z-10 ring-1"} ${focused ? "scale-110 ring-2 ring-ring" : wheelThumbClasses.hover}`}
             style={{
               left: `${displayPin.x * 100}%`,
               top: `${displayPin.y * 100}%`,
@@ -324,7 +329,7 @@ export const MultiTemperatureWheel: React.FC<MultiTemperatureWheelProps> = ({
               color: foregroundForBackground(fill),
               translate:
                 draggingPin || snapTarget
-                  ? "-50% calc(-50% - 28px)"
+                  ? wheelThumbClasses.liftTranslate
                   : "-50% -50%",
               transform:
                 draggingPin || snapTarget ? "rotate(-45deg)" : undefined,
@@ -335,7 +340,7 @@ export const MultiTemperatureWheel: React.FC<MultiTemperatureWheelProps> = ({
             }}
           >
             <Icon
-              className="size-4"
+              className={wheelThumbClasses.icon}
               style={{
                 transform:
                   draggingPin || snapTarget ? "rotate(45deg)" : undefined,
