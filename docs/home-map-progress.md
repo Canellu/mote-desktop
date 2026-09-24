@@ -1,6 +1,6 @@
 # Home Map implementation progress
 
-Updated: **2026-09-08**. Branch: `codex/home-map-foundation`.
+Updated: **2026-09-24**. The foundation branch is merged into `main`.
 
 The [UX plan](./home-map-plan.md) defines the intended complete experience.
 Each chunk gets its own focused verification and commit. Existing unrelated

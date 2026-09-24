@@ -1,7 +1,10 @@
 # Plan: Microsoft Store Release
 
-Status: **in progress; MSIX selected and Partner Center conversion complete**.
-Last reviewed: **2026-09-01**.
+Status: **0.6.0.0 is live in the Store** (confirmed installed by the owner
+on 2026-09-24). Package-level history lives in the
+[Store packaging and commerce spike](./windows-store-commerce-spike.md).
+Last reviewed: **2026-09-24**. The phase checklists below predate the first
+publication and have not been re-ticked item by item.
 
 ## Goal
 
@@ -33,44 +36,28 @@ workflow so normal development and non-Store bundling remain unchanged.
 
 ## Current repository state
 
-Ready or substantially ready:
+As of 2026-09-24:
 
 - The source identity is **Mote Desktop**, publisher **Anton Vo**, identifier
-  `com.motedesktop.mote`, and package/crate name `mote-desktop`.
-- Local Hue control is implemented.
-- HDMI Sync Box support is marked complete.
-- PC-hosted entertainment sync is complete for the Windows launch scope.
-- Windows icons and Tauri bundling are present.
-- Application version is currently `0.1.0` across the main manifests.
-- The initial provider-neutral Rust entitlement foundation defines the four
-  launch capabilities, normalized active/inactive/unknown states, structured
-  authorization errors, a fail-closed provider, and backend unit tests.
-- The Windows Store diagnostic compiles and confirms that unpackaged execution
-  has no package identity and cannot discover associated durable products. The
-  normal Tauri release executable still builds with the Store API dependency.
-- A parameterized local MSIX spike pipeline builds, packages, signs, and
-  validates the full-trust x64 app without changing normal Tauri/NSIS settings.
-  Partner Center support can assist with conversion if requested. Store identity,
-  Store association, durable-add-on behavior, install/update/uninstall, and
-  native capability tests remain pending.
-
-Release blockers:
-
-- An EXE/MSI Partner Center product and draft submission exist under the
-  reserved name **Mote Desktop**.
-- No Store-specific offline WebView2 configuration exists.
-- No production code-signing configuration or protected signing pipeline exists.
-- No immutable installer hosting or update manifest/channel exists.
-- No Store entitlement adapter, managed entitlement IPC, paid-command
-  enforcement, or frontend purchase/locked-state flow exists yet.
+  `com.motedesktop.mote`, and package/crate name `mote-desktop`. The manifests
+  are at `0.6.0`, tagged `v0.6.0`.
+- The app ships to the Store as an MSIX. 0.6.0.0 is published; the Mote Pro
+  durable add-on is live, with a 14-day reverse trial. Entitlements are
+  enforced in Rust and the purchase flow opens the Store window.
+- Privacy Policy, Terms of Use, and Support are published at
+  `motedesktop.com/privacy`, `/terms`, and `/support` and linked from About &
+  Support. In-app feedback posts to `motedesktop.com/api/feedback`.
 - Production CSP and least-privilege opener capabilities are implemented; see
   the [security hardening audit](./security-hardening-audit.md).
-- Privacy Policy, Terms/license terms, Support page, feedback, analytics, and
-  crash reporting are planned but not implemented.
-- Initial Partner Center properties, declarations, certification notes, system
-  requirements, and IARC ratings are saved. Final listing copy, screenshots,
-  logos, live URLs, and the package are not ready.
+
+Open items:
+
+- Purchase, restore, offline licensing, the trial surviving a reinstall, and
+  the startup task are unverified on a Store-installed build.
+- 0.6.0's focus, presence, calendar, priority handoffs with PC Sync, and crash
+  restoration have not had a physical Hue acceptance pass.
 - A repeatable clean-machine release acceptance run has not been documented.
+- Automatic analytics and crash reporting are not implemented.
 
 ## Phase 0: Product and publisher decisions
 

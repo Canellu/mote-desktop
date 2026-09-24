@@ -1,6 +1,6 @@
 # Hue Pomodoro / Focus Rituals
 
-Status: **built after 0.5.0, not yet released**.
+Status: **shipped in 0.6.0**.
 
 ## As built
 

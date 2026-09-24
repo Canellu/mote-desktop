@@ -1,7 +1,6 @@
 # Local Calendar Integration
 
-Status: **v1 built after 0.5.0 as calendar subscriptions, not yet
-released**. The OAuth providers, CalDAV, and the calendar views below remain
+Status: **v1 shipped in 0.6.0 as calendar subscriptions**. The OAuth providers, CalDAV, and the calendar views below remain
 proposed.
 
 ## As built

@@ -1,6 +1,6 @@
 # Plan index
 
-Last reviewed: **2026-09-19**.
+Last reviewed: **2026-09-24**.
 
 The product name is **Mote Desktop**, the publisher display name is **Anton
 Vo**, the permanent application identifier is `com.motedesktop.mote`, and
@@ -12,7 +12,7 @@ fallback shortlist is recorded in the Microsoft Store release plan.
 
 | Plan                                                                                                  | Status                                | Owns                                                                                                 |
 | ----------------------------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [Microsoft Store release](./microsoft-store-release-plan.md)                                          | In progress                           | Windows launch identity, packaging, signing, validation, listing, certification, and operations      |
+| [Microsoft Store release](./microsoft-store-release-plan.md)                                          | 0.6.0 live                            | Windows launch identity, packaging, signing, validation, listing, certification, and operations      |
 | [Sync Box](./sync-box-plan.md)                                                                        | Complete                              | Existing single-Sync-Box implementation record                                                       |
 | [PC Sync](./pc-sync-plan.md)                                                                          | Complete for Windows launch           | Screen/audio capture and entertainment streaming                                                     |
 | [Multi-bridge dashboard and PC Sync](./multi-bridge-experience-plan.md)                               | Future                                | Combined bridge views, cross-bridge control, and PC Sync behavior across bridge switches             |
@@ -20,20 +20,20 @@ fallback shortlist is recorded in the Microsoft Store release plan.
 | [Per-bridge Sync Box](./per-bridge-sync-box-plan.md)                                                  | Proposed                              | Multiple Sync Boxes and bridge association                                                           |
 | [Cloud control](./cloud-control-plan.md)                                                              | Proposed                              | Hue OAuth, token broker, and local/cloud transport                                                   |
 | [Homes and membership](./homes-and-membership-plan.md)                                                | Vision                                | Product identity, homes, members, roles, and relay model                                             |
-| [Home Map](./home-map-plan.md)                                                                        | Proposed                              | Quick and measured floor plans, room editing, light placement, and map-based lighting controls       |
+| [Home Map](./home-map-plan.md)                                                                        | In progress; dev builds only          | Quick and measured floor plans, room editing, light placement, and map-based lighting controls       |
 | [Monetization and backend stack](./monetization-and-stack-plan.md)                                    | Product direction decided             | Auth/backend/payment choices and entitlements                                                        |
 | [Free, Pro, and Household feature matrix](./free-pro-feature-matrix.md)                               | Initial product decision              | Current and future tier boundaries, capabilities, downgrade, offline, and grandfathering rules       |
 | [Windows Store packaging and commerce spike](./windows-store-commerce-spike.md)                       | MSIX selected; validation in progress | MSIX feasibility, Microsoft durable add-on proof, native capability smoke test, and package decision |
-| [Website launch](./website-launch-plan.md)                                                            | Planned                               | Public marketing, pricing, legal, support, domain, email DNS, and Cloudflare Pages deployment        |
+| [Website launch](./website-launch-plan.md)                                                            | Live at motedesktop.com               | Public marketing, pricing, legal, support, domain, email DNS, and Cloudflare Pages deployment        |
 | [Feedback, analytics, and legal](./feedback-analytics-and-legal-plan.md)                              | Feedback shipped; telemetry proposed  | Feedback privacy model, proposed telemetry, optional contact email, and legal surfaces               |
 | [Feature voting, public roadmap, and release history](./feedback-roadmap-and-release-history-plan.md) | Future                                | Public feature requests, voting, roadmap statuses, What's New, and version-linked release history    |
 | [Feedback and public roadmap delivery](./feedback-and-roadmap-delivery-plan.md)                       | Feedback done; roadmap not started    | Feedback endpoint and app wiring as built, plus the roadmap backend, schema, surface, and phasing    |
 | [Bridgeless Hue control spike](./bridgeless-hue-control-spike.md)                                     | Research complete; closed for v1      | Whether Mote can control Hue without a Bridge over Bluetooth LE or Matter, and why v1 does not       |
-| [Automation runtime](./automation-runtime-plan.md)                                                    | Built, unreleased                     | Task ownership, light snapshots, recovery, conflicts, tray execution, and notifications              |
-| [Automations UX](./automations-ux-implementation-plan.md)                                             | Proposed                              | Configured overview, type chooser, guided creation, isolated drafts, and direct editing              |
-| [Calendar integration](./calendar-integration-plan.md)                                                | Subscriptions built, unreleased       | Calendar accounts, event rules, and calendar UX                                                      |
-| [Pomodoro focus rituals](./pomodoro-focus-rituals-plan.md)                                            | Built, unreleased                     | Focus-session state machine and UX                                                                   |
-| [Local network presence](./local-network-presence-plan.md)                                            | Built, unreleased (Windows)           | Presence detection and presence-rule UX                                                              |
+| [Automation runtime](./automation-runtime-plan.md)                                                    | Shipped in 0.6.0                      | Task ownership, light snapshots, recovery, conflicts, tray execution, and notifications              |
+| [Automations UX](./automations-ux-implementation-plan.md)                                             | Shipped in 0.6.0                      | Configured overview, type chooser, guided creation, isolated drafts, and direct editing              |
+| [Calendar integration](./calendar-integration-plan.md)                                                | Subscriptions shipped in 0.6.0        | Calendar accounts, event rules, and calendar UX                                                      |
+| [Pomodoro focus rituals](./pomodoro-focus-rituals-plan.md)                                            | Shipped in 0.6.0                      | Focus-session state machine and UX                                                                   |
+| [Local network presence](./local-network-presence-plan.md)                                            | Shipped in 0.6.0 (Windows)            | Presence detection and presence-rule UX                                                              |
 
 ## Boundaries that prevent duplicate work
 

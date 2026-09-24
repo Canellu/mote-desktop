@@ -2,7 +2,7 @@
 
 Status: **release-candidate draft; update from acceptance testing**.
 
-Last reviewed: **2026-09-11**.
+Last reviewed: **2026-09-24**.
 
 - The first release supports Windows 10 and Windows 11 on x64 PCs only.
 - Hue control is local-network-first. The PC and Hue Bridge must normally be on
@@ -28,10 +28,10 @@ Last reviewed: **2026-09-11**.
   enforced as of 2026-09-11, automations from 2026-09-15.
 - Automations run only while Mote is running, including in the tray. The
   on-air light follows Windows' own record of microphone and camera use, so an
-  app that keeps the microphone open outside calls has to be ignored in
-  Settings. Shutting down or restarting the PC does not count as stepping away,
+  app that keeps the microphone open outside calls has to be ignored in the
+  on-air automation. Shutting down or restarting the PC does not count as stepping away,
   and on PCs with Modern Standby, sleep is noticed only once the PC locks.
-- Unreleased (after 0.5.0): focus sessions end when Mote quits. Presence works
+- Focus sessions end when Mote quits. Presence works
   on the PC's home network only, and a sleeping phone can take a few minutes
   to answer; a phone that rotates its private Wi-Fi address has to be set to a
   fixed one for that network. Calendars are iCal addresses only: there is no
@@ -43,12 +43,11 @@ Last reviewed: **2026-09-11**.
 - The custom dashboard layout is enforced in the interface only. It is stored
   locally with no backend command behind it, unlike every other paid
   capability.
-- Mote Pro cannot be bought yet. The durable add-on was submitted on 2026-09-11
-  and publishes manually, so until it is published the app has no Pro to sell
-  and every gated capability refuses.
+- Mote Pro is a durable Store add-on, live since 2026-09-13. Purchase,
+  restore, offline licensing, and the trial surviving a reinstall have not
+  yet been verified on a Store-installed build.
 - Mote accounts, shared homes, cloud control, Household subscriptions, and
-  public roadmap voting are not included. Calendar rules, focus sessions, and
-  presence are built but not in 0.5.0.
-- The first release does not include automatic analytics, automatic crash
-  uploads, or a hosted in-app feedback uploader. The persistent feedback action
-  prepares an editable email in the user's default email app.
+  public roadmap voting are not included.
+- Mote does not include automatic analytics or automatic crash uploads.
+  Feedback is sent only when the user submits it, through the in-app form to
+  motedesktop.com, after local redaction; the contact email is optional.

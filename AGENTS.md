@@ -161,17 +161,20 @@ Theme preference is persisted as `themeMode` in `localStorage`. Valid values are
 
 ## Rust Backend
 
-Tauri commands live in `src-tauri/src/commands/`:
+Tauri commands live in `src-tauri/src/commands/`, one module per domain. Each
+command's IPC name is in its `#[tauri::command(rename = "...")]` attribute;
+grep there rather than relying on a list here.
 
-- `discovery.rs` - `discover-bridges`, `pair-bridge`, `get-hue-session`,
-  `reset-hue-session`
-- `lights.rs` - `get-hue-lights`, `set-light-state`, `set-light-color`
-- `rooms.rs` - `get-hue-rooms`
-- `zones.rs` - `get-hue-zones`
-- `grouped_lights.rs` - `set-grouped-light-state`
-- `scenes.rs` - `get-hue-scenes`, `activate-scene`
-- `events.rs` - `start-hue-events`, `stop-hue-events`; guarded by managed
-  `EventStreamState` so only one background SSE task runs.
+- Hue resources: `discovery`, `bridges`, `lights`, `rooms`, `zones`,
+  `grouped_lights`, `scenes`, `settings` (resource CRUD, device discovery,
+  switch configuration), and `events` (SSE, guarded by managed
+  `EventStreamState` so only one background task runs).
+- Entertainment: `host_sync` (PC Sync) and `sync_box`.
+- Automations: `automations` (on-air, away, priority), `focus`, `presence`,
+  and `calendar`, all backed by `services/automations/`.
+- App shell: `app_settings`, `widget`, `shortcuts`, `home_map`, `feedback`,
+  `entitlements` (Mote Pro and the trial), and `store_commerce` (Store
+  updates).
 
 `src-tauri/src/services/hue_client.rs` is the core Hue bridge client. It handles:
 
@@ -202,17 +205,15 @@ It sends `hue-application-key` and `Accept: text/event-stream`, uses a streaming
 reqwest client with no request timeout, accepts the bridge self-signed cert, and
 reconnects with a 3s backoff.
 
-The backend emits `hue-event` carrying `Vec<HueEventUpdate>`. Updates include:
+The backend emits `hue-event` carrying `Vec<HueEventUpdate>` (see
+`services/hue_client.rs`). Updates carry `type`, `id`, and whichever live
+state changed — `on`, `brightness`, `xy`, `mirek`, color mode, effects, and
+dynamics — plus `resources_changed` when metadata or membership changed and
+windows must reload their snapshot.
 
-- `type`
-- `id`
-- `on`
-- `brightness`
-- `xy`
-- `mirek`
-
-`HueResourcesProvider` matches `grouped_light` updates by
-`id === roomZone.groupedLightId` and `light` updates by `id === light.id`.
+The zustand `useHueResourcesStore` (`src/stores/HueResourcesStore.tsx`)
+matches `grouped_light` updates by `id === roomZone.groupedLightId` and
+`light` updates by `id === light.id`.
 
 ## Build-Time Configuration
 

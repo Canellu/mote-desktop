@@ -1,10 +1,11 @@
 # Plan: Shared Automation Runtime
 
-Status: **built after 0.5.0, not yet released**. The on-air light and the
-away automation shipped on the first version in 0.4.1/0.5.0. The ownership
-rework, the user-ordered priority, the crash-safe journal, PC Sync
-coordination, and the three consumers (Focus, presence, calendar) described
-below are built and tested, and wait for the next release.
+Status: **shipped in 0.6.0** (live in the Store on 2026-09-24). The
+on-air light and the away automation shipped on the first version in
+0.4.1/0.5.0. The ownership rework, the user-ordered priority, the crash-safe
+journal, PC Sync coordination, and the three consumers (Focus, presence,
+calendar) described below shipped in 0.6.0. They passed automated tests but
+have not had a physical Hue acceptance pass on a Store-installed build.
 
 ## Goal
 

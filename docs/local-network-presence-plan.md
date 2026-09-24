@@ -1,6 +1,6 @@
 # Local Network Presence Plan
 
-Status: **built after 0.5.0, not yet released** (Windows).
+Status: **shipped in 0.6.0** (Windows).
 
 ## As built
 

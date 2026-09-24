@@ -9,17 +9,15 @@ presence, calendar, priority handoffs with PC Sync, light restoration after a
 crash, and purchase/offline behavior have not been tested on a Store-installed
 0.6.0 build with real hardware. Follow up after publication and issue a patch
 release for any defect found.
-Submission 11 is a draft with the published 0.5.0.0 package still selected;
-0.6.0.0 has not been uploaded. The package exceeds the 10 MB threshold noted
-below from the previous browser upload. Partner Center's current package page
-does not state that threshold, so confirm its actual upload behavior before
-changing release optimization or treating 0.6.0.0 as spent.
+On 2026-09-24 the owner confirmed 0.6.0.0 is live in the Store and installed
+it from there, so the 10.6 MB package was accepted despite the 10 MB
+threshold noted below. The hardware acceptance pass above is still owed.
 
-Status: **0.5.0.0 is live in the Store, and the Mote Pro add-on is live at NOK
+Status: **0.6.0.0 is live in the Store, and the Mote Pro add-on is live at NOK
 149. Purchase, restore, offline licensing, the trial surviving a reinstall,
 and the startup task are still unverified on a Store-installed build.**
 
-Last reviewed: **2026-09-23**.
+Last reviewed: **2026-09-24**.
 
 Later on 2026-09-18: Submission 10's certification was cancelled while it was
 still in the certification step, its 0.4.1.0 package was replaced with

@@ -1,6 +1,6 @@
 # Automations UX implementation plan
 
-Status: **Implemented through Phase 7 on 2026-09-19.**
+Status: **Implemented through Phase 7 on 2026-09-19; shipped in 0.6.0.**
 Prepared: **2026-09-19**.
 
 Implementation ledger: draft/save contracts and validation; controlled reusable
