@@ -123,10 +123,8 @@ Remote Hue cloud control is not included.
 
 ## What's new in 0.6.2
 
-Updates now download on their own, so installing one is a single Restart to
-update. Creating a scene opens its own page: pick a room or zone, place each
-light on the color or white wheel, set the brightness, and preview it on your
-lights before you save.
+Updates now download on their own in the background, so installing one takes a
+single click on Restart to update.
 
 ## What's new in 0.6.1
 

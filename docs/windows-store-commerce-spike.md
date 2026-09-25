@@ -4,8 +4,10 @@ Release preparation on 2026-09-25: the unsigned 0.6.2.0 MSIX builds and is
 10,597,442 bytes (SHA-256
 `0C5253CABBA119E1AA17B226E10D66EB59B730D74BACA3BEC16293D2A90E2140`, tag
 `v0.6.2`), a patch release that downloads Store updates on their own so the
-only click is the restart. It is not yet uploaded to Partner Center; 0.6.1.0
-is still in certification as Submission 12.
+only click is the restart. It went to certification on 2026-09-26 as Submission
+13, set to publish as soon as it passes; the owner uploaded the package by drag
+and drop because it is over the automation's 10 MB limit. 0.6.1.0 (Submission
+12) is live.
 
 Release preparation on 2026-09-25: the unsigned 0.6.1.0 MSIX builds and is
 10,589,703 bytes (SHA-256
