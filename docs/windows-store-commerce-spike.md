@@ -1,5 +1,12 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-09-25: the unsigned 0.6.2.0 MSIX builds and is
+10,597,442 bytes (SHA-256
+`0C5253CABBA119E1AA17B226E10D66EB59B730D74BACA3BEC16293D2A90E2140`, tag
+`v0.6.2`), a patch release that downloads Store updates on their own so the
+only click is the restart. It is not yet uploaded to Partner Center; 0.6.1.0
+is still in certification as Submission 12.
+
 Release preparation on 2026-09-25: the unsigned 0.6.1.0 MSIX builds and is
 10,589,703 bytes (SHA-256
 `3BB153D9A4A58B34F6F3CFBEDCE9768434AAC379B2F7C99476E8C43774072B0A`, tag

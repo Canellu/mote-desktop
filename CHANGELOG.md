@@ -5,6 +5,15 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.6.2] - 2026-09-25
+
+### Improvements
+
+- Updates download on their own as soon as the Microsoft Store offers one, so
+  the only step left is Restart to update. The title-bar button fills as the
+  download moves. When Windows will not download updates in the background,
+  Update downloads and installs in one click.
+
 ## [0.6.1] - 2026-09-25
 
 ### Improvements
