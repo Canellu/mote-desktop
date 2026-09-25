@@ -25,6 +25,7 @@ const LEAD: Record<ProFeature, string> = {
   dashboard_custom_layout: "Your own layout is part of Mote Pro",
   global_shortcuts: "Shortcuts are part of Mote Pro",
   local_automation: "Automations are part of Mote Pro",
+  multiple_sync_boxes: "A second Sync Box is part of Mote Pro",
   trial_ended: "Your Pro trial has ended",
   general: "Everything Mote can do",
 };

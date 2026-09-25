@@ -32,7 +32,7 @@ import {
   EntertainmentStoreEffects,
   useEntertainmentStore,
 } from "@/stores/EntertainmentStore";
-import { useSyncBoxStore } from "@/stores/SyncBoxStore";
+import { boxesForBridge, useSyncBoxStore } from "@/stores/SyncBoxStore";
 import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
@@ -672,7 +672,11 @@ export const RootLayout: React.FC = () => {
   const bridgeConnected = useHueResourcesStore(
     (state) => state.bridgeConnected,
   );
-  const { refreshSession, isLoading: sessionLoading } = useHue();
+  const {
+    refreshSession,
+    isLoading: sessionLoading,
+    bridgeId: activeBridgeId,
+  } = useHue();
   const syncState = useSyncBoxStore((state) => state.state);
   const activeSyncedLightIds = useEntertainmentStore(
     (state) => state.syncedLightIds,
@@ -719,7 +723,7 @@ export const RootLayout: React.FC = () => {
       ownerLabel: ownedByPc
         ? "this PC"
         : boxGroup
-          ? "the Sync Box"
+          ? syncState?.device.name || "the Sync Box"
           : (externalOwner ?? "another app"),
     };
   })();
@@ -742,17 +746,41 @@ export const RootLayout: React.FC = () => {
     });
   };
 
+  const syncBoxSession = useSyncBoxStore((state) => state.session);
+  const loadSyncBoxSession = useSyncBoxStore((state) => state.loadSession);
+  const setSyncBoxSession = useSyncBoxStore((state) => state.setSession);
+  const syncBoxConfigured = syncBoxSession?.configured ?? false;
+  const activeSyncBoxId = syncBoxSession?.syncBox?.uniqueId;
+
   useEffect(() => {
-    let interval: number | undefined;
-    void invoke<SyncBoxSession>("get-sync-box-session").then((session) => {
-      if (!session.configured) return;
-      void refreshSync().then(loadAreaLights);
-      interval = window.setInterval(() => void refreshSync(), 1500);
-    });
-    return () => {
-      if (interval) window.clearInterval(interval);
-    };
-  }, [loadAreaLights, refreshSync]);
+    void loadSyncBoxSession();
+  }, [loadSyncBoxSession]);
+
+  // The active box follows the active bridge: a box on another bridge cannot
+  // sync this bridge's areas. Quietly, since this is not the customer choosing
+  // a box; on Free the refusal just leaves the current one in place.
+  useEffect(() => {
+    const active = syncBoxSession?.syncBox;
+    const bridgeId = activeBridgeId;
+    if (!active?.bridgeUniqueId || !bridgeId) return;
+    if (active.bridgeUniqueId.toLowerCase() === bridgeId.toLowerCase()) return;
+    const match = boxesForBridge(syncBoxSession, bridgeId).find(
+      (candidate) => candidate.bridgeUniqueId,
+    );
+    if (!match) return;
+    void invoke<SyncBoxSession>("set-active-sync-box", {
+      uniqueId: match.uniqueId,
+    })
+      .then(setSyncBoxSession)
+      .catch(() => {});
+  }, [activeBridgeId, syncBoxSession, setSyncBoxSession]);
+
+  useEffect(() => {
+    if (!syncBoxConfigured) return;
+    void refreshSync().then(loadAreaLights);
+    const interval = window.setInterval(() => void refreshSync(), 1500);
+    return () => window.clearInterval(interval);
+  }, [syncBoxConfigured, activeSyncBoxId, loadAreaLights, refreshSync]);
 
   // The viewport is a single persistent element across route changes, so its
   // scroll offset would otherwise carry over to the next page. Reset to the top

@@ -96,7 +96,7 @@ export const SyncHubScreen = ({ source }: { source?: "box" }) => {
           const owner = ownedByPc
             ? "this PC"
             : boxGroup
-              ? "the Sync Box"
+              ? boxState?.device.name || "the Sync Box"
               : (externalOwner ?? "another app");
 
           return (

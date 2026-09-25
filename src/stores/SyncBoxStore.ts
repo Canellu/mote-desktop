@@ -1,12 +1,29 @@
+import { openProUpgrade } from "@/features/pro/proUpgrade";
+import { isPurchaseRequired } from "@/lib/entitlement-errors";
 import type {
+  StoredSyncBoxInfo,
   SyncBoxExecutionUpdate,
   SyncBoxMode,
+  SyncBoxSession,
   SyncBoxState,
 } from "@/types/sync-box";
 import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 
 interface SyncBoxStore {
+  /** Every paired box and the one the Sync screens control. */
+  session: SyncBoxSession | null;
+  sessionLoading: boolean;
+  /** Re-reads the saved boxes and checks the active one. */
+  loadSession: () => Promise<SyncBoxSession | null>;
+  /** Takes a session a pairing just returned. */
+  setSession: (session: SyncBoxSession) => void;
+  /**
+   * Makes another saved box the active one. A box that is not active is Mote
+   * Pro, so a refusal opens the offer instead of failing.
+   */
+  selectBox: (uniqueId: string) => Promise<void>;
+  removeBox: (uniqueId: string) => Promise<void>;
   state: SyncBoxState | null;
   /**
    * Failure applying a user action (start/stop/settings). Persists until the
@@ -41,7 +58,65 @@ interface SyncBoxStore {
 
 let refreshInFlight: Promise<void> | null = null;
 
+let sessionInFlight: Promise<SyncBoxSession | null> | null = null;
+
+/** Boxes on `bridgeId`, plus any whose bridge is not known yet. */
+export const boxesForBridge = (
+  session: SyncBoxSession | null,
+  bridgeId: string | null,
+): StoredSyncBoxInfo[] =>
+  (session?.syncBoxes ?? []).filter(
+    (syncBox) =>
+      !bridgeId ||
+      !syncBox.bridgeUniqueId ||
+      syncBox.bridgeUniqueId.toLowerCase() === bridgeId.toLowerCase(),
+  );
+
 export const useSyncBoxStore = create<SyncBoxStore>((set, get) => ({
+  session: null,
+  sessionLoading: true,
+  loadSession: () => {
+    if (sessionInFlight) return sessionInFlight;
+    sessionInFlight = invoke<SyncBoxSession>("get-sync-box-session")
+      .then((session) => {
+        get().setSession(session);
+        return session;
+      })
+      .catch(() => null)
+      .finally(() => {
+        sessionInFlight = null;
+        set({ sessionLoading: false });
+      });
+    return sessionInFlight;
+  },
+  setSession: (session) => {
+    const previous = get().session?.syncBox?.uniqueId;
+    // Another box's state must not show under this one's name, even briefly.
+    if (previous !== session.syncBox?.uniqueId) get().clear();
+    set({ session, sessionLoading: false });
+  },
+  selectBox: async (uniqueId) => {
+    if (get().session?.syncBox?.uniqueId === uniqueId) return;
+    try {
+      get().setSession(
+        await invoke<SyncBoxSession>("set-active-sync-box", { uniqueId }),
+      );
+      void get()
+        .refresh()
+        .then(() => get().loadAreaLights());
+    } catch (error) {
+      if (isPurchaseRequired(error)) {
+        openProUpgrade("multiple_sync_boxes");
+        return;
+      }
+      set({ error: String(error) });
+    }
+  },
+  removeBox: async (uniqueId) => {
+    get().setSession(
+      await invoke<SyncBoxSession>("remove-sync-box", { uniqueId }),
+    );
+  },
   state: null,
   error: null,
   loadError: null,
@@ -51,9 +126,16 @@ export const useSyncBoxStore = create<SyncBoxStore>((set, get) => ({
   refresh: () => {
     if (refreshInFlight) return refreshInFlight;
     set((current) => ({ isLoading: current.state == null }));
+    const boxId = get().session?.syncBox?.uniqueId;
+    // A read that started before a switch belongs to the previous box.
+    const current = () => get().session?.syncBox?.uniqueId === boxId;
     refreshInFlight = invoke<SyncBoxState>("get-sync-box-state")
-      .then((state) => set({ state, loadError: null }))
-      .catch((error) => set({ loadError: String(error) }))
+      .then((state) => {
+        if (current()) set({ state, loadError: null });
+      })
+      .catch((error) => {
+        if (current()) set({ loadError: String(error) });
+      })
       .finally(() => {
         refreshInFlight = null;
         set({ isLoading: false });

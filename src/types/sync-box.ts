@@ -17,12 +17,17 @@ export interface StoredSyncBoxInfo {
   port: number;
   apiLevel: number;
   firmwareVersion: string;
+  /** The bridge this box streams to, as the box last reported it. */
+  bridgeUniqueId: string | null;
 }
 
 export interface SyncBoxSession {
   configured: boolean;
   connected: boolean;
+  /** The box the Sync screens control. */
   syncBox: StoredSyncBoxInfo | null;
+  /** Every paired box, the active one included. */
+  syncBoxes: StoredSyncBoxInfo[];
   error: string | null;
 }
 

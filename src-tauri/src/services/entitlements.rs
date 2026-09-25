@@ -24,16 +24,20 @@ pub enum Capability {
     /// away automation when the PC locks or sleeps. Setting one up is free;
     /// starting it is gated.
     LocalAutomation,
+    /// A second paired HDMI Sync Box, and switching to one that is not active.
+    /// Everything one box does stays free.
+    MultipleSyncBoxes,
 }
 
 impl Capability {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::MultipleBridges,
         Self::DashboardCustomLayout,
         Self::PcSync,
         Self::AdvancedWidgets,
         Self::GlobalShortcuts,
         Self::LocalAutomation,
+        Self::MultipleSyncBoxes,
     ];
 
     pub const fn required_product(self) -> EntitlementProduct {
@@ -43,7 +47,8 @@ impl Capability {
             | Self::PcSync
             | Self::AdvancedWidgets
             | Self::GlobalShortcuts
-            | Self::LocalAutomation => EntitlementProduct::Pro,
+            | Self::LocalAutomation
+            | Self::MultipleSyncBoxes => EntitlementProduct::Pro,
         }
     }
 }

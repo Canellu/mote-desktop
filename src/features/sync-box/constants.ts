@@ -1,6 +1,7 @@
 import type {
   DiscoveredSyncBox,
   SyncBoxOnboardingState,
+  StoredSyncBoxInfo,
   SyncBoxSession,
 } from "@/types/sync-box";
 import type { WizardDevNextStep } from "@/types/setup-wizard";
@@ -30,18 +31,22 @@ export const sampleSyncBoxes: DiscoveredSyncBox[] = [
   },
 ];
 
+const sampleStoredSyncBox: StoredSyncBoxInfo = {
+  name: sampleSyncBoxes[0].name,
+  deviceType: sampleSyncBoxes[0].deviceType,
+  uniqueId: sampleSyncBoxes[0].uniqueId,
+  ipAddress: sampleSyncBoxes[0].ipAddress,
+  port: sampleSyncBoxes[0].port,
+  apiLevel: sampleSyncBoxes[0].apiLevel,
+  firmwareVersion: sampleSyncBoxes[0].firmwareVersion,
+  bridgeUniqueId: null,
+};
+
 export const sampleSyncBoxSession: SyncBoxSession = {
   configured: true,
   connected: true,
-  syncBox: {
-    name: sampleSyncBoxes[0].name,
-    deviceType: sampleSyncBoxes[0].deviceType,
-    uniqueId: sampleSyncBoxes[0].uniqueId,
-    ipAddress: sampleSyncBoxes[0].ipAddress,
-    port: sampleSyncBoxes[0].port,
-    apiLevel: sampleSyncBoxes[0].apiLevel,
-    firmwareVersion: sampleSyncBoxes[0].firmwareVersion,
-  },
+  syncBox: sampleStoredSyncBox,
+  syncBoxes: [sampleStoredSyncBox],
   error: null,
 };
 

@@ -25,19 +25,28 @@ import {
   SyncHeroChip,
   SyncToggleButton,
 } from "@/components/sync/SyncControls";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useEntitlements } from "@/context/EntitlementContext";
+import { useHue } from "@/context/HueContext";
+import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { useEntertainmentStore } from "@/stores/EntertainmentStore";
-import { useSyncBoxStore } from "@/stores/SyncBoxStore";
+import { boxesForBridge, useSyncBoxStore } from "@/stores/SyncBoxStore";
 import type {
   SyncBoxExecutionUpdate,
   SyncBoxIntensity,
   SyncBoxMode,
   SyncBoxSession,
 } from "@/types/sync-box";
-import { invoke } from "@tauri-apps/api/core";
-import { Navigate, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import {
-  Cable,
+  ArrowLeft,
   Clapperboard,
   Gamepad2,
   HdmiPort,
@@ -45,6 +54,7 @@ import {
   Loader2,
   MonitorPlay,
   Music2,
+  Plus,
   Power,
   TriangleAlert,
   Tv,
@@ -101,21 +111,21 @@ export const SyncBoxScreen = ({
   setupOnly = false,
 }: {
   areaId?: string;
+  /** Opens straight on pairing, for adding a box from the hub or Settings. */
   setupOnly?: boolean;
 }) => {
   const navigate = useNavigate();
-  const [session, setSession] = useState<SyncBoxSession | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const session = useSyncBoxStore((store) => store.session);
+  const sessionLoading = useSyncBoxStore((store) => store.sessionLoading);
+  const loadSession = useSyncBoxStore((store) => store.loadSession);
+  const setSession = useSyncBoxStore((store) => store.setSession);
+  const [adding, setAdding] = useState(setupOnly);
 
   useEffect(() => {
-    void invoke<SyncBoxSession>("get-sync-box-session")
-      .then(setSession)
-      .catch((error) => setLoadError(String(error)))
-      .finally(() => setIsLoading(false));
-  }, []);
+    void loadSession();
+  }, [loadSession]);
 
-  if (isLoading) {
+  if (sessionLoading && !session) {
     return (
       <div className="flex min-h-[calc(100vh-12rem)] items-center justify-center">
         <Loader2 className="size-8 animate-spin text-muted-foreground" />
@@ -123,64 +133,127 @@ export const SyncBoxScreen = ({
     );
   }
 
-  if (!session?.configured || !session.syncBox) {
+  const configured = session?.configured === true && session.syncBox != null;
+  const leaveSetup = () => {
+    if (setupOnly) {
+      void navigate({
+        to: "/sync",
+        search: { source: undefined },
+        replace: true,
+      });
+      return;
+    }
+    setAdding(false);
+  };
+
+  if (adding || !configured) {
     return (
       <>
-        {(loadError || session?.error) && (
-          <div className="mx-auto flex max-w-2xl items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            <p>{loadError ?? session?.error}</p>
+        {configured ? (
+          <div className="mx-auto flex w-full max-w-5xl">
+            <Button variant="ghost" className="gap-2" onClick={leaveSetup}>
+              <ArrowLeft size={16} />
+              Back to {session.syncBox?.name ?? "Sync Box"}
+            </Button>
           </div>
+        ) : (
+          session?.error && (
+            <div className="mx-auto flex max-w-2xl items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
+              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+              <p>{session.error}</p>
+            </div>
+          )
         )}
         <SyncBoxOnboardingWizard
           onComplete={(nextSession) => {
-            if (setupOnly) {
-              void navigate({
-                to: "/sync",
-                search: { source: undefined },
-                replace: true,
-              });
-              return;
-            }
             setSession(nextSession);
+            leaveSetup();
           }}
         />
       </>
     );
   }
 
-  if (setupOnly) {
-    return <Navigate to="/sync" search={{ source: undefined }} replace />;
-  }
-
   return (
     <SyncBoxConnectedView
       session={session}
       areaId={areaId}
-      onReset={() => {
-        void invoke("reset-sync-box-session").then(() =>
-          setSession({
-            configured: false,
-            connected: false,
-            syncBox: null,
-            error: null,
-          }),
-        );
-      }}
+      onPair={() => setAdding(true)}
     />
+  );
+};
+
+/** Pairing a box beyond the first is Mote Pro; re-pairing a saved one is not. */
+const useAddSyncBox = (session: SyncBoxSession, onPair: () => void) => {
+  const { hasPro } = useEntitlements();
+  const { requestPro } = useProUpgrade();
+  return () => {
+    if (!hasPro && session.syncBoxes.length > 0) {
+      requestPro("multiple_sync_boxes");
+      return;
+    }
+    onPair();
+  };
+};
+
+/**
+ * Which box the screen controls, when there is more than one on this bridge,
+ * and the way to pair another.
+ */
+const SyncBoxPicker = ({
+  session,
+  onAdd,
+}: {
+  session: SyncBoxSession;
+  onAdd: () => void;
+}) => {
+  const { bridgeId } = useHue();
+  const selectBox = useSyncBoxStore((store) => store.selectBox);
+  const boxes = boxesForBridge(session, bridgeId);
+  const active = session.syncBox;
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      {boxes.length > 1 ? (
+        <Select
+          value={active?.uniqueId ?? ""}
+          onValueChange={(uniqueId) => uniqueId && void selectBox(uniqueId)}
+        >
+          <SelectTrigger aria-label="Sync Box" className="w-64">
+            <Tv className="size-4 text-muted-foreground" />
+            <SelectValue>{active?.name ?? "Sync Box"}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {boxes.map((syncBox) => (
+              <SelectItem key={syncBox.uniqueId} value={syncBox.uniqueId}>
+                {syncBox.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : (
+        <span />
+      )}
+      <Button variant="outline" className="gap-2" onClick={onAdd}>
+        <Plus size={16} />
+        Add Sync Box
+      </Button>
+    </div>
   );
 };
 
 export const SyncBoxConnectedView = ({
   session,
   areaId,
-  onReset,
+  onPair,
 }: {
   session: SyncBoxSession;
   areaId?: string;
-  onReset: () => void;
+  /** Opens pairing, to add another box or to pair this one again. */
+  onPair: () => void;
 }) => {
   const navigate = useNavigate();
+  const addSyncBox = useAddSyncBox(session, onPair);
   const entertainmentAreas = useEntertainmentStore((store) => store.areas);
   const syncBox = session.syncBox;
   const {
@@ -210,28 +283,31 @@ export const SyncBoxConnectedView = ({
 
   if (!state) {
     return (
-      <div className="mx-auto flex max-w-2xl items-center justify-between gap-4 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
-        <span>
-          {loadError ?? session.error ?? "Unable to read Sync Box state."}
-        </span>
-        <div className="flex shrink-0 items-center gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => {
-              clear();
-              onReset();
-            }}
-          >
-            Pair again
-          </Button>
-          <Button
-            variant="outline"
-            disabled={isLoading}
-            onClick={() => void refresh()}
-          >
-            {isLoading && <Loader2 className="animate-spin" />}
-            Retry
-          </Button>
+      <div className="mx-auto grid w-full max-w-5xl gap-5">
+        <SyncBoxPicker session={session} onAdd={addSyncBox} />
+        <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-4 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
+          <span>
+            {loadError ?? session.error ?? "Unable to read Sync Box state."}
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                clear();
+                onPair();
+              }}
+            >
+              Pair again
+            </Button>
+            <Button
+              variant="outline"
+              disabled={isLoading}
+              onClick={() => void refresh()}
+            >
+              {isLoading && <Loader2 className="animate-spin" />}
+              Retry
+            </Button>
+          </div>
         </div>
       </div>
     );
@@ -336,6 +412,7 @@ export const SyncBoxConnectedView = ({
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-5 pb-8">
+      <SyncBoxPicker session={session} onAdd={addSyncBox} />
       {(state.device.overheating || state.device.undervolt) && (
         <div className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
@@ -358,7 +435,7 @@ export const SyncBoxConnectedView = ({
         active={syncingHere}
         statusLabel={
           syncingHere
-            ? "Lights are syncing with the Sync Box"
+            ? `Lights are syncing with ${syncBox?.name ?? "the Sync Box"}`
             : syncingElsewhere
               ? `Syncing with ${syncingElsewhereName}`
               : "Ready to sync"
@@ -552,7 +629,7 @@ export const SyncBoxConnectedView = ({
         </Card>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-4 px-1">
+      <div className="flex flex-wrap items-center gap-4 px-1">
         <span className="text-sm text-muted-foreground">
           {state.hdmi.videoSyncSupported
             ? "Video ready"
@@ -562,17 +639,6 @@ export const SyncBoxConnectedView = ({
             ? "Audio ready"
             : "Audio sync unavailable"}
         </span>
-        <Button
-          variant="ghost"
-          className="gap-2"
-          onClick={() => {
-            clear();
-            onReset();
-          }}
-        >
-          <Cable size={16} />
-          Set up another Sync Box
-        </Button>
       </div>
 
       <AlertDialog open={takeoverOpen} onOpenChange={setTakeoverOpen}>

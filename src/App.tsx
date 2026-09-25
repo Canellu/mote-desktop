@@ -240,7 +240,7 @@ function App() {
         content: (
           <SyncBoxConnectedView
             session={sampleSyncBoxSession}
-            onReset={() => dev.selectView("sync-box-welcome")}
+            onPair={() => dev.selectView("sync-box-welcome")}
           />
         ),
       };

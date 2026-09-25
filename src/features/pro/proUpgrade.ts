@@ -8,6 +8,7 @@ export type ProFeature =
   | "dashboard_custom_layout"
   | "global_shortcuts"
   | "local_automation"
+  | "multiple_sync_boxes"
   | "trial_ended"
   | "general";
 

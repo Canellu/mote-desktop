@@ -11,9 +11,11 @@ use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::StoreExt;
 
 const STORE_FILE: &str = "hue-store.json";
-const STORE_KEY: &str = "syncBox";
+const STORE_KEY: &str = "syncBoxes";
+const LEGACY_STORE_KEY: &str = "syncBox";
 const KEYRING_SERVICE: &str = "com.motedesktop.mote";
-const KEYRING_ACCOUNT: &str = "hue-sync-box-access-token";
+const LEGACY_KEYRING_ACCOUNT: &str = "hue-sync-box-access-token";
+const KEYRING_ACCOUNT_PREFIX: &str = "hue-sync-box-access-token:";
 const REQUEST_TIMEOUT_SECS: u64 = 8;
 const DISCOVERY_TIMEOUT_SECS: u64 = 3;
 const MIN_API_LEVEL: u32 = 7;
@@ -54,6 +56,9 @@ pub struct StoredSyncBoxInfo {
     pub port: u16,
     pub api_level: u32,
     pub firmware_version: String,
+    /// The bridge this box streams to, as the box last reported it.
+    #[serde(default)]
+    pub bridge_unique_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -62,6 +67,8 @@ pub struct SyncBoxSession {
     pub configured: bool,
     pub connected: bool,
     pub sync_box: Option<StoredSyncBoxInfo>,
+    /// Every paired box, the active one included.
+    pub sync_boxes: Vec<StoredSyncBoxInfo>,
     pub error: Option<String>,
 }
 
@@ -88,6 +95,8 @@ pub struct SyncBoxStateDevice {
 #[serde(rename_all = "camelCase")]
 pub struct SyncBoxHue {
     pub connection_state: String,
+    #[serde(default)]
+    pub bridge_unique_id: Option<String>,
     #[serde(default)]
     pub groups: HashMap<String, SyncBoxHueGroup>,
 }
@@ -370,43 +379,62 @@ impl SyncBoxClient {
                 port,
                 api_level: device.api_level,
                 firmware_version: device.firmware_version,
+                bridge_unique_id: None,
             },
             access_token,
         ))
     }
 
+    /// Saves a newly paired box and makes it the active one. Pairing a box that
+    /// is already saved replaces its entry and token.
     pub async fn save_session<R: Runtime>(
         &self,
         app: &AppHandle<R>,
-        sync_box: &StoredSyncBoxInfo,
+        mut sync_box: StoredSyncBoxInfo,
         access_token: &str,
     ) -> Result<SyncBoxSession, String> {
-        save_access_token(access_token)?;
-        if let Err(error) = save_sync_box_info(app, sync_box) {
-            let _ = clear_access_token();
+        // Which bridge it streams to is only in the box's state; without it the
+        // box shows under every bridge until the next successful read.
+        if let Ok(state) = self.get_state(&sync_box, access_token).await {
+            sync_box.bridge_unique_id = state.hue.bridge_unique_id;
+        }
+
+        save_access_token(&sync_box.unique_id, access_token)?;
+        let mut saved = load_saved(app)?;
+        saved
+            .boxes
+            .retain(|saved| !saved.unique_id.eq_ignore_ascii_case(&sync_box.unique_id));
+        saved.active_id = Some(sync_box.unique_id.clone());
+        saved.boxes.push(sync_box.clone());
+        if let Err(error) = save_saved(app, &saved) {
+            let _ = clear_access_token(&sync_box.unique_id);
             return Err(error);
         }
 
         Ok(SyncBoxSession {
             configured: true,
             connected: true,
-            sync_box: Some(sync_box.clone()),
+            sync_box: Some(sync_box),
+            sync_boxes: saved.boxes,
             error: None,
         })
     }
 
+    /// The active box, checked against the box itself, plus every saved box.
     pub async fn restore_session<R: Runtime>(
         &self,
         app: &AppHandle<R>,
     ) -> Result<SyncBoxSession, String> {
-        let Some(sync_box) = load_sync_box_info(app)? else {
-            return Ok(empty_session());
+        let mut saved = load_saved(app)?;
+        let Some(sync_box) = saved.active().cloned() else {
+            return Ok(empty_session(saved.boxes));
         };
-        let Some(access_token) = load_access_token()? else {
+        let Some(access_token) = load_access_token(&sync_box.unique_id)? else {
             return Ok(SyncBoxSession {
                 configured: true,
                 connected: false,
                 sync_box: Some(sync_box),
+                sync_boxes: saved.boxes,
                 error: Some(
                     "The saved Sync Box access token is missing. Pair the Sync Box again."
                         .to_string(),
@@ -415,26 +443,90 @@ impl SyncBoxClient {
         };
 
         match self.get_state(&sync_box, &access_token).await {
-            Ok(_) => Ok(SyncBoxSession {
-                configured: true,
-                connected: true,
-                sync_box: Some(sync_box),
-                error: None,
-            }),
+            Ok(state) => {
+                let mut sync_box = sync_box;
+                // A box can be moved to another bridge in the Hue Sync app.
+                if state.hue.bridge_unique_id.is_some()
+                    && state.hue.bridge_unique_id != sync_box.bridge_unique_id
+                {
+                    sync_box.bridge_unique_id = state.hue.bridge_unique_id;
+                    if let Some(entry) = saved.boxes.iter_mut().find(|saved| {
+                        saved.unique_id.eq_ignore_ascii_case(&sync_box.unique_id)
+                    }) {
+                        *entry = sync_box.clone();
+                    }
+                    let _ = save_saved(app, &saved);
+                }
+                Ok(SyncBoxSession {
+                    configured: true,
+                    connected: true,
+                    sync_box: Some(sync_box),
+                    sync_boxes: saved.boxes,
+                    error: None,
+                })
+            }
             Err(error) => Ok(SyncBoxSession {
                 configured: true,
                 connected: false,
                 sync_box: Some(sync_box),
+                sync_boxes: saved.boxes,
                 error: Some(error),
             }),
         }
     }
 
-    pub fn clear_session<R: Runtime>(&self, app: &AppHandle<R>) -> Result<(), String> {
-        clear_sync_box_info(app)?;
-        clear_access_token()
+    pub fn saved_count<R: Runtime>(&self, app: &AppHandle<R>) -> Result<usize, String> {
+        Ok(load_saved(app)?.boxes.len())
     }
 
+    pub fn is_active<R: Runtime>(&self, app: &AppHandle<R>, unique_id: &str) -> Result<bool, String> {
+        Ok(load_saved(app)?
+            .active()
+            .is_some_and(|active| active.unique_id.eq_ignore_ascii_case(unique_id)))
+    }
+
+    pub fn is_saved<R: Runtime>(&self, app: &AppHandle<R>, unique_id: &str) -> Result<bool, String> {
+        Ok(load_saved(app)?.find(unique_id).is_some())
+    }
+
+    /// Makes another saved box the one the Sync screens control.
+    pub async fn set_active<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        unique_id: &str,
+    ) -> Result<SyncBoxSession, String> {
+        let mut saved = load_saved(app)?;
+        let sync_box = saved
+            .find(unique_id)
+            .cloned()
+            .ok_or_else(|| "That Sync Box is no longer saved.".to_string())?;
+        saved.active_id = Some(sync_box.unique_id);
+        save_saved(app, &saved)?;
+        self.restore_session(app).await
+    }
+
+    /// Forgets one box and its token. The box itself is untouched. When it was
+    /// the active box, the first remaining one takes its place.
+    pub async fn remove<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        unique_id: &str,
+    ) -> Result<SyncBoxSession, String> {
+        let mut saved = load_saved(app)?;
+        saved
+            .boxes
+            .retain(|saved| !saved.unique_id.eq_ignore_ascii_case(unique_id));
+        if saved
+            .active_id
+            .as_deref()
+            .is_some_and(|active| active.eq_ignore_ascii_case(unique_id))
+        {
+            saved.active_id = saved.boxes.first().map(|next| next.unique_id.clone());
+        }
+        save_saved(app, &saved)?;
+        clear_access_token(unique_id)?;
+        self.restore_session(app).await
+    }
     /// Unauthenticated discovery probe by IP. The response is untrusted; the
     /// pinned client re-reads anything that gets persisted or acted on.
     async fn get_device(&self, ip_address: &str, port: u16) -> Result<SyncBoxDevice, String> {
@@ -460,11 +552,7 @@ impl SyncBoxClient {
         &self,
         app: &AppHandle<R>,
     ) -> Result<SyncBoxState, String> {
-        let sync_box =
-            load_sync_box_info(app)?.ok_or_else(|| "No Sync Box is configured.".to_string())?;
-        let access_token = load_access_token()?.ok_or_else(|| {
-            "The saved Sync Box access token is missing. Pair it again.".to_string()
-        })?;
+        let (sync_box, access_token) = active_credentials(app)?;
         self.get_state(&sync_box, &access_token).await
     }
 
@@ -473,11 +561,7 @@ impl SyncBoxClient {
         app: &AppHandle<R>,
         update: Value,
     ) -> Result<SyncBoxState, String> {
-        let sync_box =
-            load_sync_box_info(app)?.ok_or_else(|| "No Sync Box is configured.".to_string())?;
-        let access_token = load_access_token()?.ok_or_else(|| {
-            "The saved Sync Box access token is missing. Pair it again.".to_string()
-        })?;
+        let (sync_box, access_token) = active_credentials(app)?;
         let object = update
             .as_object()
             .filter(|object| !object.is_empty())
@@ -513,11 +597,7 @@ impl SyncBoxClient {
             return Err("Invalid Sync Box mode.".to_string());
         }
 
-        let sync_box =
-            load_sync_box_info(app)?.ok_or_else(|| "No Sync Box is configured.".to_string())?;
-        let access_token = load_access_token()?.ok_or_else(|| {
-            "The saved Sync Box access token is missing. Pair it again.".to_string()
-        })?;
+        let (sync_box, access_token) = active_credentials(app)?;
         let client =
             self.secure_client(&sync_box.unique_id, &sync_box.ip_address, sync_box.port)?;
         let path = format!("/api/v1/hdmi/{source}");
@@ -656,25 +736,97 @@ const fn default_https_port() -> u16 {
     443
 }
 
-fn empty_session() -> SyncBoxSession {
+fn empty_session(sync_boxes: Vec<StoredSyncBoxInfo>) -> SyncBoxSession {
     SyncBoxSession {
         configured: false,
         connected: false,
         sync_box: None,
+        sync_boxes,
         error: None,
     }
 }
 
-fn save_sync_box_info<R: Runtime>(
+/// Every paired box and which one the Sync screens control. The access tokens
+/// live in the keyring, one account per box.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedSyncBoxes {
+    boxes: Vec<StoredSyncBoxInfo>,
+    #[serde(default)]
+    active_id: Option<String>,
+}
+
+impl SavedSyncBoxes {
+    /// The chosen box, or the first one when the choice was removed.
+    fn active(&self) -> Option<&StoredSyncBoxInfo> {
+        self.active_id
+            .as_deref()
+            .and_then(|id| self.find(id))
+            .or_else(|| self.boxes.first())
+    }
+
+    fn find(&self, unique_id: &str) -> Option<&StoredSyncBoxInfo> {
+        self.boxes
+            .iter()
+            .find(|sync_box| sync_box.unique_id.eq_ignore_ascii_case(unique_id))
+    }
+}
+
+fn open_store<R: Runtime>(
     app: &AppHandle<R>,
-    sync_box: &StoredSyncBoxInfo,
-) -> Result<(), String> {
-    let store = app
-        .store(STORE_FILE)
-        .map_err(|error| private_error("Failed to open Sync Box settings.", error))?;
+) -> Result<std::sync::Arc<tauri_plugin_store::Store<R>>, String> {
+    app.store(STORE_FILE)
+        .map_err(|error| private_error("Failed to open Sync Box settings.", error))
+}
+
+fn load_saved<R: Runtime>(app: &AppHandle<R>) -> Result<SavedSyncBoxes, String> {
+    let store = open_store(app)?;
+    if let Some(value) = store.get(STORE_KEY).filter(|value| !value.is_null()) {
+        return serde_json::from_value(value)
+            .map_err(|error| private_error("Failed to read Sync Box settings.", error));
+    }
+    migrate_single_box(&store)
+}
+
+/// Before 0.7 one box was saved under `syncBox`, with its token in a single
+/// keyring account. The token moves first, so a failure part way leaves the
+/// old layout readable and the move runs again on the next read.
+fn migrate_single_box<R: Runtime>(
+    store: &tauri_plugin_store::Store<R>,
+) -> Result<SavedSyncBoxes, String> {
+    let Some(value) = store.get(LEGACY_STORE_KEY).filter(|value| !value.is_null()) else {
+        return Ok(SavedSyncBoxes::default());
+    };
+    let sync_box: StoredSyncBoxInfo = serde_json::from_value(value)
+        .map_err(|error| private_error("Failed to read Sync Box settings.", error))?;
+    let legacy = Entry::new(KEYRING_SERVICE, LEGACY_KEYRING_ACCOUNT)
+        .map_err(|error| private_error("Failed to access secure credential storage.", error))?;
+    if let Ok(access_token) = legacy.get_password() {
+        save_access_token(&sync_box.unique_id, &access_token)?;
+    }
+
+    let saved = SavedSyncBoxes {
+        active_id: Some(sync_box.unique_id.clone()),
+        boxes: vec![sync_box],
+    };
     store.set(
         STORE_KEY,
-        serde_json::to_value(sync_box)
+        serde_json::to_value(&saved)
+            .map_err(|error| private_error("Failed to prepare Sync Box settings.", error))?,
+    );
+    store.delete(LEGACY_STORE_KEY);
+    store
+        .save()
+        .map_err(|error| private_error("Failed to save Sync Box settings.", error))?;
+    let _ = legacy.delete_credential();
+    Ok(saved)
+}
+
+fn save_saved<R: Runtime>(app: &AppHandle<R>, saved: &SavedSyncBoxes) -> Result<(), String> {
+    let store = open_store(app)?;
+    store.set(
+        STORE_KEY,
+        serde_json::to_value(saved)
             .map_err(|error| private_error("Failed to prepare Sync Box settings.", error))?,
     );
     store
@@ -682,44 +834,34 @@ fn save_sync_box_info<R: Runtime>(
         .map_err(|error| private_error("Failed to save Sync Box settings.", error))
 }
 
-fn load_sync_box_info<R: Runtime>(app: &AppHandle<R>) -> Result<Option<StoredSyncBoxInfo>, String> {
-    let store = app
-        .store(STORE_FILE)
-        .map_err(|error| private_error("Failed to open Sync Box settings.", error))?;
-    let Some(value) = store.get(STORE_KEY) else {
-        return Ok(None);
-    };
-    if value.is_null() {
-        return Ok(None);
-    }
-    serde_json::from_value(value.clone())
-        .map(Some)
-        .map_err(|error| private_error("Failed to read Sync Box settings.", error))
+/// The active box and its token, for every call that acts on a box.
+fn active_credentials<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<(StoredSyncBoxInfo, String), String> {
+    let sync_box = load_saved(app)?
+        .active()
+        .cloned()
+        .ok_or_else(|| "No Sync Box is configured.".to_string())?;
+    let access_token = load_access_token(&sync_box.unique_id)?.ok_or_else(|| {
+        "The saved Sync Box access token is missing. Pair it again.".to_string()
+    })?;
+    Ok((sync_box, access_token))
 }
 
-fn clear_sync_box_info<R: Runtime>(app: &AppHandle<R>) -> Result<(), String> {
-    let store = app
-        .store(STORE_FILE)
-        .map_err(|error| private_error("Failed to open Sync Box settings.", error))?;
-    store.delete(STORE_KEY);
-    store
-        .save()
-        .map_err(|error| private_error("Failed to clear Sync Box settings.", error))
-}
-
-fn token_entry() -> Result<Entry, String> {
-    Entry::new(KEYRING_SERVICE, KEYRING_ACCOUNT)
+fn token_entry(unique_id: &str) -> Result<Entry, String> {
+    let account = format!("{KEYRING_ACCOUNT_PREFIX}{}", unique_id.to_ascii_lowercase());
+    Entry::new(KEYRING_SERVICE, &account)
         .map_err(|error| private_error("Failed to access secure credential storage.", error))
 }
 
-fn save_access_token(access_token: &str) -> Result<(), String> {
-    token_entry()?
+fn save_access_token(unique_id: &str, access_token: &str) -> Result<(), String> {
+    token_entry(unique_id)?
         .set_password(access_token)
         .map_err(|error| private_error("Failed to save the Sync Box access token.", error))
 }
 
-fn load_access_token() -> Result<Option<String>, String> {
-    match token_entry()?.get_password() {
+fn load_access_token(unique_id: &str) -> Result<Option<String>, String> {
+    match token_entry(unique_id)?.get_password() {
         Ok(access_token) => Ok(Some(access_token)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(error) => Err(private_error(
@@ -729,8 +871,8 @@ fn load_access_token() -> Result<Option<String>, String> {
     }
 }
 
-fn clear_access_token() -> Result<(), String> {
-    match token_entry()?.delete_credential() {
+fn clear_access_token(unique_id: &str) -> Result<(), String> {
+    match token_entry(unique_id)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(error) => Err(private_error(
             "Failed to clear the Sync Box access token.",

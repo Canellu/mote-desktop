@@ -1,3 +1,5 @@
+import { openProUpgrade } from "@/features/pro/proUpgrade";
+import { isPurchaseRequired } from "@/lib/entitlement-errors";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -120,6 +122,19 @@ export const useSyncBoxOnboarding = () => {
         setState({ type: "success", session });
       } catch (error) {
         if (!pairingActiveRef.current) return;
+        // A second box is Mote Pro. The screens ask before pairing starts, so
+        // this is the backstop for a plan that changed in between.
+        if (isPurchaseRequired(error)) {
+          stopPairing();
+          openProUpgrade("multiple_sync_boxes");
+          setState({
+            type: "error",
+            reason: "pairing",
+            message: "A second Sync Box is part of Mote Pro.",
+            syncBox,
+          });
+          return;
+        }
         const message = String(error) || "Failed to pair the Sync Box.";
         if (message.toLowerCase().includes("button authorization")) {
           pairingRetryRef.current = window.setTimeout(

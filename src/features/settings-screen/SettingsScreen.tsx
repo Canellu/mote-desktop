@@ -7,7 +7,7 @@ import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { useWidgets } from "@/features/widget-screen/useWidgets";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 import type { HueRoomZone, HueSettingsSummary } from "@/types/hue";
-import type { SyncBoxSession } from "@/types/sync-box";
+import { useSyncBoxStore } from "@/stores/SyncBoxStore";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { ArrowUp } from "lucide-react";
@@ -75,10 +75,10 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const loadAll = useHueResourcesStore((state) => state.loadAll);
   const [summary, setSummary] = useState<HueSettingsSummary | null>(null);
   const [isLoadingSummary, setIsLoadingSummary] = useState(true);
-  const [syncBoxSession, setSyncBoxSession] = useState<SyncBoxSession | null>(
-    null,
-  );
-  const [isLoadingSyncBox, setIsLoadingSyncBox] = useState(true);
+  const syncBoxSession = useSyncBoxStore((store) => store.session);
+  const isLoadingSyncBox = useSyncBoxStore((store) => store.sessionLoading);
+  const loadSyncBoxSession = useSyncBoxStore((store) => store.loadSession);
+  const removeSyncBox = useSyncBoxStore((store) => store.removeBox);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(
     getCachedAppSettings,
@@ -157,26 +157,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
     }
   };
 
-  const loadSyncBoxSession = async () => {
+  const removeSavedSyncBox = async (uniqueId: string) => {
     try {
-      const session = await invoke<SyncBoxSession>("get-sync-box-session");
-      setSyncBoxSession(session);
-    } catch (error) {
-      setSettingsError(String(error) || "Unable to load Sync Box settings.");
-    } finally {
-      setIsLoadingSyncBox(false);
-    }
-  };
-
-  const resetSyncBoxSession = async () => {
-    try {
-      await invoke("reset-sync-box-session");
-      setSyncBoxSession({
-        configured: false,
-        connected: false,
-        syncBox: null,
-        error: null,
-      });
+      await removeSyncBox(uniqueId);
       toast.success("Sync Box removed");
     } catch (error) {
       setSettingsError(String(error) || "Unable to remove Sync Box.");
@@ -186,7 +169,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   useEffect(() => {
     void loadAppSettings();
     void loadSyncBoxSession();
-  }, []);
+  }, [loadSyncBoxSession]);
 
   // Re-fetch the bridge summary whenever the active bridge changes (including
   // the initial load) so Bridge Details always reflects the current bridge.
@@ -415,19 +398,18 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
 
               <TabsContent value="sync-box">
                 <SyncBoxTab
-                  syncBox={syncBoxSession?.syncBox}
-                  configured={syncBoxSession?.configured ?? false}
-                  connected={syncBoxSession?.connected ?? false}
+                  session={syncBoxSession}
                   isLoadingSession={isLoadingSyncBox}
-                  onSetUp={() =>
+                  onAdd={() =>
+                    void navigate({ to: "/sync", search: { source: "box" } })
+                  }
+                  onOpenControls={() =>
                     void navigate({
                       to: "/sync",
-                      search: {
-                        source: syncBoxSession?.configured ? undefined : "box",
-                      },
+                      search: { source: undefined },
                     })
                   }
-                  onResetSession={resetSyncBoxSession}
+                  onRemove={removeSavedSyncBox}
                 />
               </TabsContent>
 
