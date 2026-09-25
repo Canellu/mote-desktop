@@ -7,6 +7,7 @@ import { EntitlementProvider } from "./context/EntitlementContext";
 import { ProUpgradeProvider } from "./features/pro/ProUpgradeProvider";
 import { TrialNotices } from "./features/pro/TrialNotices";
 import { StoreUpdateProvider } from "./features/updates/StoreUpdateContext";
+import { WhatsNew } from "./features/whats-new/WhatsNew";
 import { HueProvider } from "./context/HueContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { WidgetScreen } from "./features/widget-screen/WidgetScreen";
@@ -66,6 +67,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
                 <HueProvider>
                   <App />
                   <TrialNotices />
+                  <WhatsNew />
                   <Toaster />
                 </HueProvider>
               </ProUpgradeProvider>

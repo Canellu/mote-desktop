@@ -1,11 +1,18 @@
 import { Button } from "@/components/ui/button";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { Check, Copy, ExternalLink, MessageSquareText } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ExternalLink,
+  MessageSquareText,
+  Sparkles,
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { FeedbackDialog } from "@/features/feedback/FeedbackDialog";
 import { StoreUpdateRow } from "@/features/updates/StoreUpdateRow";
+import { openWhatsNew } from "@/features/whats-new/store";
 import {
   SettingsRow,
   SettingsSection,
@@ -97,6 +104,24 @@ export const AboutSupportTab = () => {
             label="motedesktop.com"
             href={PUBLIC_LINKS.website}
           />
+        </SettingsRow>
+        <SettingsRow
+          title="What's new"
+          description="What changed in this version of Mote Desktop."
+        >
+          <Button
+            variant="outline"
+            className="bg-background shadow-none hover:bg-background/75"
+            onClick={() =>
+              void openWhatsNew().then(
+                (shown) =>
+                  shown || toast.message("No release notes for this version"),
+              )
+            }
+          >
+            <Sparkles />
+            See what's new
+          </Button>
         </SettingsRow>
         <StoreUpdateRow />
       </SettingsSection>
