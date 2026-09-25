@@ -44,7 +44,7 @@ import type {
   SyncBoxMode,
   SyncBoxSession,
 } from "@/types/sync-box";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Clapperboard,
@@ -115,11 +115,11 @@ export const SyncBoxScreen = ({
   setupOnly?: boolean;
 }) => {
   const navigate = useNavigate();
+  const router = useRouter();
   const session = useSyncBoxStore((store) => store.session);
   const sessionLoading = useSyncBoxStore((store) => store.sessionLoading);
   const loadSession = useSyncBoxStore((store) => store.loadSession);
   const setSession = useSyncBoxStore((store) => store.setSession);
-  const [adding, setAdding] = useState(setupOnly);
 
   useEffect(() => {
     void loadSession();
@@ -134,23 +134,26 @@ export const SyncBoxScreen = ({
   }
 
   const configured = session?.configured === true && session.syncBox != null;
+  // Pairing opens from a box's controls, the area picker, or Settings, so it
+  // returns to wherever it was opened from.
   const leaveSetup = () => {
-    if (setupOnly) {
-      void navigate({
-        to: "/sync",
-        search: { source: undefined },
-        replace: true,
-      });
+    if (router.history.canGoBack()) {
+      router.history.back();
       return;
     }
-    setAdding(false);
+    void navigate({
+      to: "/sync",
+      search: { source: undefined },
+      replace: true,
+    });
   };
 
-  if (adding || !configured) {
+  if (setupOnly || !configured) {
     return (
       <>
         {configured ? (
-          <div className="mx-auto flex w-full max-w-5xl">
+          // Above the wizard, which is nudged up into this space.
+          <div className="relative z-10 mx-auto flex w-full max-w-5xl">
             <Button variant="ghost" className="gap-2" onClick={leaveSetup}>
               <ArrowLeft size={16} />
               Back to {session.syncBox?.name ?? "Sync Box"}
@@ -167,7 +170,7 @@ export const SyncBoxScreen = ({
         <SyncBoxOnboardingWizard
           onComplete={(nextSession) => {
             setSession(nextSession);
-            leaveSetup();
+            if (setupOnly) leaveSetup();
           }}
         />
       </>
@@ -178,7 +181,7 @@ export const SyncBoxScreen = ({
     <SyncBoxConnectedView
       session={session}
       areaId={areaId}
-      onPair={() => setAdding(true)}
+      onPair={() => void navigate({ to: "/sync", search: { source: "box" } })}
     />
   );
 };
