@@ -121,6 +121,13 @@ Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
 
+## What's new in 0.7.0
+
+Pair more than one Hue Sync Box and switch between them from the Sync screen
+(Mote Pro; your first box stays free). After an update, Mote now shows what
+changed. Updates are picked up sooner, and Restart to update no longer gets
+stuck.
+
 ## What's new in 0.6.2
 
 Updates now download on their own in the background, so installing one takes a

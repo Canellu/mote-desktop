@@ -244,6 +244,10 @@ repositories are public. The value must match the `APP_TOKEN` secret on the
 ## Storage
 
 - Bridge info: Tauri store file `hue-store.json`
+- Sync Boxes: `syncBoxes` in `hue-store.json` (every box and the active one);
+  access tokens in the keyring, service `com.motedesktop.mote`, account
+  `hue-sync-box-access-token:<uniqueId>`
+- "What's new" last-seen version: `localStorage` key `whats-new-last-seen-version`
 - Application key/API credential: system keyring service `com.motedesktop.mote`,
   account `hue-application-key`
 - Theme preference: `localStorage` key `themeMode`

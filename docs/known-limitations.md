@@ -17,8 +17,8 @@ Last reviewed: **2026-09-24**.
   on Windows, drivers, and hardware and must be finalized through acceptance
   testing.
 - PC Sync Music mode uses system-audio loopback; it does not use the microphone.
-- The first release manages one saved Hue Play HDMI Sync Box. Multiple or
-  per-bridge Sync Box association is not included.
+- One Hue Play HDMI Sync Box is free; pairing more is Mote Pro. The Sync screen
+  controls one box at a time, and a bridge streams to one box at a time.
 - Free includes one desktop widget with one room, zone, or light. More widgets,
   multiple controls/targets, and widget theme, size, corners, placement,
   pinning, and always-on-top require Pro.

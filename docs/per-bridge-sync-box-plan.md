@@ -14,8 +14,11 @@ summary: "Scope the paired HDMI Sync Box to the active bridge so switching bridg
 
 # Per-Bridge Sync Box Plan
 
-Status: **proposed / not started**. The current implementation still stores one
-global Sync Box configuration and credential; this plan describes its migration.
+Status: **superseded in 0.7.0**. Mote now saves several boxes (one keyring token
+each), records the bridge each box reports, lists the boxes on the active bridge
+in a picker, and makes a second box Mote Pro. Unlike this plan, a bridge may
+have more than one box. The original proposal follows; before 0.7.0 Mote
+stored one global Sync Box configuration and credential.
 
 ## Goal
 

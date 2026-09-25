@@ -5,6 +5,30 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.7.0] - 2026-09-26
+
+### Highlights
+
+- **More than one Sync Box (Mote Pro).** Pair several Hue Play HDMI Sync
+  Boxes and switch between them from the top of the Sync screen. Each box is
+  listed under the bridge it streams to, and Settings shows every box with its
+  own details and Remove. Your first Sync Box stays free.
+- **What's new.** After an update, Mote shows what changed, once. Settings >
+  About opens it again whenever you like.
+
+### Improvements
+
+- Mote looks for updates every hour and again when your PC wakes up, so a new
+  version starts downloading sooner.
+- Syncing labels name the Sync Box that is syncing instead of saying "the Sync
+  Box".
+
+### Fixes
+
+- Restart to update no longer gets stuck on "Restarting…" after Microsoft's
+  update window was shown. If a restart still does not happen, Mote tells you
+  after two minutes what to do instead of spinning forever.
+
 ## [0.6.2] - 2026-09-25
 
 ### Improvements
