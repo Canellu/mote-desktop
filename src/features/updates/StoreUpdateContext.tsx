@@ -24,9 +24,14 @@ import {
 
 /** Startup is busy enough; the first Store query can wait a moment. */
 const FIRST_CHECK_DELAY_MS = 15_000;
-const RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-/** Refocusing the window re-checks, but not more often than this. */
-const FOCUS_RECHECK_MIN_GAP_MS = 60 * 60 * 1000;
+/**
+ * Hourly while Mote runs, tray included, so a new version is downloaded soon
+ * after it is published. The Store rate-limits its own online scans, so a check
+ * inside its cooldown is answered from its cache and costs next to nothing.
+ */
+const RECHECK_INTERVAL_MS = 60 * 60 * 1000;
+/** Refocusing the window or reconnecting re-checks, but not more often than this. */
+const FOCUS_RECHECK_MIN_GAP_MS = 10 * 60 * 1000;
 /**
  * An install closes Mote within seconds, or waits on Microsoft's dialog. Past
  * this, the request is taken as stuck so the button is never left spinning.
@@ -87,11 +92,14 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
       }
     };
     window.addEventListener("focus", onFocus);
+    // Waking from sleep reconnects, and a PC that slept overnight is due a look.
+    window.addEventListener("online", onFocus);
 
     return () => {
       window.clearTimeout(first);
       window.clearInterval(interval);
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("online", onFocus);
     };
   }, [recheck]);
 
