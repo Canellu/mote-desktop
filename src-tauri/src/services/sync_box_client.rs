@@ -789,8 +789,8 @@ fn load_saved<R: Runtime>(app: &AppHandle<R>) -> Result<SavedSyncBoxes, String> 
 }
 
 /// Before 0.7 one box was saved under `syncBox`, with its token in a single
-/// keyring account. The token moves first, so a failure part way leaves the
-/// old layout readable and the move runs again on the next read.
+/// keyring account. The token is copied first, so a failure part way leaves
+/// the old layout readable and the copy runs again on the next read.
 fn migrate_single_box<R: Runtime>(
     store: &tauri_plugin_store::Store<R>,
 ) -> Result<SavedSyncBoxes, String> {
@@ -818,7 +818,9 @@ fn migrate_single_box<R: Runtime>(
     store
         .save()
         .map_err(|error| private_error("Failed to save Sync Box settings.", error))?;
-    let _ = legacy.delete_credential();
+    // The old token is copied, not moved. The keyring is shared by every copy of
+    // Mote on this account, so an older build still installed beside this one
+    // (a development build next to the Store one) keeps working.
     Ok(saved)
 }
 
@@ -929,5 +931,57 @@ mod tests {
         assert_eq!(target.unique_id, "c429960b4b6c");
         assert_eq!(target.ip_address, "192.168.1.12");
         assert_eq!(target.port, 443);
+    }
+
+    fn saved_box(unique_id: &str) -> StoredSyncBoxInfo {
+        StoredSyncBoxInfo {
+            name: format!("Box {unique_id}"),
+            device_type: "HSB1".to_string(),
+            unique_id: unique_id.to_string(),
+            ip_address: "192.168.1.20".to_string(),
+            port: 443,
+            api_level: 7,
+            firmware_version: "1.0".to_string(),
+            bridge_unique_id: None,
+        }
+    }
+
+    #[test]
+    fn active_box_falls_back_to_the_first_when_the_choice_is_gone() {
+        let mut saved = SavedSyncBoxes {
+            boxes: vec![saved_box("aaaaaaaaaaaa"), saved_box("bbbbbbbbbbbb")],
+            active_id: Some("BBBBBBBBBBBB".to_string()),
+        };
+        assert_eq!(saved.active().unwrap().unique_id, "bbbbbbbbbbbb");
+
+        saved.active_id = Some("cccccccccccc".to_string());
+        assert_eq!(saved.active().unwrap().unique_id, "aaaaaaaaaaaa");
+
+        saved.boxes.clear();
+        assert!(saved.active().is_none());
+    }
+
+    #[test]
+    fn a_box_saved_before_bridge_tracking_still_reads() {
+        let legacy = json!({
+            "name": "Living room",
+            "deviceType": "HSB1",
+            "uniqueId": "c429960b4b6c",
+            "ipAddress": "192.168.1.12",
+            "apiLevel": 7,
+            "firmwareVersion": "1.0",
+        });
+        let sync_box: StoredSyncBoxInfo = serde_json::from_value(legacy).unwrap();
+        assert_eq!(sync_box.port, 443);
+        assert!(sync_box.bridge_unique_id.is_none());
+    }
+
+    #[test]
+    fn each_box_has_its_own_keyring_account() {
+        assert_eq!(
+            format!("{KEYRING_ACCOUNT_PREFIX}{}", "C429960B4B6C".to_ascii_lowercase()),
+            "hue-sync-box-access-token:c429960b4b6c",
+        );
+        assert_ne!(KEYRING_ACCOUNT_PREFIX, LEGACY_KEYRING_ACCOUNT);
     }
 }
