@@ -20,9 +20,10 @@ export interface StoreUpdateContextValue {
   phase: StoreUpdatePhase;
   /** Download percent. Null until the Store reports the download moving. */
   percent: number | null;
-  /** Downloads the update. Mote stays open. */
-  download: () => Promise<void>;
-  /** Installs the downloaded update, which closes Mote and reopens it. */
+  /**
+   * Installs the update, which closes Mote and reopens it. Downloads it first
+   * when the automatic download could not run.
+   */
   restart: () => Promise<void>;
   recheck: () => Promise<void>;
 }
@@ -38,7 +39,6 @@ export const useStoreUpdate = (): StoreUpdateContextValue =>
     checkedAt: null,
     phase: "idle",
     percent: null,
-    download: async () => {},
     restart: async () => {},
     recheck: async () => {},
   };

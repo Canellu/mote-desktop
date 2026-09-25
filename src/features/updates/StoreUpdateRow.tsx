@@ -57,7 +57,7 @@ const StableLabel = ({
  * nothing to check.
  */
 export const StoreUpdateRow = () => {
-  const { status, checkedAt, phase, percent, download, restart, recheck } =
+  const { status, checkedAt, phase, percent, restart, recheck } =
     useStoreUpdate();
   const [checking, setChecking] = useState(false);
 
@@ -89,7 +89,7 @@ export const StoreUpdateRow = () => {
         : phase === "restarting"
           ? "Mote is closing to install the update and opens again when it is done."
           : status.available
-            ? "A newer version is ready in the Microsoft Store."
+            ? "A newer version is ready. Mote closes to install it and opens again."
             : checkedAt
               ? `You have the latest version. Last checked ${formatCheckedAt(checkedAt)}.`
               : "The Microsoft Store also installs updates on its own.";
@@ -99,11 +99,11 @@ export const StoreUpdateRow = () => {
       {status.available || phase !== "idle" ? (
         <Button
           disabled={busy}
-          onClick={() => void (phase === "ready" ? restart() : download())}
+          onClick={() => void restart()}
         >
           <StableLabel
             busy={busy}
-            idle={phase === "ready" ? "Restart to update" : "Download update"}
+            idle={phase === "ready" ? "Restart to update" : "Update"}
             busyLabel={
               phase === "restarting"
                 ? "Restarting…"

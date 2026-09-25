@@ -1,4 +1,5 @@
 import { ArrowDownToLine, Loader2, RotateCw } from "lucide-react";
+import { useDownloadFill } from "./useDownloadFill";
 import { useStoreUpdate } from "./useStoreUpdate";
 
 /**
@@ -6,11 +7,13 @@ import { useStoreUpdate } from "./useStoreUpdate";
  * package or an update is under way, so a current or development build never
  * shows it.
  *
- * The first click downloads while Mote stays open, filling the pill as it goes.
- * Once the package is in, the pill asks for the restart that installs it.
+ * The download starts on its own, filling the pill as it goes, and the pill
+ * then asks for the restart that installs it. When the Store would not download
+ * silently, the pill offers "Update", which downloads and installs in one go.
  */
 export const UpdateButton = () => {
-  const { status, phase, percent, download, restart } = useStoreUpdate();
+  const { status, phase, percent, restart } = useStoreUpdate();
+  const fill = useDownloadFill(phase === "downloading", percent);
 
   if (!status.supported || (!status.available && phase === "idle")) {
     return null;
@@ -33,7 +36,7 @@ export const UpdateButton = () => {
       type="button"
       aria-label={
         phase === "idle" && status.mandatory
-          ? "Download required update"
+          ? "Install required update"
           : undefined
       }
       disabled={busy}
@@ -41,7 +44,7 @@ export const UpdateButton = () => {
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => {
         event.stopPropagation();
-        void (phase === "ready" ? restart() : download());
+        void restart();
       }}
       className="group flex h-full items-center justify-center px-1.5 outline-none"
     >
@@ -52,7 +55,7 @@ export const UpdateButton = () => {
           <span
             aria-hidden
             className="absolute inset-y-0 left-0 bg-white/20 transition-[width] duration-300 ease-out"
-            style={{ width: `${percent ?? 0}%` }}
+            style={{ width: `${fill}%` }}
           />
         )}
         <span className="relative flex items-center gap-1.5">

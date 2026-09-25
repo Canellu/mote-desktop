@@ -13,16 +13,21 @@ export type StoreUpdateOutcome =
   | "installed"
   | "up_to_date"
   | "canceled"
-  | "failed";
+  | "failed"
+  /** The Store will not download silently, so only the install step can. */
+  | "needs_consent";
 
 export const checkStoreUpdate = () =>
   invoke<StoreUpdateStatus>("check-store-update");
 
-/** Downloads the update only. Mote stays open. */
+/** Downloads the update silently, never with a dialog. Mote stays open. */
 export const downloadStoreUpdate = () =>
   invoke<StoreUpdateOutcome>("download-store-update");
 
-/** Installs the downloaded update, which closes Mote and reopens it. */
+/**
+ * Installs the update, downloading whatever is still missing first. Closes Mote
+ * and reopens it, and may show Microsoft's dialog.
+ */
 export const installStoreUpdate = () =>
   invoke<StoreUpdateOutcome>("install-store-update");
 

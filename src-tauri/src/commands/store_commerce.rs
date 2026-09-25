@@ -416,6 +416,10 @@ pub enum StoreUpdateOutcome {
     Canceled,
     /// Download or deployment failed: battery, Wi-Fi policy, or anything else.
     Failed,
+    /// The Store would not download silently (automatic app updates off, a
+    /// metered network, or a silent attempt that stalled), so the update needs
+    /// the install step, which can show Microsoft's dialog.
+    NeedsConsent,
 }
 
 /// Asks the Store whether a newer package is published. Needs no window.
@@ -425,7 +429,8 @@ pub async fn check_store_update() -> StoreUpdateStatus {
 }
 
 /// Downloads the newer package without installing it, so Mote stays open and
-/// usable while it arrives.
+/// usable while it arrives. Silent only: it starts without the customer asking,
+/// so it never opens Microsoft's dialog.
 #[tauri::command(rename = "download-store-update")]
 pub async fn download_store_update(app: tauri::AppHandle) -> Result<StoreUpdateOutcome, String> {
     download_store_update_for_platform(app).await
@@ -500,12 +505,19 @@ async fn download_store_update_for_platform(
     let context = StoreContext::GetDefault().map_err(|error| error.message())?;
     initialize_with_main_window(&context, &app)?;
 
+    if !context
+        .CanSilentlyDownloadStorePackageUpdates()
+        .unwrap_or(false)
+    {
+        return Ok(StoreUpdateOutcome::NeedsConsent);
+    }
+
     Ok(
-        match run_store_update(&context, &app, UpdateStep::Download).await? {
+        match run_store_update_once(&context, &app, UpdateStep::Download, true).await? {
             None => StoreUpdateOutcome::UpToDate,
             Some(StorePackageUpdateState::Completed) => StoreUpdateOutcome::Downloaded,
             Some(StorePackageUpdateState::Canceled) => StoreUpdateOutcome::Canceled,
-            Some(_) => StoreUpdateOutcome::Failed,
+            Some(_) => StoreUpdateOutcome::NeedsConsent,
         },
     )
 }
@@ -570,7 +582,7 @@ struct StoreUpdateProgress {
 
 /// How often the Store's queue is read for download progress.
 #[cfg(target_os = "windows")]
-const QUEUE_PROGRESS_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
+const QUEUE_PROGRESS_INTERVAL: std::time::Duration = std::time::Duration::from_millis(250);
 
 /// Sends download progress to the interface, only ever forward.
 ///

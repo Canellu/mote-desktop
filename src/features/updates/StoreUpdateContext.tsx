@@ -36,8 +36,8 @@ const errorMessage = (error: unknown, fallback: string) =>
  * same answer and never query the Store twice for it. Everything that talks to
  * the Store lives in Rust; this only schedules the questions.
  *
- * An update takes two steps. The download runs while Mote stays open, and only
- * the restart that installs it closes the app, when the customer chooses to.
+ * The download starts on its own while Mote stays open, so the customer's only
+ * step is the restart that installs it.
  */
 export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
   const [status, setStatus] = useState<StoreUpdateStatus>(NO_STORE_UPDATE);
@@ -90,8 +90,11 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [recheck]);
 
+  // From "idle" this is the one click left when the silent download could not
+  // run: the install step downloads first, with Microsoft's dialog if needed.
   const restart = useCallback(async () => {
-    if (phaseRef.current !== "ready") return;
+    const from = phaseRef.current;
+    if (from !== "ready" && from !== "idle") return;
     setPhase("restarting");
     try {
       const outcome = await installStoreUpdate();
@@ -101,21 +104,25 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
         toast.success("Mote Desktop is already up to date");
         await recheck();
       } else if (outcome === "canceled") {
-        setPhase("ready");
-      } else if (outcome === "failed") {
-        setPhase("ready");
+        setPhase(from);
+      } else if (outcome === "failed" || outcome === "needs_consent") {
+        setPhase(from);
         toast.error(
           "The update could not be installed. You can also update from the Microsoft Store.",
         );
       }
     } catch (error) {
-      setPhase("ready");
+      setPhase(from);
       toast.error(errorMessage(error, "The update could not be installed."));
     }
   }, [recheck, setPhase]);
 
+  // Runs on its own once the Store offers an update. It never shows a dialog or
+  // an error: when it cannot finish, the button falls back to `restart`.
+  const autoDownloadTried = useRef(false);
   const download = useCallback(async () => {
-    if (phaseRef.current !== "idle") return;
+    if (phaseRef.current !== "idle" || autoDownloadTried.current) return;
+    autoDownloadTried.current = true;
     setPhase("downloading");
     setPercent(null);
     let unlisten: UnlistenFn | undefined;
@@ -140,26 +147,23 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
 
       setPhase("idle");
       if (outcome === "up_to_date") {
-        toast.success("Mote Desktop is already up to date");
         await recheck();
-      } else if (outcome === "failed") {
-        toast.error(
-          "The update could not be downloaded. You can also update from the Microsoft Store.",
-        );
       }
-      // "canceled" means the customer dismissed Microsoft's dialog.
-    } catch (error) {
+    } catch {
       setPhase("idle");
-      toast.error(errorMessage(error, "The update could not be downloaded."));
     } finally {
       unlisten?.();
       setPercent(null);
     }
   }, [recheck, restart, setPhase]);
 
+  useEffect(() => {
+    if (status.available && phase === "idle") void download();
+  }, [status.available, phase, download]);
+
   const value = useMemo(
-    () => ({ status, checkedAt, phase, percent, download, restart, recheck }),
-    [status, checkedAt, phase, percent, download, restart, recheck],
+    () => ({ status, checkedAt, phase, percent, restart, recheck }),
+    [status, checkedAt, phase, percent, restart, recheck],
   );
 
   return (
