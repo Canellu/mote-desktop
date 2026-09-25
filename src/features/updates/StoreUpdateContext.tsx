@@ -27,6 +27,11 @@ const FIRST_CHECK_DELAY_MS = 15_000;
 const RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 /** Refocusing the window re-checks, but not more often than this. */
 const FOCUS_RECHECK_MIN_GAP_MS = 60 * 60 * 1000;
+/**
+ * An install closes Mote within seconds, or waits on Microsoft's dialog. Past
+ * this, the request is taken as stuck so the button is never left spinning.
+ */
+const INSTALL_STALL_MS = 2 * 60 * 1000;
 
 const errorMessage = (error: unknown, fallback: string) =>
   typeof error === "string" && error.trim() ? error : fallback;
@@ -96,8 +101,23 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
     const from = phaseRef.current;
     if (from !== "ready" && from !== "idle") return;
     setPhase("restarting");
+    let stallTimer: number | undefined;
     try {
-      const outcome = await installStoreUpdate();
+      const stalled = new Promise<"stalled">((resolve) => {
+        stallTimer = window.setTimeout(
+          () => resolve("stalled"),
+          INSTALL_STALL_MS,
+        );
+      });
+      const outcome = await Promise.race([installStoreUpdate(), stalled]);
+      if (outcome === "stalled") {
+        setPhase(from);
+        toast.error("Mote could not restart to install the update", {
+          description:
+            "Quit Mote from the tray and open it again, then choose Restart to update.",
+        });
+        return;
+      }
       // "installed" rarely arrives, because Windows closes Mote to install it.
       if (outcome === "up_to_date") {
         setPhase("idle");
@@ -114,6 +134,8 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       setPhase(from);
       toast.error(errorMessage(error, "The update could not be installed."));
+    } finally {
+      window.clearTimeout(stallTimer);
     }
   }, [recheck, setPhase]);
 

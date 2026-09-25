@@ -503,7 +503,6 @@ async fn download_store_update_for_platform(
 
     require_store_install()?;
     let context = StoreContext::GetDefault().map_err(|error| error.message())?;
-    initialize_with_main_window(&context, &app)?;
 
     if !context
         .CanSilentlyDownloadStorePackageUpdates()
@@ -530,7 +529,6 @@ async fn install_store_update_for_platform(
 
     require_store_install()?;
     let context = StoreContext::GetDefault().map_err(|error| error.message())?;
-    initialize_with_main_window(&context, &app)?;
 
     Ok(
         match run_store_update(&context, &app, UpdateStep::Install).await? {
@@ -692,9 +690,9 @@ async fn run_store_update_once(
     step: UpdateStep,
     silent: bool,
 ) -> Result<Option<windows::Services::Store::StorePackageUpdateState>, String> {
-    use windows::core::Interface;
+    use windows::core::{AgileReference, Interface};
     use windows::Services::Store::{
-        StorePackageUpdate, StorePackageUpdateState, StorePackageUpdateStatus,
+        StoreContext, StorePackageUpdate, StorePackageUpdateState, StorePackageUpdateStatus,
     };
     use windows_collections::IIterable;
     use windows_future::AsyncOperationProgressHandler;
@@ -703,41 +701,62 @@ async fn run_store_update_once(
     // Microsoft's dialog, when there is one, reports as Pending and is skipped.
     let progress = (step == UpdateStep::Download).then(|| DownloadProgress::new(app));
 
-    let updates = context
-        .GetAppAndOptionalStorePackageUpdatesAsync()
-        .map_err(|error| error.message())?
-        .await
-        .map_err(|error| error.message())?;
-
-    // Everything that touches the update list happens in this block, so the list
-    // is dropped before the operation is awaited below.
-    let operation = {
-        let updates = updates;
+    // The list is not Send, so it stays inside this block, and an agile reference
+    // carries it to the window's thread.
+    let updates = {
+        let updates = context
+            .GetAppAndOptionalStorePackageUpdatesAsync()
+            .map_err(|error| error.message())?
+            .await
+            .map_err(|error| error.message())?;
         if updates.Size().map_err(|error| error.message())? == 0 {
             return Ok(None);
         }
-        if step == UpdateStep::Install {
-            prepare_for_update_install(app);
-        }
+        AgileReference::new(&updates).map_err(|error| error.message())?
+    };
+    if step == UpdateStep::Install {
+        prepare_for_update_install(app);
+    }
 
-        let iterable = updates
-            .cast::<IIterable<StorePackageUpdate>>()
-            .map_err(|error| error.message())?;
-        let operation = match (step, silent) {
-            (UpdateStep::Download, true) => {
-                context.TrySilentDownloadStorePackageUpdatesAsync(&iterable)
+    // Store requests start on the window's thread, on the exact StoreContext
+    // initialised with the window, as purchases do. Started from a worker, a
+    // request that fell back to Microsoft's dialog left the next one hanging
+    // before it reached the Store: 0.6.1's restart never asked for the install
+    // and sat on "Restarting…" until Mote was reopened.
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let app_for_window = app.clone();
+    app.run_on_main_thread(move || {
+        let operation = (|| {
+            let context = StoreContext::GetDefault().map_err(|error| error.message())?;
+            initialize_with_main_window(&context, &app_for_window)?;
+            let iterable = updates
+                .resolve()
+                .and_then(|updates| updates.cast::<IIterable<StorePackageUpdate>>())
+                .map_err(|error| error.message())?;
+            match (step, silent) {
+                (UpdateStep::Download, true) => {
+                    context.TrySilentDownloadStorePackageUpdatesAsync(&iterable)
+                }
+                (UpdateStep::Download, false) => {
+                    context.RequestDownloadStorePackageUpdatesAsync(&iterable)
+                }
+                (UpdateStep::Install, true) => {
+                    context.TrySilentDownloadAndInstallStorePackageUpdatesAsync(&iterable)
+                }
+                (UpdateStep::Install, false) => {
+                    context.RequestDownloadAndInstallStorePackageUpdatesAsync(&iterable)
+                }
             }
-            (UpdateStep::Download, false) => {
-                context.RequestDownloadStorePackageUpdatesAsync(&iterable)
-            }
-            (UpdateStep::Install, true) => {
-                context.TrySilentDownloadAndInstallStorePackageUpdatesAsync(&iterable)
-            }
-            (UpdateStep::Install, false) => {
-                context.RequestDownloadAndInstallStorePackageUpdatesAsync(&iterable)
-            }
-        }
-        .map_err(|error| error.message())?;
+            .map_err(|error| error.message())
+        })();
+        let _ = sender.send(operation);
+    })
+    .map_err(|error| error.to_string())?;
+
+    let operation = {
+        let operation = receiver
+            .await
+            .map_err(|_| "The update request closed before it started.".to_string())??;
 
         if let Some(progress) = progress.clone() {
             operation
