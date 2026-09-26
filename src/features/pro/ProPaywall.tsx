@@ -65,8 +65,8 @@ const INCLUDED = [
   },
   {
     icon: Router,
-    title: "Every bridge",
-    detail: "Save more than one, switch whenever.",
+    title: "Every bridge and Sync Box",
+    detail: "Save more than one of each, switch whenever.",
   },
 ];
 

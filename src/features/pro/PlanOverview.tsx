@@ -23,7 +23,7 @@ const COMPARISON: { name: string; free: PlanValue; pro: PlanValue }[] = [
   { name: "Devices and entertainment areas", free: true, pro: true },
   { name: "Color and white temperature inspector", free: true, pro: true },
   { name: "Entertainment area setup and testing", free: true, pro: true },
-  { name: "Hue Play HDMI Sync Box", free: "One box", pro: "One box" },
+  { name: "Hue Play HDMI Sync Box", free: "One box", pro: "Multiple" },
   { name: "Hue Bridges", free: "One", pro: "Multiple" },
   { name: "Desktop widgets", free: "One", pro: "Unlimited" },
   { name: "Multiple controls in one widget", free: false, pro: true },
