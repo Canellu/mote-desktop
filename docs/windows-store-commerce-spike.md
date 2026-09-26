@@ -1,5 +1,12 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-09-26: the unsigned 0.8.0.0 MSIX builds from
+`d1d9c98` and is 10,636,040 bytes (SHA-256
+`859905F9E8BDA3579E6A1C891EC504C54B57E42DA6C4DBD96626EA9BB6765004`, tag
+`v0.8.0`). It makes PC Sync free after launch feedback on r/Hue. 0.7.0.0
+(Submission 14) is live. The website listed PC Sync as free (`mote-website`
+`ff85f42`) the same day, ahead of this package passing certification.
+
 Release preparation on 2026-09-26: the unsigned 0.7.0.0 MSIX builds from
 `15cb809` and is 10,631,898 bytes (SHA-256
 `D3542336EE79058FFA17A571CB951618B1BAC2C2C1FF8EDBE4D2834E68D0228F`). It adds
