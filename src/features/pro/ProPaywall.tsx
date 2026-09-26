@@ -13,13 +13,12 @@ import {
   Radio,
   Router,
   Sparkles,
-  Tv,
+  Timer,
   X,
 } from "lucide-react";
 
 /** What the dialog leads with, so it answers the thing the customer just tried. */
 const LEAD: Record<ProFeature, string> = {
-  pc_sync: "PC Sync is part of Mote Pro",
   multiple_bridges: "A second bridge is part of Mote Pro",
   advanced_widgets: "This widget needs Mote Pro",
   dashboard_custom_layout: "Your own layout is part of Mote Pro",
@@ -41,12 +40,12 @@ const INCLUDED = [
   {
     icon: Radio,
     title: "Automations",
-    detail: "Lights react to your calls and to locking your PC.",
+    detail: "Lights react to calls, your PC, your phone, and your calendar.",
   },
   {
-    icon: Tv,
-    title: "PC Sync",
-    detail: "Lights follow video, games, or whatever is playing.",
+    icon: Timer,
+    title: "Focus sessions",
+    detail: "Timed light changes for work and breaks.",
   },
   {
     icon: Keyboard,

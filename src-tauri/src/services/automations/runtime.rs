@@ -1022,14 +1022,8 @@ impl Worker {
         };
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
-            let result = match crate::commands::entitlements::require(&app, Capability::PcSync) {
-                Ok(()) => {
-                    let engine = app.state::<HostSyncEngine>();
-                    engine.start_sync(&app, request).await.map(|_| ())
-                }
-                Err(refusal) => Err(refusal),
-            };
-            if let Err(error) = result {
+            let engine = app.state::<HostSyncEngine>();
+            if let Err(error) = engine.start_sync(&app, request).await {
                 signal(Signal::SyncResumeFailed(error));
             }
         });

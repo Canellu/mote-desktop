@@ -5,6 +5,13 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.8.0] - 2026-09-26
+
+### Highlights
+
+- **PC Sync is free.** Video, Games, and Music sync with your Hue
+  entertainment area no longer need Mote Pro.
+
 ## [0.7.0] - 2026-09-26
 
 ### Highlights

@@ -35,14 +35,16 @@ Mote Desktop
 
 ## Short description
 
-Control Philips Hue lights for free. Try PC Sync, advanced widgets, and more free for 14 days with Mote Pro.
+Control Philips Hue lights and sync them with your PC for free. Try automations, shortcuts, advanced widgets, and more free for 14 days with Mote Pro.
 
 ## Description
 
 Mote Desktop is an unofficial Windows controller for compatible Philips Hue
 hardware. The Free tier provides useful local control of lights, rooms, zones,
-scenes, devices, entertainment areas, and one Hue Bridge. It also includes the
-current controls for one Hue Play HDMI Sync Box.
+scenes, devices, entertainment areas, and one Hue Bridge, plus PC Sync, which
+extends supported displays, games, and system audio to a compatible Hue
+entertainment area. It also includes the current controls for one Hue Play HDMI
+Sync Box.
 
 Every Mote Pro feature is free to try for 14 days, starting when you pair your
 first Hue Bridge. When the trial ends, everything you set up stays saved, and a
@@ -50,14 +52,13 @@ one-time Microsoft Store purchase keeps Mote Pro working. No account or payment
 details are needed to start the trial.
 
 The Free tier includes one desktop widget holding one room, zone, or light.
-Mote Pro adds PC Sync, global keyboard shortcuts that control your lights from
+Mote Pro adds global keyboard shortcuts that control your lights from
 anywhere in Windows, an on-air light during calls, lights that dim or turn off
 when you lock the PC, focus sessions, phone presence and calendar based lighting,
 as many widgets as you like with several controls or a
 multi-target toggle group in each, each widget's theme, size, corners and
 placement, a customized and reordered home dashboard, and saving and switching
-among multiple Hue Bridges. PC Sync extends supported displays, games, and
-system audio to a compatible Hue entertainment area.
+among multiple Hue Bridges.
 
 Mote Desktop is designed for local control. Core Hue communication stays between
 your PC and compatible hardware on your local network. The first release does
@@ -78,6 +79,8 @@ releases.
   temperature where supported.
 - View, activate, create, edit, and delete supported Hue scenes.
 - Create and manage rooms, zones, devices, and entertainment areas.
+- Run Video, Games, and Music PC Sync modes with compatible Hue entertainment
+  hardware.
 - Use the home dashboard and switch between standard grouping modes.
 - Discover, pair, and control one Hue Play HDMI Sync Box.
 - Discover, pair, restore, rename, and remove one saved Hue Bridge.
@@ -89,8 +92,6 @@ releases.
 
 ## Mote Pro — free for 14 days, then a one-time purchase
 
-- Run Video, Games, and Music PC Sync modes with compatible Hue entertainment
-  hardware.
 - Set global keyboard shortcuts that control lights, rooms, zones, and scenes
   from anywhere in Windows, including from the tray.
 - Turn lights into an on-air sign while an app uses your microphone or camera,
@@ -120,6 +121,11 @@ releases.
 Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
+
+## What's new in 0.8.0
+
+PC Sync is now free: Video, Games, and Music sync with your Hue entertainment
+area no longer need Mote Pro.
 
 ## What's new in 0.7.0
 

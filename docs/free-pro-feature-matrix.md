@@ -3,11 +3,17 @@
 Status: **entitlement implemented and enforced; a 14-day Pro trial ships in
 0.3.0**.
 
-Last reviewed: **2026-09-18**.
+Last reviewed: **2026-09-26**.
 
 As of 2026-09-11 the entitlement service is registered as Tauri state, release
 builds read the Store licence through a cached provider, and purchase and
 restore are wired. Every capability in the table below is now enforced.
+
+PC Sync became free on 2026-09-26, by the owner's decision, after launch
+feedback on r/Hue pointed out that the official Hue Sync app gives the same
+Video, Games, and Music modes away. Charging for them made Pro look like it was
+selling what Signify ships free. The `pc_sync` capability was removed; nothing
+gates starting or resuming a session.
 
 Global keyboard shortcuts were added to this matrix on 2026-09-11. They had
 shipped without a tier at all — absent here, from `v1-feature-inventory.md`, and
@@ -86,8 +92,6 @@ Pro brings everything back as it was.
 - Switching to another saved bridge requires `multiple_bridges`; removing one
   never does.
 - Global shortcuts refuse at execution, as before.
-- A PC Sync session already running is left to finish; starting the next one
-  requires `pc_sync`.
 - An automation's look already showing is still put back when it ends; a
   running focus session finishes; starting the next session, presence action,
   or calendar rule requires `local_automation`.
@@ -118,8 +122,8 @@ and APIs must map into the provider-neutral capabilities defined here.
 | Lights, rooms, and zones        | Power, brightness, color, color temperature, membership, placement, naming, and live updates                            | No current control is reserved for Pro                                                                                                        | —                         |
 | Scenes                          | View, activate, create, edit, delete, and run supported dynamic scenes                                                  | No current scene control is reserved for Pro                                                                                                  | —                         |
 | Devices                         | Inspect, discover, configure, assign, rename, and remove supported Hue resources                                        | No current device-administration control is reserved for Pro                                                                                  | —                         |
-| Entertainment areas             | Create, position, test, edit, and delete areas                                                                          | Using an area for PC Sync requires Pro                                                                                                        | `pc_sync`                 |
-| PC Sync                         | Explain requirements and show the upgrade entry point                                                                   | Video, Games, and Music modes; display/audio selection; start, update, and stop streaming                                                     | `pc_sync`                 |
+| Entertainment areas             | Create, position, test, edit, and delete areas                                                                          | No current entertainment-area control is reserved for Pro                                                                                     | —                         |
+| PC Sync                         | Video, Games, and Music modes; display/audio selection; start, update, and stop streaming (free since 2026-09-26)      | No current PC Sync control is reserved for Pro                                                                                                | —                         |
 | Hue Play HDMI Sync Box          | One box: discovery, pairing, source, mode, intensity, brightness, sync, restore, and removal controls                 | A second box and switching between boxes (0.7.0); future workflows that combine several boxes, bridges, or automations may be Pro             | —                         |
 | Desktop widgets                 | One widget with one single-target control, standard size and corners, system theme, and normal window behavior          | Any number of widgets; multiple controls or multi-target toggle groups; customize theme, size, corners, placement, pinning, and always-on-top | `advanced_widgets`        |
 | Global keyboard shortcuts       | Explain the capability and show the upgrade entry point; shortcuts can be prepared but do not fire                      | System-wide hotkeys for lights, rooms, zones, and scenes, active whenever Mote runs, including from the tray                                  | `global_shortcuts`        |
@@ -128,7 +132,7 @@ and APIs must map into the provider-neutral capabilities defined here.
 | About and support               | Version, legal/support links, privacy summary, release notes, diagnostics, purchase status, and restore-purchase action | No support or privacy control is reserved for Pro                                                                                             | —                         |
 
 The first implementation should gate complete workflows, not scatter locks over
-individual sliders. For example, the PC Sync entry point may explain and sell
+individual sliders. For example, the Focus entry point may explain and sell
 Pro, but a user who starts an authorized session must not encounter additional
 paywalls inside that session.
 
@@ -189,7 +193,7 @@ automatically when it passes.
    Hardening it would mean moving layout persistence into Rust; that is a poor
    trade for what it protects, which is one person's arrangement of cards on one
    machine. Recorded here so nobody later mistakes it for a backend gate.
-5. **Done (2026-09-11), narrower than first written.** `pc_sync` is enforced
+5. **Done (2026-09-11); removed 2026-09-26 when PC Sync became free.** `pc_sync` was enforced
    before starting Video, Games and Music streams, and deliberately _not_ before
    the colour test. The table above lists testing an entertainment area as a Free
    action, and gating it would stop someone confirming their hardware works
@@ -255,10 +259,10 @@ its tier from a route name, platform, Store product ID, or UI location.
 
 - A refunded or revoked Pro purchase disables new Pro operations after the next
   authoritative entitlement refresh.
-- Stop active PC Sync safely and close active widget windows when Pro becomes
+- Close active widget windows when Pro becomes
   authoritatively inactive. Do not terminate an operation merely because a
   transient license check returns `unknown`.
-- Preserve local widget definitions, dashboard layouts, and PC Sync preferences
+- Preserve local widget definitions and dashboard layouts
   when Pro becomes inactive. Free mode uses the standard dashboard layout, and
   the preserved configuration becomes available again after a valid restore or
   repurchase.

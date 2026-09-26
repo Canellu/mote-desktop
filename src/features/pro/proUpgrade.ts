@@ -2,7 +2,6 @@ import { createContext, useContext, type RefObject } from "react";
 
 /** The capabilities a customer can be asked to buy, in their own words. */
 export type ProFeature =
-  | "pc_sync"
   | "multiple_bridges"
   | "advanced_widgets"
   | "dashboard_custom_layout"

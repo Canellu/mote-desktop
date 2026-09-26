@@ -12,7 +12,6 @@ use crate::services::trial::{now_ms, TrialRecord, TrialStatus};
 pub enum Capability {
     MultipleBridges,
     DashboardCustomLayout,
-    PcSync,
     /// Named for what it gates rather than for the feature as a whole: creating
     /// widgets is free, and only composition beyond one single-target control
     /// per widget is paid. `Widgets` read as though the feature itself were
@@ -30,10 +29,9 @@ pub enum Capability {
 }
 
 impl Capability {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 6] = [
         Self::MultipleBridges,
         Self::DashboardCustomLayout,
-        Self::PcSync,
         Self::AdvancedWidgets,
         Self::GlobalShortcuts,
         Self::LocalAutomation,
@@ -44,7 +42,6 @@ impl Capability {
         match self {
             Self::MultipleBridges
             | Self::DashboardCustomLayout
-            | Self::PcSync
             | Self::AdvancedWidgets
             | Self::GlobalShortcuts
             | Self::LocalAutomation
@@ -478,11 +475,11 @@ mod tests {
     #[test]
     fn inactive_pro_returns_a_structured_pro_required_error() {
         let error = service_with(EntitlementState::Inactive)
-            .authorize(Capability::PcSync)
+            .authorize(Capability::GlobalShortcuts)
             .unwrap_err();
 
         assert_eq!(error.code, AuthorizationErrorCode::ProRequired);
-        assert_eq!(error.capability, Capability::PcSync);
+        assert_eq!(error.capability, Capability::GlobalShortcuts);
         assert_eq!(error.required_product, EntitlementProduct::Pro);
     }
 
@@ -654,7 +651,7 @@ mod tests {
 
         assert_eq!(runtime.snapshot().pro, EntitlementState::Inactive);
         assert_eq!(
-            runtime.authorize(Capability::PcSync).unwrap_err().code,
+            runtime.authorize(Capability::GlobalShortcuts).unwrap_err().code,
             AuthorizationErrorCode::ProRequired
         );
     }
@@ -712,7 +709,7 @@ mod tests {
 
         assert_eq!(
             runtime
-                .authorize_at(Capability::PcSync, NOW)
+                .authorize_at(Capability::GlobalShortcuts, NOW)
                 .unwrap_err()
                 .code,
             AuthorizationErrorCode::ProRequired
@@ -727,7 +724,7 @@ mod tests {
         // "Could not check" must never become "you do not own this".
         assert_eq!(
             runtime
-                .authorize_at(Capability::PcSync, NOW)
+                .authorize_at(Capability::GlobalShortcuts, NOW)
                 .unwrap_err()
                 .code,
             AuthorizationErrorCode::EntitlementUnavailable

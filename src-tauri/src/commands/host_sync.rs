@@ -2,7 +2,6 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use crate::services::automations::runtime as automations;
-use crate::services::entitlements::Capability;
 use crate::services::entertainment::credentials::{self, EntertainmentCredentialStatus};
 use crate::services::entertainment::displays::{self, DisplayInfo};
 use crate::services::entertainment::engine::{
@@ -118,18 +117,13 @@ pub fn set_host_sync_preferences(
 /// Starts capture-driven sync (Video/Games/Music). Drives physical lights — the UI
 /// must only call this from an explicit user action.
 ///
-/// This is also the paywall for PC Sync, and the only one. Everything leading up
-/// to it — creating an entertainment area, positioning it, running the colour
-/// test — stays free, so a customer can find out whether their hardware works
-/// before being asked to pay. Once a session is authorized it runs without
-/// meeting another gate.
+/// PC Sync is free: the official Hue Sync app gives the same modes away.
 #[tauri::command(rename = "start-host-sync")]
 pub async fn start_host_sync(
     app: AppHandle,
     engine: State<'_, HostSyncEngine>,
     request: StartSyncRequest,
 ) -> Result<HostSyncStatus, String> {
-    crate::commands::entitlements::require(&app, Capability::PcSync)?;
     automations::signal(automations::Signal::SyncByUser);
     engine.start_sync(&app, request).await
 }

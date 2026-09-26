@@ -23,6 +23,7 @@ const COMPARISON: { name: string; free: PlanValue; pro: PlanValue }[] = [
   { name: "Devices and entertainment areas", free: true, pro: true },
   { name: "Color and white temperature inspector", free: true, pro: true },
   { name: "Entertainment area setup and testing", free: true, pro: true },
+  { name: "PC Sync: Video, Games, and Music", free: true, pro: true },
   { name: "Hue Play HDMI Sync Box", free: "One box", pro: "Multiple" },
   { name: "Hue Bridges", free: "One", pro: "Multiple" },
   { name: "Desktop widgets", free: "One", pro: "Unlimited" },
@@ -35,7 +36,6 @@ const COMPARISON: { name: string; free: PlanValue; pro: PlanValue }[] = [
   { name: "Dashboard layout", free: "Standard", pro: "Custom" },
   { name: "Global keyboard shortcuts", free: false, pro: true },
   { name: "Automations: on air and away", free: false, pro: true },
-  { name: "PC Sync: Video, Games, and Music", free: false, pro: true },
 ];
 
 const COMPARE_URL = "https://motedesktop.com/features";

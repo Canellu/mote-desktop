@@ -1,8 +1,4 @@
-import {
-  describeCommandError,
-  parseAuthorizationError,
-} from "@/lib/entitlement-errors";
-import { useProUpgrade } from "@/features/pro/proUpgrade";
+import { describeCommandError } from "@/lib/entitlement-errors";
 import { useEntertainmentStore } from "@/stores/EntertainmentStore";
 import type {
   HostSyncOverview,
@@ -21,7 +17,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * events.
  */
 export const useHostSync = () => {
-  const { requestPro } = useProUpgrade();
   const [overview, setOverview] = useState<HostSyncOverview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -84,21 +79,13 @@ export const useHostSync = () => {
         await action();
         return true;
       } catch (error) {
-        // A refusal because Pro is not owned opens the purchase dialog instead
-        // of only writing a sentence nobody can act on. "Could not check" is
-        // left as a message on purpose — offering to sell Pro to somebody who
-        // already paid, because the Store was unreachable, is the worse
-        // mistake, and the copy for that case says to retry.
-        if (parseAuthorizationError(error)?.code === "pro_required") {
-          requestPro("pc_sync");
-        }
         setActionError(describeCommandError(error));
         return false;
       } finally {
         setIsUpdating(false);
       }
     },
-    [requestPro],
+    [],
   );
 
   const start = useCallback(
