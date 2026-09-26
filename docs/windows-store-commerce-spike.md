@@ -4,7 +4,11 @@ Release preparation on 2026-09-26: the unsigned 0.8.0.0 MSIX builds from
 `d1d9c98` and is 10,636,040 bytes (SHA-256
 `859905F9E8BDA3579E6A1C891EC504C54B57E42DA6C4DBD96626EA9BB6765004`, tag
 `v0.8.0`). It makes PC Sync free after launch feedback on r/Hue. 0.7.0.0
-(Submission 14) is live. The website listed PC Sync as free (`mote-website`
+(Submission 14) is live. The owner uploaded the package by drag and drop to
+Submission 15, which went to certification on 2026-09-26 set to publish as soon
+as it passes, with a new "What's new", a reworded short description, the
+description saying PC Sync is free, and the sync product feature reworded to
+"for free". The website listed PC Sync as free (`mote-website`
 `ff85f42`) the same day, ahead of this package passing certification.
 
 Release preparation on 2026-09-26: the unsigned 0.7.0.0 MSIX builds from
