@@ -420,9 +420,10 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     }).catch(() => undefined);
   }, [sizeMetrics.cardBasis, sizeMetrics.edgePadding, widgetId]);
 
+  // The content only mounts once the bridge has loaded, so both re-run then.
   useLayoutEffect(() => {
     syncWidgetLayout();
-  }, [syncWidgetLayout, controls]);
+  }, [syncWidgetLayout, controls, hasLoaded]);
 
   useEffect(() => {
     const content = contentRef.current;
@@ -431,7 +432,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     const observer = new ResizeObserver(() => syncWidgetLayout());
     observer.observe(content);
     return () => observer.disconnect();
-  }, [syncWidgetLayout]);
+  }, [syncWidgetLayout, hasLoaded]);
 
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return;

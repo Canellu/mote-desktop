@@ -5,6 +5,25 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.8.2] - 2026-09-27
+
+### Fixes
+
+- **PC Sync no longer shows a Pro tag in Settings.** PC Sync is free.
+- **What's new shows up after an update.** The What's new button now
+  appears in the title bar after every update.
+- **Widgets fit their controls.** A widget's height follows what it
+  shows, so removing controls no longer leaves empty space below them. You
+  can still drag it wider.
+
+## [0.8.1] - 2026-09-26
+
+### Fixes
+
+- **What's new no longer opens on every launch.** After an update, a
+  What's new button appears in the title bar until you next open Mote.
+  Settings > About still opens the notes whenever you like.
+
 ## [0.8.0] - 2026-09-26
 
 ### Highlights

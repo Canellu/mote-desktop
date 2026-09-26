@@ -1,43 +1,49 @@
 import { getVersion } from "@tauri-apps/api/app";
+import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { releaseNotesFor, type ReleaseNotes } from "./releaseNotes";
 
-/** The last version whose notes were shown, or skipped on a fresh install. */
-const LAST_SEEN_KEY = "whats-new-last-seen-version";
-
-export const readLastSeen = (): string | null => {
-  try {
-    return localStorage.getItem(LAST_SEEN_KEY);
-  } catch {
-    return null;
-  }
-};
-
-export const markSeen = (version: string) => {
-  try {
-    localStorage.setItem(LAST_SEEN_KEY, version);
-  } catch {
-    // Unwritable storage repeats the notes on the next launch, which is harmless.
-  }
-};
+interface LaunchVersions {
+  previous: string | null;
+  current: string;
+}
 
 interface WhatsNewStore {
   notes: ReleaseNotes | null;
   open: boolean;
+  /** This launch's notes when it is the first launch after an update. */
+  justUpdated: ReleaseNotes | null;
   show: (notes: ReleaseNotes) => void;
   close: () => void;
 }
 
-export const useWhatsNewStore = create<WhatsNewStore>((set, get) => ({
+export const useWhatsNewStore = create<WhatsNewStore>((set) => ({
   notes: null,
   open: false,
+  justUpdated: null,
   show: (notes) => set({ notes, open: true }),
-  close: () => {
-    const notes = get().notes;
-    if (notes) markSeen(notes.version);
-    set({ open: false });
-  },
+  close: () => set({ open: false }),
 }));
+
+let detected = false;
+
+/**
+ * Decides once per page load whether this launch is the first after an
+ * update. The backend settles the versions once per launch, so a reload keeps
+ * the title-bar entry and a restart drops it. With no recorded version, an
+ * app that already has a bridge counts as updated and a fresh install does not.
+ */
+export const detectUpdate = async (configured: boolean) => {
+  if (detected) return;
+  detected = true;
+  const { previous, current } = await invoke<LaunchVersions>(
+    "get-launch-versions",
+  );
+  const updated = previous === null ? configured : previous !== current;
+  if (!updated) return;
+  const notes = releaseNotesFor(current);
+  if (notes) useWhatsNewStore.setState({ justUpdated: notes });
+};
 
 /** Opens this version's notes, from Settings. Resolves false when there are none. */
 export const openWhatsNew = async (): Promise<boolean> => {

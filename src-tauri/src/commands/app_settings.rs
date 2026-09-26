@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{fs, path::PathBuf, sync::OnceLock};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
@@ -29,6 +29,9 @@ struct StoredAppSettings {
     /// Set when the desktop shortcut is switched off in Settings.
     #[serde(default)]
     desktop_shortcut_removed: bool,
+    /// The version the app last launched as, for the What's new entry.
+    #[serde(default)]
+    last_launched_version: Option<String>,
 }
 
 impl Default for StoredAppSettings {
@@ -36,8 +39,41 @@ impl Default for StoredAppSettings {
         Self {
             close_button_behavior: CloseButtonBehavior::Exit,
             desktop_shortcut_removed: false,
+            last_launched_version: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchVersions {
+    /// The version of the previous launch. None when none was recorded.
+    previous: Option<String>,
+    current: String,
+}
+
+static LAUNCH_VERSIONS: OnceLock<LaunchVersions> = OnceLock::new();
+
+/// Compares this launch's version with the last one and records it. Settled
+/// once per process, so a page reload gets the same answer and only a restart
+/// moves it on. Kept here rather than in localStorage, which WebView2 does not
+/// reliably keep across a Store update or a forced quit.
+#[tauri::command(rename = "get-launch-versions")]
+pub fn get_launch_versions(app: AppHandle) -> LaunchVersions {
+    LAUNCH_VERSIONS
+        .get_or_init(|| {
+            let current = app.package_info().version.to_string();
+            // An unreadable file is left alone rather than reset to defaults.
+            let previous = read_stored_settings(&app).ok().and_then(|mut settings| {
+                let previous = settings.last_launched_version.replace(current.clone());
+                if previous.as_deref() != Some(current.as_str()) {
+                    let _ = write_stored_settings(&app, &settings);
+                }
+                previous
+            });
+            LaunchVersions { previous, current }
+        })
+        .clone()
 }
 
 #[tauri::command(rename = "get-app-settings")]

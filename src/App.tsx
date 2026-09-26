@@ -13,6 +13,7 @@ import { DeviceGallery } from "@/features/dev-gallery/DeviceGallery";
 import { FeedbackButton } from "@/features/feedback/FeedbackButton";
 import { FocusStatusButton } from "@/features/focus/FocusStatusButton";
 import { UpdateButton } from "@/features/updates/UpdateButton";
+import { WhatsNewButton } from "@/features/whats-new/WhatsNewButton";
 import {
   sampleSyncBoxSession,
   SYNC_BOX_CONNECTED_DEV_VIEW_ID,
@@ -418,6 +419,7 @@ function App() {
           <>
             <FocusStatusButton />
             <UpdateButton />
+            <WhatsNewButton />
             <FeedbackButton />
           </>
         }

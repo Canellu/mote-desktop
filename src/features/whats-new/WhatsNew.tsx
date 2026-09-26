@@ -9,55 +9,22 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useHue } from "@/context/HueContext";
-import { useHueResourcesStore } from "@/stores/HueResourcesStore";
-import { getVersion } from "@tauri-apps/api/app";
 import { Sparkles } from "lucide-react";
 import { useEffect } from "react";
-import { releaseNotesFor } from "./releaseNotes";
-import { markSeen, readLastSeen, useWhatsNewStore } from "./store";
-
-/** Lets Home finish arriving before the dialog opens over it. */
-const OPEN_DELAY_MS = 900;
+import { detectUpdate, useWhatsNewStore } from "./store";
 
 /**
- * Shows the new version's changelog entry once, on the first launch after an
- * update. A fresh install goes through setup instead, so it is marked seen
- * without being shown.
+ * The changelog dialog. It opens only on request, from the title-bar entry
+ * shown after an update or from Settings.
  */
 export const WhatsNew = () => {
-  const { configured, connected, isLoading, isAddingBridge } = useHue();
-  const resourcesHasLoaded = useHueResourcesStore((state) => state.hasLoaded);
-  const { notes, open, show, close } = useWhatsNewStore();
-  // The same conditions App uses to show Home, so it never covers setup.
-  const homeShown =
-    configured && connected && resourcesHasLoaded && !isAddingBridge;
+  const { notes, open, close } = useWhatsNewStore();
+  const { configured, isLoading } = useHue();
 
   useEffect(() => {
-    if (isLoading || configured || readLastSeen() !== null) return;
-    void getVersion().then(markSeen);
+    // Waits for the saved bridge, which tells an old install from a new one.
+    if (!isLoading) void detectUpdate(configured);
   }, [isLoading, configured]);
-
-  useEffect(() => {
-    if (!homeShown) return;
-    let cancelled = false;
-    let timer: number | undefined;
-    void getVersion().then((version) => {
-      if (cancelled || readLastSeen() === version) return;
-      const current = releaseNotesFor(version);
-      // A version without an entry has nothing to say.
-      if (!current) {
-        markSeen(version);
-        return;
-      }
-      timer = window.setTimeout(() => {
-        if (!cancelled) show(current);
-      }, OPEN_DELAY_MS);
-    });
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [homeShown, show]);
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>

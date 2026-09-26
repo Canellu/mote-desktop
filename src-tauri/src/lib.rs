@@ -77,6 +77,7 @@ pub fn run() {
             commands::calendar::preview_calendar_rule,
             commands::calendar::preview_calendar_look,
             commands::app_settings::get_app_settings,
+            commands::app_settings::get_launch_versions,
             commands::app_settings::set_close_button_behavior,
             commands::app_settings::set_auto_start,
             commands::app_settings::set_desktop_shortcut,

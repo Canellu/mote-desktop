@@ -585,6 +585,8 @@ pub fn sync_widget_layout(
     window
         .set_min_size(Some(min_size))
         .map_err(|error| error.to_string())?;
+    // The height follows the content, so dragging only changes the width.
+    let _ = window.set_max_size(Some(LogicalSize::new(100_000.0, min_height as f64)));
 
     let mut settings = read_widget_settings(&app)?;
     let widget = settings
@@ -1169,17 +1171,22 @@ fn apply_widget_bounds(window: &WebviewWindow, widget: &StoredWidget) {
     }
 }
 
+/// Keeps the user's width (never below the minimum) and fits the height to the
+/// content, so a widget that loses controls shrinks instead of leaving empty
+/// glass below them.
 fn clamped_widget_size(
     window: &WebviewWindow,
     min_width: u32,
-    min_height: u32,
+    content_height: u32,
 ) -> Option<LogicalSize<f64>> {
     let scale_factor = window.scale_factor().ok()?;
     let current = window.inner_size().ok()?.to_logical::<f64>(scale_factor);
     let width = current.width.max(min_width as f64).ceil();
-    let height = current.height.max(min_height as f64).ceil();
+    let height = (content_height as f64).ceil();
 
-    (width > current.width || height > current.height).then_some(LogicalSize::new(width, height))
+    // A pixel of rounding either way is not worth a resize.
+    (width > current.width || (height - current.height).abs() > 1.0)
+        .then_some(LogicalSize::new(width, height))
 }
 
 fn resolve_widget_id(app: &tauri::AppHandle, widget_id: Option<String>) -> Result<String, String> {

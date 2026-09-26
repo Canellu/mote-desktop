@@ -117,7 +117,6 @@ export const settingsTabs = [
     group: "connections",
     description: "Set up light sync driven directly by this PC.",
     icon: MonitorPlay,
-    pro: true,
   },
   {
     value: "sync-box",
