@@ -1,5 +1,17 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-09-26: the unsigned 0.7.0.0 MSIX builds from
+`15cb809` and is 10,631,898 bytes (SHA-256
+`D3542336EE79058FFA17A571CB951618B1BAC2C2C1FF8EDBE4D2834E68D0228F`). It adds
+several Sync Boxes (a second one is Mote Pro), What's new after an update,
+hourly update checks, and the fix for a restart that stayed on "Restarting…".
+The owner uploaded it by drag and drop to Submission 14 and submitted it on
+2026-09-26, with a new "What's new" and the Sync Box product feature reworded.
+0.6.2.0 (Submission 13) is live. The `v0.7.0` tag was pushed one commit early,
+at `5fcdf19`; `15cb809` only adds the Pro comparison and
+paywall wording for several Sync Boxes. The website listed several Sync Boxes
+with Mote Pro (`mote-website` `a532d18`) the same day.
+
 Release preparation on 2026-09-25: the unsigned 0.6.2.0 MSIX builds and is
 10,597,442 bytes (SHA-256
 `0C5253CABBA119E1AA17B226E10D66EB59B730D74BACA3BEC16293D2A90E2140`, tag
