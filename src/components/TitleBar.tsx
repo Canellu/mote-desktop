@@ -13,9 +13,18 @@ interface TitleBarProps {
   onDevBack?: () => void;
   /** App-wide controls that would otherwise float over the content. */
   actions?: React.ReactNode;
+  /**
+   * Only the window controls, for the error screen: it renders outside the app's
+   * providers, where the plan badge would read as Free.
+   */
+  plain?: boolean;
 }
 
-export const TitleBar: React.FC<TitleBarProps> = ({ onDevBack, actions }) => {
+export const TitleBar: React.FC<TitleBarProps> = ({
+  onDevBack,
+  actions,
+  plain = false,
+}) => {
   const handleMinimize = async () => {
     try {
       await invoke("minimize-main-window");
@@ -97,7 +106,7 @@ export const TitleBar: React.FC<TitleBarProps> = ({ onDevBack, actions }) => {
         <span className="text-base">Mote Desktop</span>
         {/* The tier mark sits with the product name rather than the page
           header: it describes the build, not whatever screen is open. */}
-        <ProBadge className="ml-0.5" />
+        {!plain && <ProBadge className="ml-0.5" />}
       </div>
       <div className="flex items-stretch">
         {actions}

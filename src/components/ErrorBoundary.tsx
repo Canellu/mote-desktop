@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { ErrorScreen } from "@/components/ErrorScreen";
+import { TitleBar } from "@/components/TitleBar";
 
 interface ErrorFallbackProps {
   error: Error;
@@ -60,12 +61,17 @@ export class ErrorBoundary extends Component<
           onReset: this.handleReset,
         });
       }
+      // The window has no native frame, so without its own title bar a crash
+      // would leave nothing to move, minimise, or close it with.
       return (
-        <ErrorScreen
-          error={error}
-          componentStack={componentStack}
-          onReset={this.handleReset}
-        />
+        <main className="h-screen overflow-hidden bg-background pt-10 text-foreground">
+          <TitleBar plain />
+          <ErrorScreen
+            error={error}
+            componentStack={componentStack}
+            onReset={this.handleReset}
+          />
+        </main>
       );
     }
 
