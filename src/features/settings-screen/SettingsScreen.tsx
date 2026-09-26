@@ -79,6 +79,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const isLoadingSyncBox = useSyncBoxStore((store) => store.sessionLoading);
   const loadSyncBoxSession = useSyncBoxStore((store) => store.loadSession);
   const removeSyncBox = useSyncBoxStore((store) => store.removeBox);
+  const beginAddSyncBox = useSyncBoxStore((store) => store.beginAdd);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [appSettings, setAppSettings] = useState<AppSettings | null>(
     getCachedAppSettings,
@@ -400,9 +401,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <SyncBoxTab
                   session={syncBoxSession}
                   isLoadingSession={isLoadingSyncBox}
-                  onAdd={() =>
-                    void navigate({ to: "/sync", search: { source: "box" } })
-                  }
+                  onAdd={beginAddSyncBox}
                   onOpenControls={() =>
                     void navigate({
                       to: "/sync",

@@ -24,6 +24,13 @@ interface SyncBoxStore {
    */
   selectBox: (uniqueId: string) => Promise<void>;
   removeBox: (uniqueId: string) => Promise<void>;
+  /**
+   * Pairing a box takes over the whole window, as adding a bridge does, and
+   * closing it returns to the screen it was opened from.
+   */
+  isAdding: boolean;
+  beginAdd: () => void;
+  endAdd: () => void;
   state: SyncBoxState | null;
   /**
    * Failure applying a user action (start/stop/settings). Persists until the
@@ -117,6 +124,9 @@ export const useSyncBoxStore = create<SyncBoxStore>((set, get) => ({
       await invoke<SyncBoxSession>("remove-sync-box", { uniqueId }),
     );
   },
+  isAdding: false,
+  beginAdd: () => set({ isAdding: true }),
+  endAdd: () => set({ isAdding: false }),
   state: null,
   error: null,
   loadError: null,

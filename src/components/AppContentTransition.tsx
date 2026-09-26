@@ -11,6 +11,7 @@ export type AppViewKey =
   | "home"
   | "disconnected"
   | "error-boundary"
+  | "sync-box-wizard"
   | "wizard";
 
 type AppContentTransitionKind = "fade" | "setup-to-ready";

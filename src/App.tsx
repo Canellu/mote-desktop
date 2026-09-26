@@ -43,6 +43,7 @@ import { bridgeKind } from "./features/setup-wizard/utils/bridge";
 import { WizardContainer } from "./features/setup-wizard/WizardContainer";
 import { router } from "./router";
 import { useHueResourcesStore } from "./stores/HueResourcesStore";
+import { useSyncBoxStore } from "./stores/SyncBoxStore";
 
 interface RenderedAppContent {
   viewKey: AppViewKey;
@@ -159,6 +160,9 @@ function App() {
   const [pairNewBridge, setPairNewBridge] = useState(false);
   const initialResourcesLoadStartedRef = useRef(false);
   const resourcesHasLoaded = useHueResourcesStore((state) => state.hasLoaded);
+  const isAddingSyncBox = useSyncBoxStore((state) => state.isAdding);
+  const endAddSyncBox = useSyncBoxStore((state) => state.endAdd);
+  const setSyncBoxSession = useSyncBoxStore((state) => state.setSession);
   const loadHueResources = useHueResourcesStore((state) => state.loadAll);
   const widgetWizardDevStep = widgetWizardStepForViewId(dev.viewId);
 
@@ -329,6 +333,32 @@ function App() {
     if (configured && connected) {
       if (!resourcesHasLoaded) {
         return { viewKey: "loading", content: <SplashView /> };
+      }
+
+      // Pairing another Sync Box, opened from Settings, the same way adding a
+      // bridge is. Closing it returns to the screen underneath.
+      if (isAddingSyncBox) {
+        return {
+          viewKey: "sync-box-wizard",
+          content: (
+            <div className="relative flex h-full items-center justify-center">
+              <SyncBoxOnboardingWizard
+                onComplete={(session) => {
+                  setSyncBoxSession(session);
+                  endAddSyncBox();
+                }}
+              />
+              <Button
+                variant="ghost"
+                size="xl"
+                className="absolute right-6 top-4 z-10"
+                onClick={endAddSyncBox}
+              >
+                Cancel
+              </Button>
+            </div>
+          ),
+        };
       }
 
       return { viewKey: "home", content: <HomeApp /> };

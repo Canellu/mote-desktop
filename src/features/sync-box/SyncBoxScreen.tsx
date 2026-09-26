@@ -33,9 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { useEntitlements } from "@/context/EntitlementContext";
 import { useHue } from "@/context/HueContext";
-import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { useEntertainmentStore } from "@/stores/EntertainmentStore";
 import { boxesForBridge, useSyncBoxStore } from "@/stores/SyncBoxStore";
 import type {
@@ -54,7 +52,6 @@ import {
   Loader2,
   MonitorPlay,
   Music2,
-  Plus,
   Power,
   TriangleAlert,
   Tv,
@@ -120,6 +117,7 @@ export const SyncBoxScreen = ({
   const sessionLoading = useSyncBoxStore((store) => store.sessionLoading);
   const loadSession = useSyncBoxStore((store) => store.loadSession);
   const setSession = useSyncBoxStore((store) => store.setSession);
+  const beginAdd = useSyncBoxStore((store) => store.beginAdd);
 
   useEffect(() => {
     void loadSession();
@@ -178,70 +176,38 @@ export const SyncBoxScreen = ({
   }
 
   return (
-    <SyncBoxConnectedView
-      session={session}
-      areaId={areaId}
-      onPair={() => void navigate({ to: "/sync", search: { source: "box" } })}
-    />
+    <SyncBoxConnectedView session={session} areaId={areaId} onPair={beginAdd} />
   );
 };
 
-/** Pairing a box beyond the first is Mote Pro; re-pairing a saved one is not. */
-const useAddSyncBox = (session: SyncBoxSession, onPair: () => void) => {
-  const { hasPro } = useEntitlements();
-  const { requestPro } = useProUpgrade();
-  return () => {
-    if (!hasPro && session.syncBoxes.length > 0) {
-      requestPro("multiple_sync_boxes");
-      return;
-    }
-    onPair();
-  };
-};
-
 /**
- * Which box the screen controls, when there is more than one on this bridge,
- * and the way to pair another.
+ * Which box the screen controls, when there is more than one on this bridge.
+ * Adding a box lives in Settings.
  */
-const SyncBoxPicker = ({
-  session,
-  onAdd,
-}: {
-  session: SyncBoxSession;
-  onAdd: () => void;
-}) => {
+const SyncBoxPicker = ({ session }: { session: SyncBoxSession }) => {
   const { bridgeId } = useHue();
   const selectBox = useSyncBoxStore((store) => store.selectBox);
   const boxes = boxesForBridge(session, bridgeId);
   const active = session.syncBox;
+  if (boxes.length < 2) return null;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      {boxes.length > 1 ? (
-        <Select
-          value={active?.uniqueId ?? ""}
-          onValueChange={(uniqueId) => uniqueId && void selectBox(uniqueId)}
-        >
-          <SelectTrigger aria-label="Sync Box" className="w-64">
-            <Tv className="size-4 text-muted-foreground" />
-            <SelectValue>{active?.name ?? "Sync Box"}</SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {boxes.map((syncBox) => (
-              <SelectItem key={syncBox.uniqueId} value={syncBox.uniqueId}>
-                {syncBox.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      ) : (
-        <span />
-      )}
-      <Button variant="outline" className="gap-2" onClick={onAdd}>
-        <Plus size={16} />
-        Add Sync Box
-      </Button>
-    </div>
+    <Select
+      value={active?.uniqueId ?? ""}
+      onValueChange={(uniqueId) => uniqueId && void selectBox(uniqueId)}
+    >
+      <SelectTrigger aria-label="Sync Box" className="w-64">
+        <Tv className="size-4 text-muted-foreground" />
+        <SelectValue>{active?.name ?? "Sync Box"}</SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {boxes.map((syncBox) => (
+          <SelectItem key={syncBox.uniqueId} value={syncBox.uniqueId}>
+            {syncBox.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 };
 
@@ -252,11 +218,10 @@ export const SyncBoxConnectedView = ({
 }: {
   session: SyncBoxSession;
   areaId?: string;
-  /** Opens pairing, to add another box or to pair this one again. */
+  /** Opens pairing, to pair this box again. */
   onPair: () => void;
 }) => {
   const navigate = useNavigate();
-  const addSyncBox = useAddSyncBox(session, onPair);
   const entertainmentAreas = useEntertainmentStore((store) => store.areas);
   const syncBox = session.syncBox;
   const {
@@ -287,7 +252,7 @@ export const SyncBoxConnectedView = ({
   if (!state) {
     return (
       <div className="mx-auto grid w-full max-w-5xl gap-5">
-        <SyncBoxPicker session={session} onAdd={addSyncBox} />
+        <SyncBoxPicker session={session} />
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-4 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
           <span>
             {loadError ?? session.error ?? "Unable to read Sync Box state."}
@@ -415,7 +380,7 @@ export const SyncBoxConnectedView = ({
 
   return (
     <div className="mx-auto grid w-full max-w-5xl gap-5 pb-8">
-      <SyncBoxPicker session={session} onAdd={addSyncBox} />
+      <SyncBoxPicker session={session} />
       {(state.device.overheating || state.device.undervolt) && (
         <div className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
           <TriangleAlert className="mt-0.5 size-4 shrink-0" />
