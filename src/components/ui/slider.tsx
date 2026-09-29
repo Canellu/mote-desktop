@@ -33,7 +33,10 @@ function Slider({
   return (
     <SliderPrimitive.Root
       className={cn(
-        "group/slider data-horizontal:w-full data-vertical:h-full [--slider-default-range-background:color-mix(in_oklch,var(--foreground)_35%,transparent)] [--slider-default-track-background:var(--muted)] dark:[--slider-default-range-background:color-mix(in_oklch,var(--foreground)_25%,transparent)]",
+        // The track is a translucent foreground tint, not a solid token, so it
+        // reads a step darker (light) or lighter (dark) than whatever surface
+        // the slider sits on. A solid --muted vanished on light cards.
+        "group/slider data-horizontal:w-full data-vertical:h-full [--slider-default-range-background:color-mix(in_oklch,var(--foreground)_35%,transparent)] [--slider-default-track-background:color-mix(in_oklch,var(--foreground)_10%,transparent)] dark:[--slider-default-range-background:color-mix(in_oklch,var(--foreground)_25%,transparent)] dark:[--slider-default-track-background:color-mix(in_oklch,var(--foreground)_12%,transparent)]",
         className,
       )}
       data-slot="slider"
