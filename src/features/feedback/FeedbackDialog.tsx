@@ -56,7 +56,12 @@ const DiagnosticsDetails = ({ lines }: { lines: string[] | null }) => (
       />
     </CollapsibleTrigger>
     <CollapsibleContent>
-      <ScrollArea className="max-h-56 border-t border-foreground/8">
+      {/* The cap goes on the viewport: it fills the root, so a max-height on
+          the root alone never makes the viewport scroll. */}
+      <ScrollArea
+        className="border-t border-foreground/8"
+        viewportClassName="max-h-56"
+      >
         {lines === null ? (
           <p className="px-4 py-3 text-xs text-muted-foreground">Loading…</p>
         ) : (
@@ -107,6 +112,15 @@ export const FeedbackDialog = ({
   // snapshot, so what the reporter can expand is what leaves the PC.
   useEffect(() => {
     if (!open) return;
+    // Reset on open, not on close: resetting while the dialog fades out
+    // flashed the empty form over the "sent" confirmation.
+    setCategory("general");
+    setMessage("");
+    setEmail("");
+    setKeepUpdated(false);
+    setIncludeDiagnostics(true);
+    setState({ phase: "idle" });
+    setCopied(false);
     let cancelled = false;
     setDiagnosticsLines(null);
     void previewFeedback({
@@ -139,17 +153,6 @@ export const FeedbackDialog = ({
     if (!next && sending) return;
 
     onOpenChange(next);
-
-    if (!next) {
-      setCategory("general");
-      setMessage("");
-      setEmail("");
-      setKeepUpdated(false);
-      setIncludeDiagnostics(true);
-      setDiagnosticsLines(null);
-      setState({ phase: "idle" });
-      setCopied(false);
-    }
   };
 
   const send = async () => {
