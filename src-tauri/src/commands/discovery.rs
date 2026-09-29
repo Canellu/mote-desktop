@@ -10,6 +10,11 @@ pub async fn discover_bridges() -> Result<Vec<DiscoveredBridge>, String> {
     HueClient::new()?.discover_bridges().await
 }
 
+#[tauri::command(rename = "lookup-bridge")]
+pub async fn lookup_bridge(ip: String) -> Result<DiscoveredBridge, String> {
+    HueClient::new()?.lookup_bridge(&ip).await
+}
+
 /// Pairing the first bridge is free; keeping a second saved alongside it is the
 /// paid capability.
 ///

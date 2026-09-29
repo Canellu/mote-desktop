@@ -41,6 +41,8 @@ const WizardView = ({ controller }: { controller: WizardController }) => (
       onContinueWithSelectedBridge={controller.continueWithSelectedBridge}
       onCancelPairing={controller.cancelPairing}
       onErrorRetry={controller.handleErrorRetry}
+      onManualEntry={controller.openManualEntry}
+      onConnectManualBridge={controller.connectManualBridge}
       onReset={controller.reset}
       onEnterHome={controller.enterHome}
     />

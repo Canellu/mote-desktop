@@ -60,6 +60,17 @@ export const wizardDevStates: WizardDevState[] = [
     // Variant (Normal/Pro) is chosen live via the toolbar's tabs in dev.
     state: { type: "pairing", bridge: sampleBridges[0] },
   },
+  { id: "manualEntry", label: "Manual IP", state: { type: "manualEntry" } },
+  {
+    id: "manualEntry-error",
+    label: "Manual IP: error",
+    state: {
+      type: "manualEntry",
+      ip: "192.168.1.250",
+      message:
+        "No Hue Bridge answered at 192.168.1.250. Check the address and that the bridge is powered on.",
+    },
+  },
   { id: "success", label: "Success", state: { type: "success" } },
   {
     id: "error-no-bridges",

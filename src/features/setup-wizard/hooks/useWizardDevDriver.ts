@@ -167,6 +167,16 @@ export const useWizardDevDriver = ({
     startDiscovery();
   };
 
+  const openManualEntry = () =>
+    goTo("manualEntry", { type: "manualEntry" });
+
+  // Simulated lookup: any address resolves to a sample bridge at that IP.
+  const connectManualBridge = (ip: string) => {
+    const bridge = { ...sampleBridgeForKind(devPairingKind), bridgeIp: ip };
+    knownBridgesRef.current = [bridge];
+    goTo("pairing", { type: "pairing", bridge });
+  };
+
   const enterHome = async () => {
     // Load live resources so the Home preview renders the real setup.
     setIsBusy(true);
@@ -183,6 +193,8 @@ export const useWizardDevDriver = ({
     continueWithSelectedBridge,
     cancelPairing,
     handleErrorRetry,
+    openManualEntry,
+    connectManualBridge,
     reset,
     enterHome,
   };

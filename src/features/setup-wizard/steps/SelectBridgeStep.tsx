@@ -6,6 +6,7 @@ import { overlaySelectionClassName } from "@/lib/selection-styles";
 import { cn } from "@/lib/utils";
 import type { SelectBridgeStepProps } from "@/types/setup-wizard";
 import { BridgeThumb } from "../components/BridgeThumb";
+import { ManualEntryLink } from "../components/ManualEntryLink";
 import { bridgeIdIsPaired } from "../machine";
 import { bridgeKind, bridgeKindLabel } from "../utils/bridge";
 
@@ -46,6 +47,7 @@ export const SelectBridgeStep = ({
   onSelectBridge,
   onContinue,
   onBack,
+  onManualEntry,
 }: SelectBridgeStepProps) => {
   const isSingle = state.bridges.length === 1;
   const columns = useBalancedColumns(state.bridges.length);
@@ -157,6 +159,7 @@ export const SelectBridgeStep = ({
           Continue
         </Button>
       </div>
+      <ManualEntryLink onClick={onManualEntry} />
     </>
   );
 };

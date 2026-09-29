@@ -3,12 +3,14 @@ import type { ErrorStepProps } from "@/types/setup-wizard";
 import { errorHelp, errorTitles } from "../constants";
 import { BridgeStatus } from "@/components/BridgeStatus";
 import { bridgeKind } from "../utils/bridge";
+import { ManualEntryLink } from "../components/ManualEntryLink";
 
 export const ErrorStep = ({
   state,
   selectedBridge,
   onReset,
   onRetry,
+  onManualEntry,
 }: ErrorStepProps) => (
   <>
     <BridgeStatus
@@ -30,5 +32,8 @@ export const ErrorStep = ({
         Try again
       </Button>
     </div>
+    {(state.reason === "discovery" || state.reason === "no-bridges") && (
+      <ManualEntryLink onClick={onManualEntry} />
+    )}
   </>
 );

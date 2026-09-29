@@ -9,6 +9,7 @@ import type {
   WizardFlowOptions,
 } from "@/types/setup-wizard";
 import {
+  bridgeIdIsPaired,
   bridgeSelectionState,
   highlightedBridge,
   retriesToBridgeSelection,
@@ -106,6 +107,42 @@ export const useWizardFlow = ({
     pairing.start(bridge);
   };
 
+  const openManualEntry = () => {
+    pairing.stop();
+    setState({ type: "manualEntry" });
+  };
+
+  const connectManualBridge = async (ip: string) => {
+    if (isBusy) return;
+
+    setIsBusy(true);
+    // Drop the previous attempt's error while this one is in flight.
+    setState({ type: "manualEntry", ip });
+    try {
+      const bridge = await invoke<DiscoveredBridge>("lookup-bridge", { ip });
+      if (bridgeIdIsPaired(bridge.bridgeId, pairedIdsRef.current)) {
+        setState({
+          type: "manualEntry",
+          ip,
+          message: "This bridge is already added on this device.",
+        });
+        return;
+      }
+      // Remember it so Cancel or a pairing retry returns to this bridge
+      // instead of starting over.
+      knownBridgesRef.current = [bridge];
+      startPairing(bridge);
+    } catch (error) {
+      setState({
+        type: "manualEntry",
+        ip,
+        message: String(error) || "Couldn't reach a bridge at that address.",
+      });
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
   const selectBridge = (bridgeIp: string) =>
     setState((current) => selectBridgeInState(current, bridgeIp));
 
@@ -179,6 +216,8 @@ export const useWizardFlow = ({
     continueWithSelectedBridge,
     cancelPairing,
     handleErrorRetry,
+    openManualEntry,
+    connectManualBridge,
     reset,
     enterHome,
   };

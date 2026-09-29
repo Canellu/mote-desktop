@@ -29,6 +29,7 @@ const DEVICE_TYPE: &str = "mote-desktop#desktop";
 /// installations whose main pairing predates clientkey capture.
 const ENTERTAINMENT_DEVICE_TYPE: &str = "mote-desktop#pcsync";
 const REQUEST_TIMEOUT_SECS: u64 = 8;
+const PUBLIC_CONFIG_TIMEOUT_SECS: u64 = 3;
 
 /// The local Hue Bridge tolerates only a handful of simultaneous connections;
 /// fanning out every resource fetch at once makes it reset or return empty
@@ -1258,6 +1259,35 @@ impl HueClient {
             .collect())
     }
 
+    /// Resolves a bridge the user typed in by address, for networks where
+    /// discovery finds nothing. Only a literal IP is accepted so a typo can't
+    /// send the request to some other host, and the address must answer the
+    /// public config with a bridge id to count as a Hue Bridge.
+    pub async fn lookup_bridge(&self, ip: &str) -> Result<DiscoveredBridge, String> {
+        let trimmed = ip.trim().trim_start_matches('[').trim_end_matches(']');
+        let address = trimmed
+            .parse::<std::net::IpAddr>()
+            .map_err(|_| "Enter an IP address like 192.168.1.20.".to_string())?;
+        let bridge_ip = address.to_string();
+
+        let config = self
+            .fetch_bridge_public_config(&bridge_ip)
+            .await
+            .ok_or_else(|| {
+                format!("No Hue Bridge answered at {bridge_ip}. Check the address and that the bridge is powered on.")
+            })?;
+        let bridge_id = config
+            .bridgeid
+            .filter(|id| !id.is_empty())
+            .ok_or_else(|| format!("The device at {bridge_ip} is not a Hue Bridge."))?;
+
+        Ok(DiscoveredBridge {
+            bridge_id: bridge_id.to_uppercase(),
+            bridge_ip,
+            model_id: config.modelid,
+        })
+    }
+
     /// Enriches discovered bridges from each bridge's unauthenticated public
     /// config: fills in the hardware model and, crucially, replaces the short
     /// mDNS id with the authoritative full `bridgeid` so it matches the stored
@@ -1286,12 +1316,25 @@ impl HueClient {
         let host = format_host(ip);
         for scheme in ["http", "https"] {
             let url = format!("{scheme}://{host}/api/0/config");
-            if let Ok(response) = self.client.get(&url).send().await {
-                if let Ok(config) = response.json::<PublicBridgeConfig>().await {
-                    if config.modelid.is_some() || config.bridgeid.is_some() {
-                        return Some(config);
+            // A bridge answers this within milliseconds, so a short cap keeps a
+            // mistyped manual address from hanging on the full request timeout.
+            let response = self
+                .client
+                .get(&url)
+                .timeout(Duration::from_secs(PUBLIC_CONFIG_TIMEOUT_SECS))
+                .send()
+                .await;
+            match response {
+                Ok(response) => {
+                    if let Ok(config) = response.json::<PublicBridgeConfig>().await {
+                        if config.modelid.is_some() || config.bridgeid.is_some() {
+                            return Some(config);
+                        }
                     }
                 }
+                // Nothing listening at that host: HTTPS won't fare better.
+                Err(error) if error.is_connect() || error.is_timeout() => return None,
+                Err(_) => {}
             }
         }
         None

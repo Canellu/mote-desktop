@@ -23,6 +23,8 @@ export type SetupState =
       alreadyPairedIds?: string[];
     }
   | { type: "pairing"; bridge: DiscoveredBridge }
+  /** Typing the bridge's IP when discovery can't find it. */
+  | { type: "manualEntry"; ip?: string; message?: string }
   | { type: "success" }
   | {
       type: "error";
@@ -62,6 +64,8 @@ export interface WizardController {
   continueWithSelectedBridge: () => void;
   cancelPairing: () => void;
   handleErrorRetry: () => void;
+  openManualEntry: () => void;
+  connectManualBridge: (ip: string) => void;
   reset: () => void;
   enterHome: () => void;
 }
@@ -112,6 +116,7 @@ export interface DevViewGroup {
 export type SelectBridgeState = Extract<SetupState, { type: "selectBridge" }>;
 export type PairingState = Extract<SetupState, { type: "pairing" }>;
 export type ErrorState = Extract<SetupState, { type: "error" }>;
+export type ManualEntryState = Extract<SetupState, { type: "manualEntry" }>;
 
 export interface WelcomeStepProps {
   isBusy: boolean;
@@ -123,6 +128,7 @@ export interface SelectBridgeStepProps {
   onSelectBridge: (bridgeIp: string) => void;
   onContinue: () => void;
   onBack: () => void;
+  onManualEntry: () => void;
 }
 
 export interface PairingStepProps {
@@ -141,6 +147,14 @@ export interface ErrorStepProps {
   selectedBridge: DiscoveredBridge | null;
   onReset: () => void;
   onRetry: () => void;
+  onManualEntry: () => void;
+}
+
+export interface ManualEntryStepProps {
+  state: ManualEntryState;
+  isBusy: boolean;
+  onConnect: (ip: string) => void;
+  onBack: () => void;
 }
 
 export interface WizardStepProps {
@@ -152,6 +166,8 @@ export interface WizardStepProps {
   onContinueWithSelectedBridge: () => void;
   onCancelPairing: () => void;
   onErrorRetry: () => void;
+  onManualEntry: () => void;
+  onConnectManualBridge: (ip: string) => void;
   onReset: () => void;
   onEnterHome: () => void;
 }
