@@ -4,6 +4,7 @@ import {
   type FeedbackButtonMode,
   useFeedbackPreferences,
 } from "@/features/feedback/preferences";
+import { openFirewallSettings } from "@/lib/firewall";
 import { selectableVariants } from "@/lib/selection-styles";
 import { cn } from "@/lib/utils";
 import { type UiDensity, useUiDensityStore } from "@/stores/UiDensityStore";
@@ -22,6 +23,7 @@ import {
   Plus,
   RotateCcw,
   Rows2,
+  ShieldCheck,
   Rows3,
   Rows4,
   Sun,
@@ -322,6 +324,21 @@ export const GeneralTab = ({
               }
               onCheckedChange={(checked) => onUpdateDesktopShortcut(checked)}
             />
+          </SettingsRow>
+        </SettingsSection>
+
+        <SettingsSection title="Network">
+          <SettingsRow
+            title="Windows Firewall"
+            description="If Mote can't find your bridge or Sync Box on its own, make sure Mote Desktop is allowed through Windows Firewall on Private and Public networks."
+          >
+            <Button
+              variant="outline"
+              onClick={() => void openFirewallSettings()}
+            >
+              <ShieldCheck />
+              Open firewall settings
+            </Button>
           </SettingsRow>
         </SettingsSection>
       </SettingsStack>

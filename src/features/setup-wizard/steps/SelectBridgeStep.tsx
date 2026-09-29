@@ -2,6 +2,7 @@ import { Check } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { openFirewallSettings } from "@/lib/firewall";
 import { overlaySelectionClassName } from "@/lib/selection-styles";
 import { cn } from "@/lib/utils";
 import type { SelectBridgeStepProps } from "@/types/setup-wizard";
@@ -59,6 +60,8 @@ export const SelectBridgeStep = ({
     state.bridges.length > 0 &&
     state.bridges.every((bridge) => isPaired(bridge.bridgeId));
   const singlePaired = isSingle && isPaired(state.bridges[0].bridgeId);
+  const foundOnlyViaCloud =
+    state.bridges.length > 0 && state.bridges.every((bridge) => bridge.viaCloud);
 
   const heading = singlePaired
     ? "Bridge already added"
@@ -78,6 +81,20 @@ export const SelectBridgeStep = ({
       <div className="flex flex-col gap-3">
         <h1 className="font-heading text-3xl font-semibold">{heading}</h1>
         <p className="text-lg text-muted-foreground">{description}</p>
+        {foundOnlyViaCloud && (
+          <p className="text-sm text-muted-foreground">
+            Mote found this through the Philips online lookup because nothing
+            answered on your network. If Windows Firewall is blocking Mote
+            Desktop, finding Sync Boxes will fail too.{" "}
+            <button
+              type="button"
+              className="font-medium text-foreground underline decoration-foreground/60 underline-offset-4 hover:decoration-foreground"
+              onClick={() => void openFirewallSettings()}
+            >
+              Open Windows Firewall settings
+            </button>
+          </p>
+        )}
       </div>
 
       <div

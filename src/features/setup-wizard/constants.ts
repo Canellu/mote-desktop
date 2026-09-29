@@ -97,7 +97,8 @@ export const wizardDevStates: WizardDevState[] = [
     state: {
       type: "error",
       reason: "discovery",
-      message: "Something went wrong while searching for bridges.",
+      message:
+        "No bridge answered on your network, and the Philips online lookup is busy right now.",
     },
   },
   {
@@ -140,6 +141,6 @@ export const errorHelp: Record<ErrorReason, string> = {
   timeout:
     "The bridge wasn't authorized in time. Click “Try again” to give it another go.",
   discovery:
-    "Check that your bridge is powered on and connected to the same network, then try again.",
+    "Check that your bridge is powered on and on the same network, and that Windows Firewall allows Mote Desktop. You can also enter the bridge's address.",
   pairing: "Try pairing again. If it keeps failing, restart your Hue Bridge.",
 };

@@ -3,7 +3,10 @@ import type { ErrorStepProps } from "@/types/setup-wizard";
 import { errorHelp, errorTitles } from "../constants";
 import { BridgeStatus } from "@/components/BridgeStatus";
 import { bridgeKind } from "../utils/bridge";
-import { ManualEntryLink } from "../components/ManualEntryLink";
+import {
+  FirewallSettingsLink,
+  ManualEntryLink,
+} from "../components/ManualEntryLink";
 
 export const ErrorStep = ({
   state,
@@ -33,7 +36,10 @@ export const ErrorStep = ({
       </Button>
     </div>
     {(state.reason === "discovery" || state.reason === "no-bridges") && (
-      <ManualEntryLink onClick={onManualEntry} />
+      <div className="flex flex-col items-center gap-1">
+        <ManualEntryLink onClick={onManualEntry} />
+        <FirewallSettingsLink />
+      </div>
     )}
   </>
 );

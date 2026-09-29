@@ -87,6 +87,7 @@ pub fn run() {
             commands::home_map::write_home_map,
             commands::discovery::discover_bridges,
             commands::discovery::lookup_bridge,
+            commands::discovery::open_firewall_settings,
             commands::discovery::pair_bridge,
             commands::discovery::get_hue_session,
             commands::discovery::reset_hue_session,

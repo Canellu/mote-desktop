@@ -2,6 +2,8 @@ export type DiscoveredBridge = {
   bridgeId: string;
   bridgeIp: string;
   modelId?: string | null;
+  /** Found only by the cloud lookup, so mDNS replies may be blocked. */
+  viaCloud?: boolean;
 };
 
 export type BridgeKind = "original" | "pro";

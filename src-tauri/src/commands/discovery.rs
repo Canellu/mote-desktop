@@ -10,6 +10,24 @@ pub async fn discover_bridges() -> Result<Vec<DiscoveredBridge>, String> {
     HueClient::new()?.discover_bridges().await
 }
 
+/// Opens Windows' "Allow apps to communicate through Windows Defender
+/// Firewall" page, where a blocked Mote Desktop can be allowed again.
+#[tauri::command(rename = "open-firewall-settings")]
+pub fn open_firewall_settings() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        std::process::Command::new("control.exe")
+            .args(["/name", "Microsoft.WindowsFirewall", "/page", "pageConfigureApps"])
+            .spawn()
+            .map(|_| ())
+            .map_err(|_| "Windows Firewall settings could not be opened.".to_string())
+    }
+    #[cfg(not(windows))]
+    {
+        Err("Firewall settings are only available on Windows.".to_string())
+    }
+}
+
 #[tauri::command(rename = "lookup-bridge")]
 pub async fn lookup_bridge(ip: String) -> Result<DiscoveredBridge, String> {
     HueClient::new()?.lookup_bridge(&ip).await

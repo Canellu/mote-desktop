@@ -84,6 +84,10 @@ pub struct DiscoveredBridge {
     /// when the bridge could not be reached for its config.
     #[serde(default)]
     pub model_id: Option<String>,
+    /// Found only through the cloud lookup, not by mDNS on the local network.
+    /// Usually means the firewall is dropping mDNS replies to Mote.
+    #[serde(default)]
+    pub via_cloud: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1227,21 +1231,30 @@ impl HueClient {
             .get(DISCOVERY_URL)
             .send()
             .await
-            .map_err(|error| private_error("Bridge discovery failed.", error))?;
+            .map_err(|error| {
+                private_error(
+                    "No bridge answered on your network, and the Philips online lookup couldn't be reached.",
+                    error,
+                )
+            })?;
 
         let status = response.status();
         let body = response.text().await.map_err(|error| {
             private_error("Bridge discovery returned an unreadable response.", error)
         })?;
 
+        // Reaching the cloud lookup means mDNS found nothing, so say that first:
+        // the lookup failing is the second problem, not the only one.
         if !status.is_success() {
             if status.as_u16() == 429 {
                 return Err(
-                    "Hue discovery is rate limited right now. Please wait a moment and try again."
+                    "No bridge answered on your network, and the Philips online lookup is busy right now."
                         .to_string(),
                 );
             }
-            return Err(format!("Hue discovery failed with HTTP status {status}."));
+            return Err(format!(
+                "No bridge answered on your network, and the Philips online lookup failed (HTTP {status})."
+            ));
         }
 
         let bridges =
@@ -1255,6 +1268,7 @@ impl HueClient {
                 bridge_id: bridge.id.to_uppercase(),
                 bridge_ip: bridge.internalipaddress,
                 model_id: None,
+                via_cloud: true,
             })
             .collect())
     }
@@ -1285,6 +1299,7 @@ impl HueClient {
             bridge_id: bridge_id.to_uppercase(),
             bridge_ip,
             model_id: config.modelid,
+            via_cloud: false,
         })
     }
 
@@ -1368,6 +1383,7 @@ impl HueClient {
                             bridge_id: id.to_uppercase(),
                             bridge_ip: ip.to_string(),
                             model_id: None,
+                            via_cloud: false,
                         });
                     }
                 }
