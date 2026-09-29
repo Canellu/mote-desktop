@@ -249,7 +249,9 @@ repositories are public. The value must match the `APP_TOKEN` secret on the
   `hue-sync-box-access-token:<uniqueId>`
 - "What's new" last-seen version: `localStorage` key `whats-new-last-seen-version`
 - Application key/API credential: system keyring service `com.motedesktop.mote`,
-  account `hue-application-key`
+  account `hue-application-key:<bridgeId>` (one per paired bridge). The keyring
+  is the only persisted copy; `hue-store.json` never holds the key, and a key
+  left there by an older build is moved into the keyring on load
 - Theme preference: `localStorage` key `themeMode`
 - Home custom layout: `localStorage` key `hue-dashboard-layout`
 - Home grouping mode: `localStorage` key `hue-dashboard-grouping-mode`

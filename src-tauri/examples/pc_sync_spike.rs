@@ -126,6 +126,7 @@ fn rest_key() -> Result<String, String> {
     if let Ok(key) = main {
         return Ok(key);
     }
+    // Only builds that predate the keyring-only migration left a copy here.
     store_key.ok_or_else(|| "No usable Hue application key found.".to_string())
 }
 
