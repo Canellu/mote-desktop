@@ -67,8 +67,10 @@ const first = (v: number | readonly number[]): number =>
 /** Hue Bridge command budgets, in ms between writes (see perf doc). */
 const GROUP_LIVE_MS = 1000;
 const LIGHT_LIVE_MS = 200;
+// Fill and track colors come from the base Slider so every slider outside the
+// tiles looks the same; only the fill's gradient sizing is paced-specific.
 const PACED_SLIDER_CLASS =
-  "[--paced-slider-fill-alpha-active:var(--paced-slider-fill-alpha,0.25)] [--slider-range-background:color-mix(in_oklch,var(--foreground)_calc(var(--paced-slider-fill-alpha-active)*100%),transparent)] [--slider-range-background-size:var(--paced-slider-track-width,100%)_100%] dark:[--paced-slider-fill-alpha-active:var(--paced-slider-fill-alpha-dark,0.2)]";
+  "[--slider-range-background-size:var(--paced-slider-track-width,100%)_100%]";
 
 /**
  * How long to keep trusting the value we just sent over inbound bridge echoes.
