@@ -32,10 +32,10 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 - The mouse back button no longer reopens a widget, room, scene, or other
   setup you have just finished.
-- **Your bridge key is kept only in Windows Credential Manager.** Earlier
-  versions also saved a copy in Mote's settings file on your PC. The copy
-  never left your PC, and Mote 0.9.0 removes it from the file the first time
-  it starts.
+- Slider tracks are visible on light backgrounds, such as a scene's
+  brightness and a widget's tile opacity.
+- Your bridge key is kept only in Windows Credential Manager. Earlier
+  versions also saved a copy in Mote's settings file on your PC.
 
 ## [0.8.2] - 2026-09-27
 
