@@ -5,6 +5,34 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.9.0] - 2026-09-29
+
+### Highlights
+
+- **Connect to your bridge by its IP address.** If Mote can't find your
+  bridge, or finds the wrong one, choose "Enter the bridge's IP address
+  instead" and type the address from the Hue app or your router.
+- **Interface scale and spacing.** Settings > General can make the main
+  window smaller or larger (Ctrl +, Ctrl −, and Ctrl 0 also work) and set
+  Spacious, Default, or Compact spacing to fit more lights on screen.
+- **Translucent widget tiles (Mote Pro).** A widget's tiles can let your
+  desktop show through, at the opacity you choose.
+
+### Improvements
+
+- Mote no longer triggers a Windows Firewall prompt the first time it looks
+  for your bridge.
+- When discovery fails, Mote says what went wrong on your network, not only
+  that the online lookup was busy, and links to the Windows Firewall setting
+  that lets Mote find devices. Settings > General opens the same setting.
+- Settings fit narrow windows: controls move below their labels instead of
+  being squeezed.
+
+### Fixes
+
+- Your bridge key is now stored only in Windows Credential Manager, and
+  earlier versions' copies are moved there when Mote starts.
+
 ## [0.8.2] - 2026-09-27
 
 ### Fixes
