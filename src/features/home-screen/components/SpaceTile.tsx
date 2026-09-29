@@ -87,7 +87,7 @@ export const SpaceTile: React.FC<SpaceTileProps> = ({
             }
       }
       className={cn(
-        "justify-center gap-6 border border-tile-border bg-tile-off",
+        "justify-center border border-tile-border bg-tile-off rounded-(--tile-radius) [--card-spacing:var(--tile-spacing)]! gap-(--tile-inner-gap)",
         TILE_INTERACTION_TRANSITION_CLASS,
         !editing && "cursor-pointer",
         tile.active && "ring-transparent",
@@ -111,11 +111,11 @@ export const SpaceTile: React.FC<SpaceTileProps> = ({
       <div className="flex items-center gap-4 px-(--card-spacing)">
         <span
           className={cn(
-            "relative flex size-12 shrink-0 items-center justify-center",
+            "relative flex size-(--tile-icon-box) shrink-0 items-center justify-center",
             tile.active ? "text-foreground" : "text-muted-foreground",
           )}
         >
-          <Icon size={26} strokeWidth={2.5} />
+          <Icon size={26} strokeWidth={2.5} className="size-(--tile-icon)" />
           {syncedLightCount > 0 && (
             <SyncIndicator
               syncedCount={syncedLightCount}

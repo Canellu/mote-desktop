@@ -253,6 +253,9 @@ repositories are public. The value must match the `APP_TOKEN` secret on the
   is the only persisted copy; `hue-store.json` never holds the key, and a key
   left there by an older build is moved into the keyring on load
 - Theme preference: `localStorage` key `themeMode`
+- Interface scale (main window zoom): `localStorage` key `uiScale`
+- Interface density (`roomy`, `comfortable` (default), or `compact`, applied
+  as `data-density` on the root): `localStorage` key `uiDensity`
 - Home custom layout: `localStorage` key `hue-dashboard-layout`
 - Home grouping mode: `localStorage` key `hue-dashboard-grouping-mode`
 - Automations: Tauri store files `automations.json` (on-air, away, and the

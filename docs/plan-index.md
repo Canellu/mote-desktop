@@ -34,6 +34,7 @@ fallback shortlist is recorded in the Microsoft Store release plan.
 | [Calendar integration](./calendar-integration-plan.md)                                                | Subscriptions shipped in 0.6.0        | Calendar accounts, event rules, and calendar UX                                                      |
 | [Pomodoro focus rituals](./pomodoro-focus-rituals-plan.md)                                            | Shipped in 0.6.0                      | Focus-session state machine and UX                                                                   |
 | [Local network presence](./local-network-presence-plan.md)                                            | Shipped in 0.6.0 (Windows)            | Presence detection and presence-rule UX                                                              |
+| [Interface density](./interface-density-plan.md)                                                     | Implemented; not yet released         | Compact spacing tokens and a density setting, complementing Interface scale                          |
 
 ## Boundaries that prevent duplicate work
 

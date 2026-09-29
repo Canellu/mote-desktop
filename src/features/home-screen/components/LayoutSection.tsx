@@ -104,7 +104,7 @@ export const LayoutSection: React.FC<LayoutSectionProps> = ({
         // mode only changes the surface (color + border + shadow) — never the
         // layout (no shift). In edit mode each section reads as a raised,
         // draggable panel.
-        "flex flex-col gap-3 rounded-2xl border border-transparent p-4 transition-[background-color,border-color,box-shadow]",
+        "flex flex-col gap-(--section-header-gap) rounded-(--tile-radius) border border-transparent p-(--section-pad) transition-[background-color,border-color,box-shadow]",
         editing && "edit-section-surface shadow-sm",
       )}
     >
@@ -180,13 +180,13 @@ export const LayoutSection: React.FC<LayoutSectionProps> = ({
         strategy={rectSortingStrategy}
         disabled={!editing}
       >
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(var(--tile-min-width),100%),1fr))] gap-(--tile-grid-gap)">
           {roomZones.length === 0 ? (
             <div
               className={cn(
                 // min-h matches one SpaceTile so the grid doesn't shift when a
                 // space is dropped in and replaces this placeholder.
-                "col-span-full flex min-h-36 items-center justify-center rounded-2xl border border-transparent text-sm text-muted-foreground",
+                "col-span-full flex min-h-36 items-center justify-center rounded-(--tile-radius) border border-transparent text-sm text-muted-foreground",
                 editing && "edit-dash-border bg-muted/20",
               )}
             >

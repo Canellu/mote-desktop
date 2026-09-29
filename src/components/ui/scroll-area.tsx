@@ -84,7 +84,11 @@ function ScrollArea({
          * state go stale whenever the content height changes without the
          * viewport resizing (e.g. swapping tabs inside a shared scroll area).
          */}
-        <ScrollAreaPrimitive.Content className={contentClassName}>
+        {/* Base UI sets `min-width: fit-content` on Content, which lets wide
+            children push past a vertical-only viewport instead of wrapping. */}
+        <ScrollAreaPrimitive.Content
+          className={cn(orientation === "vertical" && "min-w-0!", contentClassName)}
+        >
           {children}
         </ScrollAreaPrimitive.Content>
       </ScrollAreaPrimitive.Viewport>

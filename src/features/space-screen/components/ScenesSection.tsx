@@ -350,7 +350,7 @@ export const ScenesSection: React.FC<ScenesSectionProps> = ({
   };
 
   return (
-    <div ref={containerRef} className="flex min-w-0 flex-col gap-3">
+    <div ref={containerRef} className="flex min-w-0 flex-col gap-(--section-header-gap)">
       {/* Remount the carousel when the row count flips so Embla re-measures the
           new slide structure (1-tile vs 2-tile columns) from scratch. */}
       <Carousel

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
   type FeedbackButtonMode,
@@ -5,6 +6,12 @@ import {
 } from "@/features/feedback/preferences";
 import { selectableVariants } from "@/lib/selection-styles";
 import { cn } from "@/lib/utils";
+import { type UiDensity, useUiDensityStore } from "@/stores/UiDensityStore";
+import {
+  DEFAULT_UI_SCALE,
+  UI_SCALE_STEPS,
+  useUiScaleStore,
+} from "@/stores/UiScaleStore";
 import {
   EyeOff,
   MessageSquare,
@@ -12,6 +19,11 @@ import {
   Minus,
   Monitor,
   Moon,
+  Plus,
+  RotateCcw,
+  Rows2,
+  Rows3,
+  Rows4,
   Sun,
   X,
 } from "lucide-react";
@@ -32,6 +44,12 @@ const themeOptions = [
   { value: "light", label: "Light", icon: Sun },
   { value: "dark", label: "Dark", icon: Moon },
 ] satisfies Array<{ value: ThemeMode; label: string; icon: SegmentIcon }>;
+
+const densityOptions = [
+  { value: "roomy", label: "Spacious", icon: Rows2 },
+  { value: "comfortable", label: "Default", icon: Rows3 },
+  { value: "compact", label: "Compact", icon: Rows4 },
+] satisfies Array<{ value: UiDensity; label: string; icon: SegmentIcon }>;
 
 const feedbackButtonOptions = [
   { value: "full", label: "Button", icon: MessageSquareText },
@@ -140,6 +158,55 @@ function CloseButtonChoiceList({
   );
 }
 
+function UiScaleStepper() {
+  const scale = useUiScaleStore((state) => state.scale);
+  const setScale = useUiScaleStore((state) => state.setScale);
+  const stepScale = useUiScaleStore((state) => state.stepScale);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        size="sm"
+        variant="ghost"
+        disabled={scale === DEFAULT_UI_SCALE}
+        onClick={() => setScale(DEFAULT_UI_SCALE)}
+      >
+        <RotateCcw />
+        Reset
+      </Button>
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="outline"
+          aria-label="Decrease interface scale"
+          disabled={scale === UI_SCALE_STEPS[0]}
+          onClick={() => stepScale(-1)}
+        >
+          <Minus />
+        </Button>
+        <span
+          aria-live="polite"
+          className="w-14 text-center text-sm font-medium tabular-nums text-foreground"
+        >
+          {Math.round(scale * 100)}%
+        </span>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="outline"
+          aria-label="Increase interface scale"
+          disabled={scale === UI_SCALE_STEPS[UI_SCALE_STEPS.length - 1]}
+          onClick={() => stepScale(1)}
+        >
+          <Plus />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export const GeneralTab = ({
   themeMode,
   onThemeModeChange,
@@ -161,6 +228,8 @@ export const GeneralTab = ({
 }) => {
   const [feedbackPreferences, updateFeedbackPreferences] =
     useFeedbackPreferences();
+  const density = useUiDensityStore((state) => state.density);
+  const setDensity = useUiDensityStore((state) => state.setDensity);
 
   return (
     <div>
@@ -173,6 +242,24 @@ export const GeneralTab = ({
               ariaLabel="Theme mode"
               options={themeOptions}
               layoutId="app-theme-mode-pill"
+            />
+          </SettingsRow>
+          <SettingsRow
+            title="Interface scale"
+            description="Make everything in the main window smaller or larger. Ctrl + and Ctrl − also work, and Ctrl 0 resets."
+          >
+            <UiScaleStepper />
+          </SettingsRow>
+          <SettingsRow
+            title="Spacing"
+            description="How much space Home and room screens use: margins, gaps, tile size, and icons. Compact fits more on screen."
+          >
+            <SegmentedControl
+              value={density}
+              onValueChange={setDensity}
+              ariaLabel="Interface spacing"
+              options={densityOptions}
+              layoutId="app-density-pill"
             />
           </SettingsRow>
           <SettingsRow

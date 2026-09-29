@@ -298,7 +298,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const syncActive = syncedLightIds.length > 0;
 
   const content = (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-(--home-section-stack-gap)">
       {sections.map(({ section, roomZones }) => (
         <LayoutSection
           key={section.id}
@@ -318,14 +318,21 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   );
 
   return (
-    <div className="mx-auto flex w-full flex-col gap-6">
+    <div className="mx-auto flex w-full flex-col gap-(--section-gap)">
       {error && <p className="text-sm text-(--destructive-text)">{error}</p>}
 
       {lights.length > 0 && (
-        <Card size="sm" className="border border-tile-border bg-card py-5">
+        <Card
+          size="sm"
+          className="border border-tile-border bg-card rounded-(--tile-radius) py-(--tile-summary-y) [--card-spacing:var(--tile-spacing)]!"
+        >
           <div className="flex items-center gap-4 px-(--card-spacing)">
-            <span className="flex size-12 shrink-0 items-center justify-center text-muted-foreground">
-              <House size={27} strokeWidth={2.25} />
+            <span className="flex size-(--tile-icon-box) shrink-0 items-center justify-center text-muted-foreground">
+              <House
+                size={27}
+                strokeWidth={2.25}
+                className="size-[calc(var(--tile-icon)+1px)]"
+              />
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-base font-medium">All lights</p>
@@ -383,7 +390,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               // A lightweight, non-sortable clone so dropping a section doesn't
               // flash: the overlay carries the visual while the real section
               // stays put and reorders without a drop-animation jump.
-              <div className="edit-section-surface flex flex-col gap-3 rounded-2xl border p-4 shadow-xl">
+              <div className="edit-section-surface flex flex-col gap-(--section-header-gap) rounded-(--tile-radius) border p-(--section-pad) shadow-xl">
                 <header className="flex items-center gap-2">
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground">
                     <GripVertical size={18} />
@@ -395,11 +402,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     {activeSectionCountText}
                   </span>
                 </header>
-                <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-4">
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(min(var(--tile-min-width),100%),1fr))] gap-(--tile-grid-gap)">
                   {activeSection.roomZones.length === 0 ? (
                     // Mirror LayoutSection's empty placeholder so a dragged empty
                     // section looks identical to its resting state.
-                    <div className="edit-dash-border col-span-full flex min-h-36 items-center justify-center rounded-2xl bg-muted/20 text-sm text-muted-foreground">
+                    <div className="edit-dash-border col-span-full flex min-h-36 items-center justify-center rounded-(--tile-radius) bg-muted/20 text-sm text-muted-foreground">
                       Drag spaces here
                     </div>
                   ) : (

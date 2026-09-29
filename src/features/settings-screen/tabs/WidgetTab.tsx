@@ -72,25 +72,24 @@ export const WidgetTab = ({
   return (
     <SettingsStack>
       {banner}
-      <Panel title="Widgets" contentClassName="min-h-[30vh]">
-        <div className="space-y-3">
-          {sorted.map((widget) => (
-            <WidgetCard
-              key={widget.widgetId}
-              widget={widget}
-              openRequest={
-                widget.widgetId === focusedWidgetId ? focusRequest : undefined
-              }
-              onReopen={onReopen}
-              onClose={onClose}
-              onRemove={onRemove}
-              onSetPinned={onSetPinned}
-              onSetAlwaysOnTop={onSetAlwaysOnTop}
-              onSetConfig={onSetConfig}
-            />
-          ))}
-        </div>
-      </Panel>
+      {/* Cards sit straight on the page; their own surface sets them apart. */}
+      <div className="space-y-3">
+        {sorted.map((widget) => (
+          <WidgetCard
+            key={widget.widgetId}
+            widget={widget}
+            openRequest={
+              widget.widgetId === focusedWidgetId ? focusRequest : undefined
+            }
+            onReopen={onReopen}
+            onClose={onClose}
+            onRemove={onRemove}
+            onSetPinned={onSetPinned}
+            onSetAlwaysOnTop={onSetAlwaysOnTop}
+            onSetConfig={onSetConfig}
+          />
+        ))}
+      </div>
     </SettingsStack>
   );
 };

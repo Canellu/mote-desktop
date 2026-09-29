@@ -27,6 +27,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { Panel } from "../components/Panel";
+import { SETTINGS_WRAP_ROW, SETTINGS_WRAP_ROW_TEXT } from "../constants";
 
 /**
  * Connection settings for PC-hosted light sync: entertainment credential,
@@ -175,9 +176,9 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
       </Panel>
 
       <Panel title="Displays">
-        <div className="grid gap-5">
-          <div className="flex items-center justify-between gap-6">
-            <div>
+        <div className="grid grid-cols-1 gap-5">
+          <div className={SETTINGS_WRAP_ROW}>
+            <div className={SETTINGS_WRAP_ROW_TEXT}>
               <p className="font-medium">Follow the primary display</p>
               <p className="text-sm text-muted-foreground">
                 Automatically capture whichever display Windows marks as
@@ -222,8 +223,8 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
       </Panel>
 
       <Panel title="Audio output">
-        <div className="flex items-center justify-between gap-6">
-          <div>
+        <div className={SETTINGS_WRAP_ROW}>
+          <div className={SETTINGS_WRAP_ROW_TEXT}>
             <p className="font-medium">Capture device</p>
             <p className="text-sm text-muted-foreground">
               The output Music mode listens to. “Default” follows Windows'
@@ -239,7 +240,10 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
               })
             }
           >
-            <SelectTrigger aria-label="Audio capture device" className="w-64">
+            <SelectTrigger
+              aria-label="Audio capture device"
+              className="w-64 max-w-full"
+            >
               <SelectValue>
                 {() =>
                   prefs.audioDeviceId == null
@@ -263,9 +267,9 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
       </Panel>
 
       <Panel title="Music defaults">
-        <div className="grid gap-5">
-          <div className="flex items-center justify-between gap-6">
-            <div>
+        <div className="grid grid-cols-1 gap-5">
+          <div className={SETTINGS_WRAP_ROW}>
+            <div className={SETTINGS_WRAP_ROW_TEXT}>
               <p className="font-medium">Color palette</p>
               <p className="text-sm text-muted-foreground">
                 Built-in palettes, or colors from one of your scenes.
@@ -287,7 +291,7 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
             >
               <SelectTrigger
                 aria-label="Default Music color palette"
-                className="w-64"
+                className="w-64 max-w-full"
               >
                 <SelectValue>
                   {() =>
@@ -317,8 +321,8 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center justify-between gap-6 border-t border-border pt-5">
-            <div>
+          <div className={cn(SETTINGS_WRAP_ROW, "border-t border-border pt-5")}>
+            <div className={SETTINGS_WRAP_ROW_TEXT}>
               <p className="font-medium">Light groups</p>
               <p className="text-sm text-muted-foreground">
                 How many frequency bands spread across the area.
@@ -333,7 +337,10 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
                 })
               }
             >
-              <SelectTrigger aria-label="Music light groups" className="w-64">
+              <SelectTrigger
+                aria-label="Music light groups"
+                className="w-64 max-w-full"
+              >
                 <SelectValue>
                   {() =>
                     channelCounts.find(
@@ -355,8 +362,8 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
       </Panel>
 
       <Panel title="When sync stops">
-        <div className="flex items-center justify-between gap-6">
-          <div>
+        <div className={SETTINGS_WRAP_ROW}>
+          <div className={SETTINGS_WRAP_ROW_TEXT}>
             <p className="font-medium">Stop behavior</p>
             <p className="text-sm text-muted-foreground">
               {stopBehaviors.find(
@@ -373,7 +380,10 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
               })
             }
           >
-            <SelectTrigger aria-label="Stop behavior" className="w-64">
+            <SelectTrigger
+              aria-label="Stop behavior"
+              className="w-64 max-w-full"
+            >
               <SelectValue>
                 {() =>
                   stopBehaviors.find(
@@ -424,53 +434,62 @@ const DisplayTopology = ({
   );
   const spanX = Math.max(maxX - minX, 1);
   const spanY = Math.max(maxY - minY, 1);
-  // Fit the virtual desktop into a fixed-height strip.
+  // Fit the virtual desktop into a 520×180 strip, shrinking further with the
+  // panel; displays are placed in percentages so they scale along with it.
   const scale = Math.min(520 / spanX, 180 / spanY);
+  const percent = (value: number, span: number) => `${(value / span) * 100}%`;
 
   const isCaptured = (display: HostSyncDisplay) =>
     automatic ? display.isPrimary : selectedIds.has(display.id);
 
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-1 gap-3">
       <div
         role="group"
         aria-label="Displays to capture"
-        className="relative rounded-xl bg-muted/50"
-        style={{ width: spanX * scale + 16, height: spanY * scale + 16 }}
+        className="w-full rounded-xl bg-muted/50 p-2"
+        style={{ maxWidth: spanX * scale + 16 }}
       >
-        {displays.map((display) => (
-          <button
-            key={display.id}
-            type="button"
-            disabled={disabled || automatic}
-            aria-pressed={isCaptured(display)}
-            data-selected={isCaptured(display) ? "" : undefined}
-            aria-label={`${display.name}, ${display.width}×${display.height}${display.hdrEnabled ? ", HDR" : ""}${display.isPrimary ? ", primary display" : ""}`}
-            title={`${display.name} · ${display.width}×${display.height}${display.hdrEnabled ? " · HDR" : ""}`}
-            onClick={() => onToggle(display)}
-            className={cn(
-              "absolute flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-lg bg-background text-xs text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[selected]:text-foreground",
-              selectableVariants(),
-              !automatic && !disabled && "cursor-pointer hover:bg-accent",
-            )}
-            style={{
-              left: (display.x - minX) * scale + 8,
-              top: (display.y - minY) * scale + 8,
-              width: display.width * scale,
-              height: display.height * scale,
-            }}
-          >
-            <Monitor className="size-4" />
-            <span className="max-w-full truncate px-1 font-medium">
-              {display.name}
-            </span>
-            {display.isPrimary && <span className="text-[10px]">Primary</span>}
-          </button>
-        ))}
+        <div
+          className="relative"
+          style={{ aspectRatio: `${spanX} / ${spanY}` }}
+        >
+          {displays.map((display) => (
+            <button
+              key={display.id}
+              type="button"
+              disabled={disabled || automatic}
+              aria-pressed={isCaptured(display)}
+              data-selected={isCaptured(display) ? "" : undefined}
+              aria-label={`${display.name}, ${display.width}×${display.height}${display.hdrEnabled ? ", HDR" : ""}${display.isPrimary ? ", primary display" : ""}`}
+              title={`${display.name} · ${display.width}×${display.height}${display.hdrEnabled ? " · HDR" : ""}`}
+              onClick={() => onToggle(display)}
+              className={cn(
+                "absolute flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-lg bg-background text-xs text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[selected]:text-foreground",
+                selectableVariants(),
+                !automatic && !disabled && "cursor-pointer hover:bg-accent",
+              )}
+              style={{
+                left: percent(display.x - minX, spanX),
+                top: percent(display.y - minY, spanY),
+                width: percent(display.width, spanX),
+                height: percent(display.height, spanY),
+              }}
+            >
+              <Monitor className="size-4" />
+              <span className="max-w-full truncate px-1 font-medium">
+                {display.name}
+              </span>
+              {display.isPrimary && (
+                <span className="text-[10px]">Primary</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="grid gap-1 text-sm text-muted-foreground">
         {displays.map((display) => (
-          <p key={display.id} className="truncate">
+          <p key={display.id}>
             <span className="font-medium text-foreground">{display.name}</span>{" "}
             · {display.width}×{display.height}
             {display.refreshRate ? ` @ ${display.refreshRate} Hz` : ""}

@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import { Check, Loader2, Pencil, X } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import type {
@@ -8,6 +9,11 @@ import type {
   RenameableResourceType,
 } from "../types";
 import { DeleteResourceButton } from "./DeleteResourceButton";
+
+// Row actions collapse to icon buttons once the row is too narrow for their
+// labels, so the resource name keeps room instead of truncating to a letter.
+export const ROW_ACTION_CLASS = "@max-lg/row:w-10 @max-lg/row:px-0";
+export const ROW_ACTION_LABEL_CLASS = "@max-lg/row:sr-only";
 
 export const EditableResourceRow = ({
   id,
@@ -69,7 +75,7 @@ export const EditableResourceRow = ({
   const visibleMeta = meta.filter(Boolean);
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden rounded-xl bg-background/70 px-3 py-3">
+    <div className="@container/row min-w-0 max-w-full overflow-hidden rounded-xl bg-background/70 px-3 py-3">
       {isEditing ? (
         <form className="flex gap-2" onSubmit={(event) => void submit(event)}>
           <Input
@@ -113,12 +119,13 @@ export const EditableResourceRow = ({
                 type="button"
                 size="default"
                 variant="outline"
-                className="gap-2"
+                className={cn("gap-2", ROW_ACTION_CLASS)}
                 onClick={() => setIsEditing(true)}
                 aria-label={`Rename ${name}`}
+                title="Rename"
               >
                 <Pencil />
-                Rename
+                <span className={ROW_ACTION_LABEL_CLASS}>Rename</span>
               </Button>
             )}
             {onDelete && (

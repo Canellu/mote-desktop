@@ -6,15 +6,28 @@
 export const FLAT_CARD =
   "border border-border/60 shadow-none ring-0 dark:shadow-none";
 
-/** Visual contract used by the elevated, expandable cards in Settings. */
+/**
+ * Visual contract used by the elevated, expandable cards in Settings. They sit
+ * straight on the page's card surface, so the raised fill is what sets them
+ * apart; the shadow only adds lift.
+ */
 export const SETTINGS_EXPANDABLE_CARD =
-  "border-0 bg-card shadow-sm ring-0 dark:shadow-sm dark:shadow-black/25";
+  "border-0 bg-(--settings-raised) shadow-sm ring-0 dark:shadow-sm dark:shadow-black/25";
 
 export const SETTINGS_EXPANDABLE_TRIGGER =
   "transition-colors hover:bg-(--settings-control-hover)";
 
-export const SETTINGS_EXPANDABLE_TRIGGER_OPEN =
-  "bg-(--settings-control-open)";
+export const SETTINGS_EXPANDABLE_TRIGGER_OPEN = "bg-(--settings-control-open)";
+
+/**
+ * A label beside its control that wraps the control onto its own line once the
+ * row is too narrow for both, instead of squeezing or clipping either.
+ */
+export const SETTINGS_WRAP_ROW =
+  "flex flex-wrap items-center justify-between gap-x-6 gap-y-3";
+
+/** The label side of {@link SETTINGS_WRAP_ROW}. */
+export const SETTINGS_WRAP_ROW_TEXT = "min-w-0 flex-1 basis-56";
 
 /**
  * Curated Hue v2 room/zone archetypes offered in the create wizard. The bridge

@@ -60,7 +60,6 @@ import { CollapsibleSection } from "../components/CollapsibleSection";
 import { DeleteResourceButton } from "../components/DeleteResourceButton";
 import { EditableResourceRow } from "../components/EditableResourceRow";
 import { EmptyText } from "../components/EmptyText";
-import { Panel } from "../components/Panel";
 import { FLAT_CARD } from "../constants";
 import type {
   DeleteResource,
@@ -272,170 +271,168 @@ export const DevicesTab = ({
   const collapseAllSections = () => setCollapsedSections(new Set(SECTION_KEYS));
 
   return (
-    <Panel title="Devices" contentClassName="min-h-[30vh]">
-      <div className="space-y-5">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative flex-1">
-              <Search
-                size={16}
-                className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                value={deviceQuery}
-                onChange={(event) => setDeviceQuery(event.target.value)}
-                placeholder="Search by name, product, or capability"
-                aria-label="Search devices"
-                className="pl-9 pr-9"
-              />
-              {deviceQuery && (
-                <button
-                  type="button"
-                  onClick={() => setDeviceQuery("")}
-                  aria-label="Clear search"
-                  className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  <CircleX size={16} />
-                </button>
-              )}
-            </div>
-            <Select
-              items={deviceStatusItems}
-              value={deviceStatus}
-              onValueChange={(value) =>
-                setDeviceStatus(value as DeviceStatusFilter)
-              }
-            >
-              <SelectTrigger size="sm" className="w-40 rounded-4xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(
-                  Object.entries(deviceStatusItems) as Array<
-                    [DeviceStatusFilter, string]
-                  >
-                ).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              Showing{" "}
-              <span className="font-medium text-foreground">{matchCount}</span>{" "}
-              of {totalCount} devices
-              {(query || deviceStatus !== "all") && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="ml-2 h-7 gap-1.5 px-2 text-xs"
-                  onClick={() => {
-                    setDeviceQuery("");
-                    setDeviceStatus("all");
-                  }}
-                >
-                  <FilterX size={14} />
-                  Clear filters
-                </Button>
-              )}
-            </p>
-            <div className="flex gap-2">
-              <Button
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative flex-1">
+            <Search
+              size={16}
+              className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              value={deviceQuery}
+              onChange={(event) => setDeviceQuery(event.target.value)}
+              placeholder="Search by name, product, or capability"
+              aria-label="Search devices"
+              className="pl-9 pr-9"
+            />
+            {deviceQuery && (
+              <button
                 type="button"
-                variant="ghost"
-                size="sm"
-                onClick={expandAllSections}
+                onClick={() => setDeviceQuery("")}
+                aria-label="Clear search"
+                className="absolute top-1/2 right-2 flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground"
               >
-                Expand all
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={collapseAllSections}
-              >
-                Collapse all
-              </Button>
-            </div>
+                <CircleX size={16} />
+              </button>
+            )}
           </div>
+          <Select
+            items={deviceStatusItems}
+            value={deviceStatus}
+            onValueChange={(value) =>
+              setDeviceStatus(value as DeviceStatusFilter)
+            }
+          >
+            <SelectTrigger size="sm" className="w-40 rounded-4xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(
+                Object.entries(deviceStatusItems) as Array<
+                  [DeviceStatusFilter, string]
+                >
+              ).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {matchCount === 0 ? (
-          <EmptyText>{emptyDevicesMessage}</EmptyText>
-        ) : (
-          <>
-            {filteredLights.length > 0 && (
-              <CollapsibleSection
-                title="Lights"
-                count={filteredLights.length}
-                open={isSectionOpen("Lights")}
-                onToggle={() => toggleSection("Lights")}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">
+            Showing{" "}
+            <span className="font-medium text-foreground">{matchCount}</span> of{" "}
+            {totalCount} devices
+            {(query || deviceStatus !== "all") && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="ml-2 h-7 gap-1.5 px-2 text-xs"
+                onClick={() => {
+                  setDeviceQuery("");
+                  setDeviceStatus("all");
+                }}
               >
-                <RoomGroupedList groups={lightRoomGroups} getKey={(l) => l.id}>
-                  {(light) => (
-                    <EditableLightRow
-                      light={light}
-                      roomZones={roomZones}
-                      onRename={onRename}
-                      onDelete={onDelete}
-                      onRefresh={onRefresh}
-                    />
-                  )}
-                </RoomGroupedList>
-              </CollapsibleSection>
+                <FilterX size={14} />
+                Clear filters
+              </Button>
             )}
-
-            {deviceGroups.switches.length > 0 && (
-              <DeviceGroupPanel
-                title="Switches"
-                devices={deviceGroups.switches}
-                rooms={rooms}
-                servicesByDevice={accessoryServicesByDevice}
-                switchConfigsByDevice={switchConfigsByDevice}
-                isLoading={isLoadingSummary}
-                open={isSectionOpen("Switches")}
-                onToggle={() => toggleSection("Switches")}
-                onDelete={onDelete}
-                onSaveSwitchConfig={onSaveSwitchConfig}
-              />
-            )}
-            {deviceGroups.sensors.length > 0 && (
-              <DeviceGroupPanel
-                title="Sensors"
-                devices={deviceGroups.sensors}
-                rooms={rooms}
-                servicesByDevice={accessoryServicesByDevice}
-                switchConfigsByDevice={switchConfigsByDevice}
-                isLoading={isLoadingSummary}
-                open={isSectionOpen("Sensors")}
-                onToggle={() => toggleSection("Sensors")}
-                onDelete={onDelete}
-                onSaveSwitchConfig={onSaveSwitchConfig}
-              />
-            )}
-            {deviceGroups.other.length > 0 && (
-              <DeviceGroupPanel
-                title="Other Devices"
-                devices={deviceGroups.other}
-                rooms={rooms}
-                servicesByDevice={accessoryServicesByDevice}
-                switchConfigsByDevice={switchConfigsByDevice}
-                isLoading={isLoadingSummary}
-                open={isSectionOpen("Other Devices")}
-                onToggle={() => toggleSection("Other Devices")}
-                onDelete={onDelete}
-                onSaveSwitchConfig={onSaveSwitchConfig}
-              />
-            )}
-          </>
-        )}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={expandAllSections}
+            >
+              Expand all
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={collapseAllSections}
+            >
+              Collapse all
+            </Button>
+          </div>
+        </div>
       </div>
-    </Panel>
+
+      {matchCount === 0 ? (
+        <EmptyText>{emptyDevicesMessage}</EmptyText>
+      ) : (
+        <>
+          {filteredLights.length > 0 && (
+            <CollapsibleSection
+              title="Lights"
+              count={filteredLights.length}
+              open={isSectionOpen("Lights")}
+              onToggle={() => toggleSection("Lights")}
+            >
+              <RoomGroupedList groups={lightRoomGroups} getKey={(l) => l.id}>
+                {(light) => (
+                  <EditableLightRow
+                    light={light}
+                    roomZones={roomZones}
+                    onRename={onRename}
+                    onDelete={onDelete}
+                    onRefresh={onRefresh}
+                  />
+                )}
+              </RoomGroupedList>
+            </CollapsibleSection>
+          )}
+
+          {deviceGroups.switches.length > 0 && (
+            <DeviceGroupPanel
+              title="Switches"
+              devices={deviceGroups.switches}
+              rooms={rooms}
+              servicesByDevice={accessoryServicesByDevice}
+              switchConfigsByDevice={switchConfigsByDevice}
+              isLoading={isLoadingSummary}
+              open={isSectionOpen("Switches")}
+              onToggle={() => toggleSection("Switches")}
+              onDelete={onDelete}
+              onSaveSwitchConfig={onSaveSwitchConfig}
+            />
+          )}
+          {deviceGroups.sensors.length > 0 && (
+            <DeviceGroupPanel
+              title="Sensors"
+              devices={deviceGroups.sensors}
+              rooms={rooms}
+              servicesByDevice={accessoryServicesByDevice}
+              switchConfigsByDevice={switchConfigsByDevice}
+              isLoading={isLoadingSummary}
+              open={isSectionOpen("Sensors")}
+              onToggle={() => toggleSection("Sensors")}
+              onDelete={onDelete}
+              onSaveSwitchConfig={onSaveSwitchConfig}
+            />
+          )}
+          {deviceGroups.other.length > 0 && (
+            <DeviceGroupPanel
+              title="Other Devices"
+              devices={deviceGroups.other}
+              rooms={rooms}
+              servicesByDevice={accessoryServicesByDevice}
+              switchConfigsByDevice={switchConfigsByDevice}
+              isLoading={isLoadingSummary}
+              open={isSectionOpen("Other Devices")}
+              onToggle={() => toggleSection("Other Devices")}
+              onDelete={onDelete}
+              onSaveSwitchConfig={onSaveSwitchConfig}
+            />
+          )}
+        </>
+      )}
+    </div>
   );
 };
 

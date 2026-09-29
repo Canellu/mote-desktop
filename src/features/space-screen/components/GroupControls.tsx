@@ -96,7 +96,7 @@ export const GroupControls: React.FC<GroupControlsProps> = ({
 
   return (
     <Collapsible open={open && !editing} onOpenChange={setOpen}>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-(--section-header-gap)">
         <div className="flex items-center justify-between">
           <div className="flex h-7 items-center">
             <SectionGrip />

@@ -309,7 +309,9 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             className="min-h-0 min-w-0 flex-1"
             // The bottom padding clears the floating scroll-to-top button (40px,
             // 16px off the edge), so the last row never ends up underneath it.
-            viewportClassName="overflow-x-hidden pt-4 pr-4 pb-18 @2xl:pt-6 @2xl:pr-6"
+            // The left padding leaves room for rings and focus outlines, which draw
+            // outside their box and would otherwise be clipped at the edge.
+            viewportClassName="overflow-x-hidden pt-4 pr-4 pb-18 pl-1 @2xl:pt-6 @2xl:pr-6"
             viewportRef={viewportRef}
           >
             <div className="mx-auto w-full max-w-3xl pt-8">

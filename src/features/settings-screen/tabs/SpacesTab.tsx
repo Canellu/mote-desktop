@@ -28,7 +28,11 @@ import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 import type { HueLight, HueRoomZone, HueSettingsDevice } from "@/types/hue";
 import { Check, Lightbulb, Loader2, Pencil, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { EditableResourceRow } from "../components/EditableResourceRow";
+import {
+  EditableResourceRow,
+  ROW_ACTION_CLASS,
+  ROW_ACTION_LABEL_CLASS,
+} from "../components/EditableResourceRow";
 import { EmptyText } from "../components/EmptyText";
 import { Panel } from "../components/Panel";
 import { SPACE_ARCHETYPES } from "../constants";
@@ -265,10 +269,11 @@ const MembershipEditor = ({
             type="button"
             size="default"
             variant="outline"
-            className="gap-2"
+            className={cn("gap-2", ROW_ACTION_CLASS)}
+            title={`Edit ${roomZone.resourceType}`}
           >
             <Pencil />
-            Edit
+            <span className={ROW_ACTION_LABEL_CLASS}>Edit</span>
           </Button>
         }
       />

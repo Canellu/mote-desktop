@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import type {
   HueEntertainmentConfiguration,
   HueEntertainmentService,
@@ -9,7 +10,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Move3d, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { EditableResourceRow } from "../components/EditableResourceRow";
+import {
+  EditableResourceRow,
+  ROW_ACTION_CLASS,
+  ROW_ACTION_LABEL_CLASS,
+} from "../components/EditableResourceRow";
 import { EmptyText } from "../components/EmptyText";
 import { Panel } from "../components/Panel";
 import {
@@ -143,7 +148,7 @@ export const EntertainmentAreasTab = ({ lights }: { lights: HueLight[] }) => {
                     type="button"
                     size="default"
                     variant="outline"
-                    className="gap-2"
+                    className={cn("gap-2", ROW_ACTION_CLASS)}
                     aria-label={`Edit light placement for ${area.metadata.name}`}
                     title="Edit light placement"
                     onClick={() =>
@@ -155,7 +160,9 @@ export const EntertainmentAreasTab = ({ lights }: { lights: HueLight[] }) => {
                     }
                   >
                     <Move3d />
-                    Edit placement
+                    <span className={ROW_ACTION_LABEL_CLASS}>
+                      Edit placement
+                    </span>
                   </Button>
                 }
               />

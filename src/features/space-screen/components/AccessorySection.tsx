@@ -94,7 +94,10 @@ export const AccessorySection: React.FC<{
       accessory.productName ??
       (accessory.kind === "switch" ? "Switch" : "Sensor");
     return (
-      <Card data-edit-id={accessory.id} className="gap-3 bg-tile px-4 py-3">
+      <Card
+        data-edit-id={accessory.id}
+        className="gap-3 rounded-(--tile-radius) bg-tile px-4 py-3"
+      >
         <div className="flex items-center justify-between gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <Icon size={18} />
@@ -125,7 +128,7 @@ export const AccessorySection: React.FC<{
 
   const grid = (
     <div
-      className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3"
+      className="grid grid-cols-[repeat(auto-fill,minmax(min(220px,100%),1fr))] gap-(--light-grid-gap)"
       style={settleWidth != null ? { width: settleWidth } : undefined}
     >
       {accessories.map((accessory) =>
@@ -151,7 +154,7 @@ export const AccessorySection: React.FC<{
   );
 
   return (
-    <div ref={sectionRef} className="flex flex-col gap-3">
+    <div ref={sectionRef} className="flex flex-col gap-(--section-header-gap)">
       <div className="flex h-7 items-center justify-between gap-3">
         <div className="flex items-center">
           <SectionGrip />

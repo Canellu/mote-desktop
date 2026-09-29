@@ -113,7 +113,7 @@ export const LightsSection: React.FC<LightsSectionProps> = ({
   );
 
   return (
-    <div ref={sectionRef} className="flex flex-col gap-3">
+    <div ref={sectionRef} className="flex flex-col gap-(--section-header-gap)">
       <div className="flex h-7 items-center justify-between gap-3">
         <div className="flex items-center">
           <SectionGrip />
@@ -141,7 +141,7 @@ export const LightsSection: React.FC<LightsSectionProps> = ({
             strategy={rectSortingStrategy}
           >
             <div
-              className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3"
+              className="grid grid-cols-[repeat(auto-fill,minmax(min(var(--tile-min-width),100%),1fr))] gap-(--light-grid-gap)"
               style={gridStyle}
             >
               {lights.map((light) => (
@@ -155,7 +155,7 @@ export const LightsSection: React.FC<LightsSectionProps> = ({
       ) : (
         <div
           ref={lightsGridRef}
-          className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-3"
+          className="grid grid-cols-[repeat(auto-fill,minmax(min(var(--tile-min-width),100%),1fr))] gap-(--light-grid-gap)"
           style={gridStyle}
         >
           <AnimatePresence mode="popLayout" initial={false}>

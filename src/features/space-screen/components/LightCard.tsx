@@ -69,7 +69,7 @@ export const LightCard: React.FC<LightCardProps> = ({
         }
       }}
       className={cn(
-        "cursor-pointer justify-center gap-6 border border-tile-border bg-tile-off outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "cursor-pointer justify-center border border-tile-border bg-tile-off outline-none rounded-(--tile-radius) [--card-spacing:var(--tile-spacing)]! gap-(--tile-inner-gap) focus-visible:ring-2 focus-visible:ring-ring",
         TILE_INTERACTION_TRANSITION_CLASS,
         active && "ring-transparent",
         selected && overlaySelectionClassName,
@@ -92,11 +92,15 @@ export const LightCard: React.FC<LightCardProps> = ({
       <div className="flex items-center gap-4 px-(--card-spacing)">
         <span
           className={cn(
-            "relative flex size-12 shrink-0 items-center justify-center",
+            "relative flex size-(--tile-icon-box) shrink-0 items-center justify-center",
             active ? "text-foreground" : "text-muted-foreground",
           )}
         >
-          <DeviceIcon size={26} strokeWidth={2.5} />
+          <DeviceIcon
+            size={26}
+            strokeWidth={2.5}
+            className="size-(--tile-icon)"
+          />
           {syncLocked && (
             <SyncIndicator
               syncedCount={1}

@@ -15,6 +15,8 @@ import { WidgetErrorScreen } from "./features/widget-screen/components/WidgetErr
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 import { initializeShortcuts } from "./features/shortcuts/store";
+import { initializeUiDensity } from "./stores/UiDensityStore";
+import { initializeUiScale } from "./stores/UiScaleStore";
 
 const searchParams = new URLSearchParams(window.location.search);
 const isWidgetUrl = searchParams.get("window") === "widget";
@@ -36,7 +38,11 @@ const widgetId =
 
 const isWidgetWindow = isWidgetUrl || Boolean(widgetId);
 
-if (!isWidgetWindow) void initializeShortcuts();
+if (!isWidgetWindow) {
+  void initializeShortcuts();
+  initializeUiScale();
+  initializeUiDensity();
+}
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

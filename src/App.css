@@ -141,8 +141,13 @@
      The same dark-to-light elevation order is preserved in both themes. */
   --settings-surface: oklch(0.95 0 0);
   --settings-surface-hover: oklch(0.99 0 0);
-  --settings-control-hover: oklch(0.95 0 0);
-  --settings-control-open: oklch(0.97 0 0);
+  /* Expandable cards resting directly on the page card: one quiet step off it,
+     with their trigger's hover and open states a further step on. */
+  --settings-raised: oklch(0.97 0 0);
+  /* The scene tray inside a widget control card. */
+  --widget-tray: oklch(0.95 0 0);
+  --settings-control-hover: oklch(0.94 0 0);
+  --settings-control-open: oklch(0.955 0 0);
   /* Persistent selections use a subtle neutral fill and a thicker, quiet edge.
      Overlay selection is reserved for edit/canvas content whose own fill must
      remain visible. Focus continues to use the separate --ring token. */
@@ -226,8 +231,10 @@
   /* Settings-screen neutral surfaces (see :root note). */
   --settings-surface: oklch(0.22 0 0);
   --settings-surface-hover: oklch(0.3 0 0);
-  --settings-control-hover: oklch(0.3 0 0);
-  --settings-control-open: oklch(0.28 0 0);
+  --settings-raised: oklch(0.29 0 0);
+  --widget-tray: oklch(0.22 0 0);
+  --settings-control-hover: oklch(0.33 0 0);
+  --settings-control-open: oklch(0.31 0 0);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
@@ -236,6 +243,98 @@
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
+}
+
+/* Layout density, set from Settings → General as `data-density` on the root.
+   Comfortable (no attribute) is the default; Roomy and Compact step spacing,
+   tiles, and icons up or down. Theme independent, so these sit outside the
+   light/dark token blocks. */
+:root {
+  --page-gutter-x: 2.25rem;
+  --page-gutter-y: 1.25rem;
+  --section-gap: 1.25rem;
+  --tile-min-width: 290px;
+  --tile-grid-gap: 0.875rem;
+  --light-grid-gap: 0.625rem;
+  --tile-spacing: 0.875rem;
+  --tile-inner-gap: 1.125rem;
+  --tile-summary-y: 1rem;
+  --tile-icon-box: 2.75rem;
+  --tile-icon: 24px;
+  --tile-radius: 0.875rem;
+  --section-pad: 0.75rem;
+  --section-header-gap: 0.625rem;
+  --home-section-stack-gap: 1.5rem;
+}
+
+:root[data-density="roomy"] {
+  --page-gutter-x: 3rem;
+  --page-gutter-y: 1.5rem;
+  --section-gap: 1.5rem;
+  --tile-min-width: 320px;
+  --tile-grid-gap: 1rem;
+  --light-grid-gap: 0.75rem;
+  --tile-spacing: 1rem;
+  --tile-inner-gap: 1.5rem;
+  --tile-summary-y: 1.25rem;
+  --tile-icon-box: 3rem;
+  --tile-icon: 26px;
+  --tile-radius: 1rem;
+  --section-pad: 1rem;
+  --section-header-gap: 0.75rem;
+  --home-section-stack-gap: 2rem;
+}
+
+:root[data-density="compact"] {
+  --page-gutter-x: 1.5rem;
+  --page-gutter-y: 1rem;
+  --section-gap: 1rem;
+  --tile-min-width: 260px;
+  --tile-grid-gap: 0.75rem;
+  --light-grid-gap: 0.5625rem;
+  --tile-spacing: 0.75rem;
+  --tile-inner-gap: 0.75rem;
+  --tile-summary-y: 0.75rem;
+  --tile-icon-box: 2.5rem;
+  --tile-icon: 22px;
+  --tile-radius: 0.75rem;
+  --section-pad: 0.5rem;
+  --section-header-gap: 0.5rem;
+  --home-section-stack-gap: 1rem;
+}
+
+/* Narrow windows get narrower page margins at every density. */
+@media (max-width: 56rem) {
+  :root {
+    --page-gutter-x: 1.25rem;
+  }
+
+  :root[data-density="roomy"] {
+    --page-gutter-x: 1.5rem;
+  }
+
+  :root[data-density="compact"] {
+    --page-gutter-x: 1rem;
+  }
+}
+
+/* Widget tile backgrounds, set per widget as `data-tile-background` on the
+   widget's root. Unlayered, so these win over the tiles' `bg-*` utilities. */
+[data-tile-background="translucent"] .widget-tile-surface {
+  background-color: color-mix(
+    in oklch,
+    var(--card) var(--tile-opacity, 40%),
+    transparent
+  );
+}
+
+[data-tile-background="translucent"] .widget-tile-tray {
+  /* A touch lighter than the card, so the tray still reads as its own strip. */
+  background-color: color-mix(
+    in oklch,
+    var(--widget-tray) calc(var(--tile-opacity, 40%) * 0.9),
+    transparent
+  );
 }
 
 @layer base {

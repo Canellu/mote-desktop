@@ -40,7 +40,9 @@ export function SegmentedControl<T extends string>({
     >
       <TabsList
         aria-label={ariaLabel}
-        className="rounded-full bg-foreground/6 p-1 data-[orientation=horizontal]:h-auto dark:bg-muted"
+        // A fixed radius rather than rounded-full: identical on one row, and still a
+        // clean rounded rectangle when narrow widths wrap the options.
+        className="max-w-full flex-wrap justify-start rounded-[1.25rem] bg-foreground/6 p-1 data-[orientation=horizontal]:h-auto dark:bg-muted"
       >
         {options.map(
           ({ value: optionValue, label, icon: Icon, swatch, detail }) => {

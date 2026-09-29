@@ -231,7 +231,7 @@ const LightInspector: React.FC<{
   return (
     <motion.aside className="relative shrink-0" style={{ width }} inert={!open}>
       <motion.div
-        className="absolute inset-y-0 right-0 h-full shrink-0 p-6 pl-0"
+        className="absolute inset-y-0 right-0 h-full shrink-0 p-(--page-gutter-y) pl-0"
         style={{ width: paneWidth, x, opacity }}
       >
         <div className="flex h-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-card-foreground">
@@ -835,7 +835,7 @@ export const RootLayout: React.FC = () => {
       <div className="flex h-full flex-col">
         <ShellHeader />
         {!bridgeConnected && (
-          <div className="mx-12 mb-2 flex items-center gap-4 rounded-2xl border border-destructive/25 bg-destructive/10 px-5 py-3">
+          <div className="mx-(--page-gutter-x) mb-2 flex items-center gap-4 rounded-2xl border border-destructive/25 bg-destructive/10 px-5 py-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive/15 text-(--destructive-text)">
               <TriangleAlert size={21} />
             </span>
@@ -868,7 +868,7 @@ export const RootLayout: React.FC = () => {
                 openSyncControls();
               }
             }}
-            className="mx-12 mb-2 flex cursor-pointer items-center gap-4 rounded-2xl border border-primary/25 bg-primary/10 px-5 py-3 outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring"
+            className="mx-(--page-gutter-x) mb-2 flex cursor-pointer items-center gap-4 rounded-2xl border border-primary/25 bg-primary/10 px-5 py-3 outline-none transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
               <Tv size={21} />
@@ -929,7 +929,10 @@ export const RootLayout: React.FC = () => {
                 routeOwnsScroll ? { style: { overflowY: "hidden" } } : undefined
               }
               className="min-h-0 min-w-0 flex-1"
-              viewportClassName={cn(!routeIsFullBleed && "px-12 py-6")}
+              viewportClassName={cn(
+                !routeIsFullBleed &&
+                  "px-(--page-gutter-x) py-(--page-gutter-y)",
+              )}
               contentClassName={cn(
                 "min-w-0!",
                 routeOwnsScroll

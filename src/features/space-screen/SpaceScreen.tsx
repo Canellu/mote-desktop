@@ -149,14 +149,14 @@ function applyItemOrder<T extends { id: string }>(
 }
 
 const EmptyEditSection: React.FC<{ title: string }> = ({ title }) => (
-  <div className="flex flex-col gap-3">
+  <div className="flex flex-col gap-(--section-header-gap)">
     <div className="flex h-7 items-center">
       <SectionGrip />
       <p className="text-sm font-medium text-muted-foreground">
         {title} <span className="text-muted-foreground">0</span>
       </p>
     </div>
-    <div className="edit-dash-border flex min-h-32 items-center justify-center rounded-2xl bg-muted/20 text-sm text-muted-foreground">
+    <div className="edit-dash-border flex min-h-32 items-center justify-center rounded-(--tile-radius) bg-muted/20 text-sm text-muted-foreground">
       No {title.toLowerCase()} in this space
     </div>
   </div>
@@ -213,7 +213,7 @@ const SortableSection: React.FC<{
         // mode only changes the surface (color + border + shadow) — never the
         // layout (no shift). In edit mode each section reads as a raised,
         // reorderable panel, matching the Home custom-layout sections.
-        "flex flex-col rounded-2xl border border-transparent p-4 transition-[background-color,border-color,box-shadow]",
+        "flex flex-col rounded-(--tile-radius) border border-transparent p-(--section-pad) transition-[background-color,border-color,box-shadow]",
         editing && "edit-section-surface shadow-sm",
         disabled && "opacity-40",
       )}
@@ -674,7 +674,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
       inert={saving}
       aria-busy={saving}
       className={cn(
-        "mx-auto flex w-full min-w-0 flex-col gap-6 transition-opacity",
+        "mx-auto flex w-full min-w-0 flex-col gap-(--section-gap) transition-opacity",
         saving && "cursor-wait opacity-60",
       )}
     >

@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { SETTINGS_WRAP_ROW, SETTINGS_WRAP_ROW_TEXT } from "../constants";
 import { ProTag } from "./ProTag";
 
 // Fallback widget size (physical px) used to anchor a widget whose real size
@@ -298,8 +299,8 @@ export const WidgetPositionPicker = ({
 
   return (
     <div className="mb-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
+      <div className={cn("mb-3", SETTINGS_WRAP_ROW)}>
+        <div className={SETTINGS_WRAP_ROW_TEXT}>
           <p className="flex items-center gap-2 text-sm font-medium">
             Position
             <ProTag />
