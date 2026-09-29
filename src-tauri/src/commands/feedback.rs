@@ -272,13 +272,20 @@ fn build_preview(
         Some(snapshot)
     };
 
-    // A diagnostics report's message is fixed so the reporter can't edit it;
-    // the code in it is what support searches for.
+    // A diagnostics report's message starts with a line Mote writes, so every
+    // report has one and support can search by code; the reporter's optional
+    // note follows it.
     let generated;
     let trimmed = if draft.diagnostics_report {
-        generated = match diagnostics.as_ref().and_then(|d| d.code.as_deref()) {
+        let header = match diagnostics.as_ref().and_then(|d| d.code.as_deref()) {
             Some(code) => format!("Diagnostics report: {}", diagnostics::display_code(code)),
             None => "Diagnostics report".to_string(),
+        };
+        let note = draft.message.trim();
+        generated = if note.is_empty() {
+            header
+        } else {
+            format!("{header}\n\n{note}")
         };
         generated.as_str()
     } else {

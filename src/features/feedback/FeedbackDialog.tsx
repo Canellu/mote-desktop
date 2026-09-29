@@ -95,7 +95,6 @@ export const FeedbackDialog = ({
   const [email, setEmail] = useState("");
   const [keepUpdated, setKeepUpdated] = useState(false);
   const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
-  const [reportMessage, setReportMessage] = useState<string | null>(null);
   const [diagnosticsLines, setDiagnosticsLines] = useState<string[] | null>(
     null,
   );
@@ -119,7 +118,6 @@ export const FeedbackDialog = ({
       .then((preview) => {
         if (cancelled) return;
         setDiagnosticsLines(preview.diagnosticsLines);
-        setReportMessage(preview.message);
       })
       .catch(() => {
         if (!cancelled) setDiagnosticsLines([]);
@@ -148,7 +146,6 @@ export const FeedbackDialog = ({
       setEmail("");
       setKeepUpdated(false);
       setIncludeDiagnostics(true);
-      setReportMessage(null);
       setDiagnosticsLines(null);
       setState({ phase: "idle" });
       setCopied(false);
@@ -164,7 +161,7 @@ export const FeedbackDialog = ({
     try {
       const { reportId } = await submitFeedback({
         category: isReport ? "bug" : category,
-        message: isReport ? "" : trimmed,
+        message: trimmed,
         email: email.trim() || undefined,
         contactPreference,
         includeDiagnostics: isReport || includeDiagnostics,
@@ -236,13 +233,19 @@ export const FeedbackDialog = ({
             <div className="grid gap-5">
               {isReport && (
                 <div className="grid gap-2">
-                  <Label>Message</Label>
-                  <p
-                    aria-readonly="true"
-                    className="rounded-2xl border border-foreground/12 bg-input/30 px-4 py-3 text-sm text-muted-foreground dark:border-foreground/8"
-                  >
-                    {reportMessage ?? "Diagnostics report"}
-                  </p>
+                  <Label htmlFor="diagnostics-note">
+                    Add a note (optional)
+                  </Label>
+                  <textarea
+                    id="diagnostics-note"
+                    value={message}
+                    maxLength={MAX_MESSAGE_LENGTH}
+                    rows={3}
+                    disabled={sending}
+                    placeholder="What were you doing when it happened?"
+                    className="min-h-20 w-full resize-none rounded-2xl border border-foreground/12 bg-input/30 px-4 py-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50 dark:border-foreground/8"
+                    onChange={(event) => setMessage(event.target.value)}
+                  />
                   <DiagnosticsDetails lines={diagnosticsLines} />
                 </div>
               )}
