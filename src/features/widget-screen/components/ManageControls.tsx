@@ -295,7 +295,7 @@ const ControlRow = ({
             }}
             className="overflow-hidden"
           >
-            <div className="grid gap-3 border-t border-border/50 px-3 py-3">
+            <div className="grid grid-cols-1 gap-3 border-t border-border/50 px-3 py-3">
               {control.type === "toggles" ? (
                 <TogglesControlBody control={control} onChange={onChange} />
               ) : (
@@ -357,7 +357,7 @@ const SingleControlBody = ({
       </label>
 
       {control.target.kind !== "light" ? (
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <p className="text-xs text-muted-foreground">
             {groupScenes.length === 0
               ? "No scenes saved for this space yet."
@@ -519,7 +519,7 @@ const ConfiguredToggleRow = ({
   };
 
   return (
-    <div className="grid gap-2 rounded-lg border border-border/60 bg-card p-2.5">
+    <div className="grid grid-cols-1 gap-2 rounded-lg border border-border/60 bg-card p-2.5">
       <div className="flex items-center gap-2.5">
         <span className="flex size-7 shrink-0 items-center justify-center text-muted-foreground">
           {icon}
@@ -638,9 +638,9 @@ export const TogglesControlBody = ({
     matchedLights.length === 0;
 
   return (
-    <div className="grid gap-3">
+    <div className="grid grid-cols-1 gap-3">
       {targets.length > 0 ? (
-        <div className="grid gap-2">
+        <div className="grid grid-cols-1 gap-2">
           <TargetGroupLabel>On this card</TargetGroupLabel>
           {targets.map((item) => {
             const key = controlTargetKey(item);
@@ -679,7 +679,7 @@ export const TogglesControlBody = ({
             {term ? `Nothing matches “${query.trim()}”.` : "No devices yet."}
           </p>
         ) : (
-          <div className="grid gap-1">
+          <div className="grid grid-cols-1 gap-1">
             {matchedRooms.length > 0 && (
               <TargetGroupLabel>Rooms</TargetGroupLabel>
             )}
@@ -862,8 +862,8 @@ export const ManageControls = ({
   const controlNeedsPro = onProRequired !== undefined && controls.length > 0;
 
   return (
-    <div className="grid gap-4 pt-8">
-      <div className="flex items-center gap-2">
+    <div className="grid grid-cols-1 gap-4 pt-8">
+      <div className="flex flex-wrap items-center gap-2">
         {onClose ? (
           <IconTooltip label="Back">
             <Button
@@ -878,7 +878,7 @@ export const ManageControls = ({
           </IconTooltip>
         ) : null}
         <p className="text-base font-semibold">Controls</p>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
           <Button
             type="button"
             size="sm"
@@ -927,7 +927,7 @@ export const ManageControls = ({
             items={controls.map((control) => control.id)}
             strategy={verticalListSortingStrategy}
           >
-            <div className="grid gap-1.5">
+            <div className="grid grid-cols-1 gap-1.5">
               {controls.map((control) => (
                 <ControlRow
                   key={control.id}

@@ -1,20 +1,24 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useEntitlements } from "@/context/EntitlementContext";
 import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { ManageControls } from "@/features/widget-screen/components/ManageControls";
 import type {
+  WidgetBackgroundMode,
   WidgetCornerMode,
   WidgetSizeMode,
   WidgetThemeMode,
 } from "@/features/widget-screen/types";
-import type {
-  WidgetConfigDraft,
-  WidgetSummary,
+import {
+  DEFAULT_TILE_OPACITY,
+  type WidgetConfigDraft,
+  type WidgetSummary,
 } from "@/features/widget-screen/useWidgets";
 import { cn } from "@/lib/utils";
 import {
+  Blend,
   ChevronDown,
   Monitor,
   MonitorSmartphone,
@@ -23,16 +27,19 @@ import {
   Moon,
   Pin,
   PinOff,
+  RotateCcw,
   Sun,
   Scaling,
+  Square,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useState } from "react";
 import {
-  FLAT_CARD,
   SETTINGS_EXPANDABLE_CARD,
   SETTINGS_EXPANDABLE_TRIGGER,
   SETTINGS_EXPANDABLE_TRIGGER_OPEN,
+  SETTINGS_WRAP_ROW,
+  SETTINGS_WRAP_ROW_TEXT,
 } from "../constants";
 import { DeleteResourceButton } from "./DeleteResourceButton";
 import { ProTag } from "./ProTag";
@@ -46,6 +53,15 @@ const THEME_MODES = [
   { value: "dark", label: "Dark", icon: Moon },
 ] satisfies Array<{
   value: WidgetThemeMode;
+  label: string;
+  icon: SegmentIcon;
+}>;
+
+const BACKGROUND_MODES = [
+  { value: "solid", label: "Solid", icon: Square },
+  { value: "translucent", label: "Translucent", icon: Blend },
+] satisfies Array<{
+  value: WidgetBackgroundMode;
   label: string;
   icon: SegmentIcon;
 }>;
@@ -87,9 +103,14 @@ export const WidgetCard = ({
     themeMode,
     sizeMode,
     cornerMode,
+    backgroundMode,
+    tileOpacity,
     controls,
     locked,
   } = widget;
+  // Follows the slider while dragging; saved once on release.
+  const [opacityDraft, setOpacityDraft] = useState(tileOpacity);
+  useEffect(() => setOpacityDraft(tileOpacity), [tileOpacity]);
   const { hasPro } = useEntitlements();
   const { requestPro } = useProUpgrade();
   const upgrade = () => requestPro("advanced_widgets");
@@ -108,6 +129,8 @@ export const WidgetCard = ({
       themeMode,
       sizeMode,
       cornerMode,
+      backgroundMode,
+      tileOpacity,
       ...next,
     });
 
@@ -121,10 +144,11 @@ export const WidgetCard = ({
   return (
     <Card
       className={cn(
-        "gap-0 py-0",
-        // Active widgets read as "lifted" off the list with real elevation;
-        // closed ones stay as quiet flat rows.
-        enabled ? SETTINGS_EXPANDABLE_CARD : FLAT_CARD,
+        "@container/widget-card gap-0 py-0",
+        // Both share the raised fill; active widgets add real elevation and
+        // closed ones stay flat.
+        SETTINGS_EXPANDABLE_CARD,
+        !enabled && "shadow-none dark:shadow-none",
       )}
     >
       <div
@@ -138,7 +162,7 @@ export const WidgetCard = ({
           type="button"
           onClick={toggleConfigure}
           aria-expanded={configOpen}
-          className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left"
+          className="flex min-w-0 flex-1 items-center gap-3 py-3 pr-2 pl-4 text-left"
         >
           <span
             className={cn(
@@ -168,8 +192,9 @@ export const WidgetCard = ({
         <button
           type="button"
           aria-label={enabled ? "Deactivate widget" : "Activate widget"}
+          title={enabled ? "Active" : locked ? "Needs Pro" : "Inactive"}
           className={cn(
-            "mr-2 flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-75",
+            "mr-1 flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-75 @max-sm/widget-card:size-6 @max-sm/widget-card:justify-center @max-sm/widget-card:px-0",
             enabled
               ? "bg-(--success-surface) text-(--success-text)"
               : "bg-muted text-muted-foreground",
@@ -182,7 +207,10 @@ export const WidgetCard = ({
               enabled ? "bg-success" : "bg-muted-foreground",
             )}
           />
-          {enabled ? "Active" : locked ? "Needs Pro" : "Inactive"}
+          {/* Narrow cards keep only the dot; the name needs the room more. */}
+          <span className="@max-sm/widget-card:sr-only">
+            {enabled ? "Active" : locked ? "Needs Pro" : "Inactive"}
+          </span>
         </button>
         <button
           type="button"
@@ -191,7 +219,7 @@ export const WidgetCard = ({
             configOpen ? "Close widget settings" : "Open widget settings"
           }
           aria-expanded={configOpen}
-          className="mr-4 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground"
+          className="mr-2 flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground @sm/widget-card:mr-4"
         >
           <ChevronDown
             size={16}
@@ -213,8 +241,8 @@ export const WidgetCard = ({
             className="overflow-hidden"
           >
             <div className="border-t border-border/60 px-4 py-4">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
+              <div className={cn("mb-4", SETTINGS_WRAP_ROW)}>
+                <div className={SETTINGS_WRAP_ROW_TEXT}>
                   <p className="text-sm font-medium">Active</p>
                   <p className="text-xs text-muted-foreground">
                     Show this widget in its own window.
@@ -229,8 +257,8 @@ export const WidgetCard = ({
                 />
               </div>
 
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
+              <div className={cn("mb-4", SETTINGS_WRAP_ROW)}>
+                <div className={SETTINGS_WRAP_ROW_TEXT}>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Pinned
                     <ProTag />
@@ -256,8 +284,8 @@ export const WidgetCard = ({
                 </Button>
               </div>
 
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
+              <div className={cn("mb-4", SETTINGS_WRAP_ROW)}>
+                <div className={SETTINGS_WRAP_ROW_TEXT}>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Always on top
                     <ProTag />
@@ -282,8 +310,8 @@ export const WidgetCard = ({
                 onProRequired={hasPro ? undefined : upgrade}
               />
 
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
+              <div className={cn("mb-4", SETTINGS_WRAP_ROW)}>
+                <div className={SETTINGS_WRAP_ROW_TEXT}>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Theme
                     <ProTag />
@@ -305,8 +333,8 @@ export const WidgetCard = ({
                 />
               </div>
 
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
+              <div className={cn("mb-4", SETTINGS_WRAP_ROW)}>
+                <div className={SETTINGS_WRAP_ROW_TEXT}>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Widget size
                     <ProTag />
@@ -328,8 +356,8 @@ export const WidgetCard = ({
                 />
               </div>
 
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div>
+              <div className={cn("mb-4", SETTINGS_WRAP_ROW)}>
+                <div className={SETTINGS_WRAP_ROW_TEXT}>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     Corners
                     <ProTag />
@@ -350,6 +378,76 @@ export const WidgetCard = ({
                   layoutId={`widget-corner-mode-pill-${widgetId}`}
                 />
               </div>
+
+              <div className={cn("mb-4", SETTINGS_WRAP_ROW)}>
+                <div className={SETTINGS_WRAP_ROW_TEXT}>
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    Tile background
+                    <ProTag />
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Let the desktop show through the tiles.
+                  </p>
+                </div>
+                <SegmentedControl
+                  value={backgroundMode}
+                  onValueChange={(value) =>
+                    value !== "solid" && !hasPro
+                      ? upgrade()
+                      : updateConfig({
+                          backgroundMode: value as WidgetBackgroundMode,
+                        })
+                  }
+                  ariaLabel="Widget tile background"
+                  options={BACKGROUND_MODES}
+                  layoutId={`widget-background-mode-pill-${widgetId}`}
+                />
+              </div>
+
+              {backgroundMode === "translucent" ? (
+                <div className="mb-4 grid gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-medium">Tile opacity</p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm tabular-nums text-muted-foreground">
+                        {opacityDraft}%
+                        {opacityDraft === DEFAULT_TILE_OPACITY
+                          ? " · Default"
+                          : null}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-lg"
+                        disabled={opacityDraft === DEFAULT_TILE_OPACITY}
+                        onClick={() => {
+                          setOpacityDraft(DEFAULT_TILE_OPACITY);
+                          updateConfig({ tileOpacity: DEFAULT_TILE_OPACITY });
+                        }}
+                      >
+                        <RotateCcw />
+                        Reset
+                      </Button>
+                    </div>
+                  </div>
+                  <Slider
+                    aria-label="Tile opacity"
+                    min={10}
+                    max={90}
+                    step={5}
+                    value={[opacityDraft]}
+                    onValueChange={(next) =>
+                      setOpacityDraft(Array.isArray(next) ? next[0] : next)
+                    }
+                    onValueCommitted={(next) =>
+                      updateConfig({
+                        tileOpacity: Array.isArray(next) ? next[0] : next,
+                      })
+                    }
+                  />
+                </div>
+              ) : null}
 
               <ManageControls
                 controls={controls}

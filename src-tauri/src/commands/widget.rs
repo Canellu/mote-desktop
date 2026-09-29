@@ -172,6 +172,36 @@ impl Default for WidgetCornerMode {
     }
 }
 
+/// What the widget's tiles are painted on. `Translucent` lets the desktop show
+/// through them.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WidgetBackgroundMode {
+    Translucent,
+    /// Also what any unknown stored value (such as the dropped `frosted`) reads as.
+    #[serde(other)]
+    Solid,
+}
+
+impl Default for WidgetBackgroundMode {
+    fn default() -> Self {
+        Self::Solid
+    }
+}
+
+/// How opaque translucent tiles are, in percent. Kept within a range where the
+/// tiles stay readable and still let something through.
+const MIN_TILE_OPACITY: u8 = 10;
+const MAX_TILE_OPACITY: u8 = 90;
+
+fn default_tile_opacity() -> u8 {
+    40
+}
+
+fn clamp_tile_opacity(value: u8) -> u8 {
+    value.clamp(MIN_TILE_OPACITY, MAX_TILE_OPACITY)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredWidget {
@@ -189,6 +219,10 @@ struct StoredWidget {
     size_mode: WidgetSizeMode,
     #[serde(default)]
     corner_mode: WidgetCornerMode,
+    #[serde(default)]
+    background_mode: WidgetBackgroundMode,
+    #[serde(default = "default_tile_opacity")]
+    tile_opacity: u8,
     /// Keeps the widget window floating above other windows. Fully independent
     /// of `pinned`: pinning only locks the widget's position, it does not affect
     /// stacking, and a widget can be on-top without being pinned.
@@ -227,6 +261,7 @@ impl StoredWidget {
             widget.theme_mode = WidgetThemeMode::System;
             widget.size_mode = WidgetSizeMode::Default;
             widget.corner_mode = WidgetCornerMode::Rounded;
+            widget.background_mode = WidgetBackgroundMode::Solid;
             widget.controls = free_composition(&self.controls);
         }
         widget
@@ -340,6 +375,8 @@ pub struct WidgetState {
     theme_mode: WidgetThemeMode,
     size_mode: WidgetSizeMode,
     corner_mode: WidgetCornerMode,
+    background_mode: WidgetBackgroundMode,
+    tile_opacity: u8,
     controls: Vec<StoredWidgetControl>,
     /// Held back by the Free allowance of one widget. Only the Settings list
     /// reports it, through `StoredWidgetSettings::state_of`.
@@ -360,6 +397,8 @@ impl WidgetState {
             theme_mode: widget.theme_mode.clone(),
             size_mode: widget.size_mode.clone(),
             corner_mode: widget.corner_mode.clone(),
+            background_mode: widget.background_mode.clone(),
+            tile_opacity: widget.tile_opacity,
             controls: widget.controls.clone(),
             locked: false,
         }
@@ -377,6 +416,8 @@ impl WidgetState {
             theme_mode: WidgetThemeMode::default(),
             size_mode: WidgetSizeMode::default(),
             corner_mode: WidgetCornerMode::default(),
+            background_mode: WidgetBackgroundMode::default(),
+            tile_opacity: default_tile_opacity(),
             controls: Vec::new(),
             locked: false,
         }
@@ -392,6 +433,7 @@ pub fn open_widget_window(
     theme_mode: Option<WidgetThemeMode>,
     size_mode: Option<WidgetSizeMode>,
     corner_mode: Option<WidgetCornerMode>,
+    background_mode: Option<WidgetBackgroundMode>,
 ) -> Result<OpenWidgetResult, String> {
     let mut settings = read_widget_settings(&app)?;
     let sanitized_controls = controls.map(sanitize_controls);
@@ -431,12 +473,14 @@ pub fn open_widget_window(
         let theme_mode = theme_mode.unwrap_or_default();
         let size_mode = size_mode.unwrap_or_default();
         let corner_mode = corner_mode.unwrap_or_default();
+        let background_mode = background_mode.unwrap_or_default();
         let controls = sanitized_controls.unwrap_or_default();
         // Free holds one widget, built within the Free composition and
         // appearance. A second widget, or one built past either, is Pro.
         if !settings.widgets.is_empty()
             || exceeds_free_composition(&controls)
             || exceeds_free_appearance(&theme_mode, &size_mode, &corner_mode)
+            || exceeds_free_background(&background_mode)
         {
             crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
         }
@@ -450,6 +494,8 @@ pub fn open_widget_window(
             theme_mode,
             size_mode,
             corner_mode,
+            background_mode,
+            tile_opacity: default_tile_opacity(),
             always_on_top: false,
             controls,
         };
@@ -865,6 +911,11 @@ fn exceeds_free_appearance(
         || !matches!(corner_mode, WidgetCornerMode::Rounded)
 }
 
+/// Free tiles are solid. A translucent background is Pro.
+fn exceeds_free_background(background_mode: &WidgetBackgroundMode) -> bool {
+    !matches!(background_mode, WidgetBackgroundMode::Solid)
+}
+
 #[tauri::command(rename = "set-widget-controls")]
 pub fn set_widget_controls(
     app: tauri::AppHandle,
@@ -908,6 +959,8 @@ pub fn preview_widget_config(
     theme_mode: WidgetThemeMode,
     size_mode: WidgetSizeMode,
     corner_mode: Option<WidgetCornerMode>,
+    background_mode: Option<WidgetBackgroundMode>,
+    tile_opacity: Option<u8>,
 ) -> Result<(), String> {
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let settings = read_widget_settings(&app)?;
@@ -922,6 +975,12 @@ pub fn preview_widget_config(
     preview.size_mode = size_mode;
     if let Some(corner_mode) = corner_mode {
         preview.corner_mode = corner_mode;
+    }
+    if let Some(background_mode) = background_mode {
+        preview.background_mode = background_mode;
+    }
+    if let Some(tile_opacity) = tile_opacity {
+        preview.tile_opacity = clamp_tile_opacity(tile_opacity);
     }
     let next_state = WidgetState::from_stored(&preview);
 
@@ -942,6 +1001,9 @@ pub fn set_widget_config(
     size_mode: WidgetSizeMode,
     // Optional so a caller that predates corners leaves them as they are.
     corner_mode: Option<WidgetCornerMode>,
+    // Optional for the same reason.
+    background_mode: Option<WidgetBackgroundMode>,
+    tile_opacity: Option<u8>,
 ) -> Result<(), String> {
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let mut settings = read_widget_settings(&app)?;
@@ -952,10 +1014,12 @@ pub fn set_widget_config(
         .ok_or_else(|| "Widget settings are not available.".to_string())?;
     let controls = sanitize_controls(controls);
     let corner_mode = corner_mode.unwrap_or_else(|| widget.corner_mode.clone());
+    let background_mode = background_mode.unwrap_or_else(|| widget.background_mode.clone());
     // The same composition gate as `set-widget-controls`. Without it, saving
     // from the settings panel was a way round the Free allowance.
     if exceeds_free_composition(&controls)
         || exceeds_free_appearance(&theme_mode, &size_mode, &corner_mode)
+        || exceeds_free_background(&background_mode)
     {
         crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
     }
@@ -963,6 +1027,10 @@ pub fn set_widget_config(
     widget.theme_mode = theme_mode;
     widget.size_mode = size_mode;
     widget.corner_mode = corner_mode;
+    widget.background_mode = background_mode;
+    if let Some(tile_opacity) = tile_opacity {
+        widget.tile_opacity = clamp_tile_opacity(tile_opacity);
+    }
     let next_state = WidgetState::from_stored(widget);
     write_widget_settings(&app, &settings)?;
 
@@ -1493,6 +1561,8 @@ fn legacy_widget_settings_from_value(value: &Value) -> StoredWidgetSettings {
             theme_mode: WidgetThemeMode::default(),
             size_mode: WidgetSizeMode::default(),
             corner_mode: WidgetCornerMode::default(),
+            background_mode: WidgetBackgroundMode::default(),
+            tile_opacity: default_tile_opacity(),
             always_on_top: false,
             controls: Vec::new(),
         }],
@@ -1906,6 +1976,27 @@ mod free_limit_tests {
         .unwrap();
 
         assert!(matches!(widget.corner_mode, WidgetCornerMode::Rounded));
+        assert!(matches!(widget.background_mode, WidgetBackgroundMode::Solid));
+        assert_eq!(widget.tile_opacity, default_tile_opacity());
+    }
+
+    #[test]
+    fn tile_opacity_stays_within_its_range() {
+        assert_eq!(clamp_tile_opacity(0), MIN_TILE_OPACITY);
+        assert_eq!(clamp_tile_opacity(55), 55);
+        assert_eq!(clamp_tile_opacity(100), MAX_TILE_OPACITY);
+    }
+
+    #[test]
+    fn only_a_solid_background_is_free() {
+        assert!(!exceeds_free_background(&WidgetBackgroundMode::Solid));
+        assert!(exceeds_free_background(&WidgetBackgroundMode::Translucent));
+    }
+
+    #[test]
+    fn an_unknown_background_reads_as_solid() {
+        let mode: WidgetBackgroundMode = serde_json::from_value(serde_json::json!("frosted")).unwrap();
+        assert!(matches!(mode, WidgetBackgroundMode::Solid));
     }
 
     #[test]

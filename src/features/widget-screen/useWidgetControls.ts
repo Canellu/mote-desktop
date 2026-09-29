@@ -3,11 +3,13 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type {
   WidgetControl,
+  WidgetBackgroundMode,
   WidgetCornerMode,
   WidgetSizeMode,
   WidgetState,
   WidgetThemeMode,
 } from "./types";
+import { DEFAULT_TILE_OPACITY } from "./useWidgets";
 
 /** Emitted by the Rust side when a widget's controls change (here or from the
  * main window's Settings tab) so a live widget updates without reopening. */
@@ -25,6 +27,9 @@ export const useWidgetControls = (widgetId: string) => {
   const [themeMode, setThemeMode] = useState<WidgetThemeMode>("system");
   const [sizeMode, setSizeMode] = useState<WidgetSizeMode>("default");
   const [cornerMode, setCornerMode] = useState<WidgetCornerMode>("rounded");
+  const [backgroundMode, setBackgroundMode] =
+    useState<WidgetBackgroundMode>("solid");
+  const [tileOpacity, setTileOpacity] = useState(DEFAULT_TILE_OPACITY);
   const [loaded, setLoaded] = useState(false);
   // The last value we wrote, so the echoed change event doesn't clobber a newer
   // optimistic edit with a stale payload.
@@ -39,6 +44,8 @@ export const useWidgetControls = (widgetId: string) => {
         setThemeMode(state.themeMode ?? "system");
         setSizeMode(state.sizeMode ?? "default");
         setCornerMode(state.cornerMode ?? "rounded");
+        setBackgroundMode(state.backgroundMode ?? "solid");
+        setTileOpacity(state.tileOpacity ?? DEFAULT_TILE_OPACITY);
       })
       .catch(() => {
         // A brand-new or unconfigured widget has none yet; start empty.
@@ -63,6 +70,8 @@ export const useWidgetControls = (widgetId: string) => {
         setThemeMode(event.payload.themeMode ?? "system");
         setSizeMode(event.payload.sizeMode ?? "default");
         setCornerMode(event.payload.cornerMode ?? "rounded");
+        setBackgroundMode(event.payload.backgroundMode ?? "solid");
+        setTileOpacity(event.payload.tileOpacity ?? DEFAULT_TILE_OPACITY);
       },
     );
 
@@ -94,6 +103,8 @@ export const useWidgetControls = (widgetId: string) => {
     themeMode,
     sizeMode,
     cornerMode,
+    backgroundMode,
+    tileOpacity,
     loaded,
     save,
   };

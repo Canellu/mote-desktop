@@ -8,6 +8,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type {
+  WidgetBackgroundMode,
   WidgetControl,
   WidgetCornerMode,
   WidgetSizeMode,
@@ -16,6 +17,9 @@ import type {
 } from "./types";
 
 export type WidgetSummary = WidgetState;
+
+/** Mirrors the Rust `default_tile_opacity`. */
+export const DEFAULT_TILE_OPACITY = 40;
 
 const toSummary = (state: WidgetState): WidgetSummary => ({
   widgetId: state.widgetId,
@@ -27,6 +31,8 @@ const toSummary = (state: WidgetState): WidgetSummary => ({
   themeMode: state.themeMode ?? "system",
   sizeMode: state.sizeMode ?? "default",
   cornerMode: state.cornerMode ?? "rounded",
+  backgroundMode: state.backgroundMode ?? "solid",
+  tileOpacity: state.tileOpacity ?? DEFAULT_TILE_OPACITY,
   controls: state.controls ?? [],
   locked: state.locked ?? false,
 });
@@ -49,6 +55,8 @@ export interface WidgetConfigDraft {
   themeMode: WidgetThemeMode;
   sizeMode: WidgetSizeMode;
   cornerMode: WidgetCornerMode;
+  backgroundMode: WidgetBackgroundMode;
+  tileOpacity: number;
 }
 
 /**

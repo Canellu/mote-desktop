@@ -191,7 +191,7 @@ export const ControlView = ({
       // stretches to the tallest card in the row — so cards on a row share one
       // height. The scene area (the last child) grows to absorb any extra height,
       // keeping its strip flush to the card's bottom rather than floating.
-      className="flex h-full flex-col gap-0 overflow-hidden border border-tile-border bg-card bg-clip-padding p-0 ring-0"
+      className="widget-tile-surface flex h-full flex-col gap-0 overflow-hidden border border-tile-border bg-card bg-clip-padding p-0 ring-0"
     >
       {/* Lit control header — the real space/light tile treatment. */}
       <div
@@ -320,7 +320,7 @@ export const ControlView = ({
       {scenes.length > 0 ? (
         <div
           className={cn(
-            "flex-1 border-t border-tile-border/70 bg-[oklch(0.95_0_0)] px-2 dark:bg-[oklch(0.22_0_0)]",
+            "widget-tile-tray flex-1 border-t border-tile-border/70 bg-(--widget-tray) px-2",
             compact ? "py-2" : "pt-1.5 pb-1",
           )}
         >
@@ -532,7 +532,7 @@ const TogglesCard = ({
   return (
     <Card
       size="sm"
-      className="flex h-full flex-col gap-0 overflow-hidden border border-tile-border bg-card bg-clip-padding p-0 ring-0"
+      className="widget-tile-surface flex h-full flex-col gap-0 overflow-hidden border border-tile-border bg-card bg-clip-padding p-0 ring-0"
     >
       {control.label ? (
         <p

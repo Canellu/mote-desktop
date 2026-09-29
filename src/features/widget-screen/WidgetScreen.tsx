@@ -299,8 +299,14 @@ const ControlList = ({
 };
 
 export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
-  const { controls, themeMode, sizeMode, cornerMode } =
-    useWidgetControls(widgetId);
+  const {
+    controls,
+    themeMode,
+    sizeMode,
+    cornerMode,
+    backgroundMode,
+    tileOpacity,
+  } = useWidgetControls(widgetId);
   const sizeMetrics = WIDGET_SIZE_METRICS[sizeMode];
   const hasLoaded = useHueResourcesStore((state) => state.hasLoaded);
   const [shellRevealed, setShellRevealed] = useState(false);
@@ -470,8 +476,13 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     void invoke("open-widget-settings", { widgetId }).catch(() => undefined);
 
   const shellStyle = useMemo(
-    () => widgetShellStyle(theme, sizeMode, cornerMode),
-    [cornerMode, sizeMode, theme],
+    () =>
+      ({
+        ...widgetShellStyle(theme, sizeMode, cornerMode),
+        // Read by the translucent tile rules in App.css.
+        "--tile-opacity": `${tileOpacity}%`,
+      }) as React.CSSProperties,
+    [cornerMode, sizeMode, theme, tileOpacity],
   );
 
   // While we're still connecting to the bridge there's nothing to grab onto, so
@@ -486,6 +497,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
         showShell ? "border-border/20 shadow-2xl" : "border-transparent",
         flashing && "bg-primary/35",
       )}
+      data-tile-background={backgroundMode}
       style={
         showShell
           ? shellStyle

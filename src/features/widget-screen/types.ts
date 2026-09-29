@@ -100,6 +100,8 @@ export type WidgetThemeMode = "light" | "dark" | "system";
 export type WidgetSizeMode = "small" | "default" | "large";
 /** A fixed set of corner shapes; see `WIDGET_CORNER_SCALE`. */
 export type WidgetCornerMode = "square" | "soft" | "rounded" | "round";
+/** What the tiles are painted on. */
+export type WidgetBackgroundMode = "solid" | "translucent";
 
 export interface WidgetState {
   widgetId: string;
@@ -112,6 +114,9 @@ export interface WidgetState {
   themeMode: WidgetThemeMode;
   sizeMode: WidgetSizeMode;
   cornerMode: WidgetCornerMode;
+  backgroundMode: WidgetBackgroundMode;
+  /** Percent opacity of translucent tiles, 10–90. */
+  tileOpacity: number;
   controls: WidgetControl[];
   /**
    * Saved under Pro past the one widget Free runs. It stays saved and comes
