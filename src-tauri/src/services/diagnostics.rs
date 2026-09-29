@@ -62,6 +62,12 @@ fn trail() -> &'static Mutex<Trail> {
     })
 }
 
+/// Starts the clock steps are timed from. Called once at app start; without
+/// it the clock would start at the first recorded step.
+pub fn init() {
+    let _ = trail();
+}
+
 /// A step being recorded; finish it with [`Record::save`].
 pub struct Record {
     step: Step,

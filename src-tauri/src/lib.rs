@@ -12,6 +12,7 @@ use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    services::diagnostics::init();
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             let _ = commands::app_settings::show_main_window(app);

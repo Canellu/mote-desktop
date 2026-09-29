@@ -240,9 +240,18 @@ fn platform() -> String {
     format!("{} {}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
+/// Whether this process runs with package identity (the Store install). The
+/// Win32 call works on any thread; the WinRT `Package::Current` failed on the
+/// thread a report is built on and reported a Store install as unpackaged.
 #[cfg(windows)]
 fn is_packaged() -> bool {
-    windows::ApplicationModel::Package::Current().is_ok()
+    use windows::Win32::Foundation::ERROR_INSUFFICIENT_BUFFER;
+    use windows::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
+    let mut length = 0u32;
+    // SAFETY: a zero-length query with no buffer only reports the size needed.
+    let result = unsafe { GetCurrentPackageFullName(&mut length, None) };
+    // Unpackaged processes get APPMODEL_ERROR_NO_PACKAGE instead.
+    result == ERROR_INSUFFICIENT_BUFFER
 }
 
 #[cfg(not(windows))]
