@@ -15,7 +15,12 @@ export const WidgetWizardRoute: React.FC = () => {
       key={step ?? 0}
       initialStep={step ?? 0}
       onCreate={(options) => {
-        void navigate({ to: "/settings", search: { tab: "widget" } });
+        // Replace the finished wizard so Back doesn't reopen it.
+        void navigate({
+          to: "/settings",
+          search: { tab: "widget" },
+          replace: true,
+        });
         void openWidget(undefined, options);
       }}
     />

@@ -20,7 +20,8 @@ export function FocusWizardRoute() {
       lightGroups={lightGroups}
       hasPro={hasPro}
       onSave={saveRitual}
-      onExit={() => void navigate({ to: "/focus" })}
+      // Replace the wizard so Back doesn't reopen it after saving.
+      onExit={() => void navigate({ to: "/focus", replace: true })}
     />
   );
 }

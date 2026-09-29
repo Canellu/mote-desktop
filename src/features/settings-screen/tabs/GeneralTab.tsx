@@ -330,7 +330,7 @@ export const GeneralTab = ({
         <SettingsSection title="Network">
           <SettingsRow
             title="Windows Firewall"
-            description="If Mote can't find your bridge or Sync Box on its own, make sure Mote Desktop is allowed through Windows Firewall on Private and Public networks."
+            description="If Mote can't find a Sync Box or another bridge, or loses your bridge after its address changes, make sure Mote Desktop is allowed through Windows Firewall."
           >
             <Button
               variant="outline"

@@ -63,7 +63,12 @@ export const RoomZoneWizardRoute: React.FC = () => {
             toast.success(
               `${resourceType === "room" ? "Room" : "Zone"} created`,
             );
-            void navigate({ to: "/settings", search: { tab: "spaces" } });
+            // Replace the finished wizard so Back doesn't reopen it.
+            void navigate({
+              to: "/settings",
+              search: { tab: "spaces" },
+              replace: true,
+            });
           } catch (error) {
             toast.error(String(error) || `Unable to create ${resourceType}.`);
           }

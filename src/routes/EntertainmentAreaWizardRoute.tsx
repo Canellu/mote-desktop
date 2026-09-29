@@ -75,12 +75,14 @@ export const EntertainmentAreaWizardRoute: React.FC = () => {
               saveTvAspectRatio(areaId, tvAspectRatio);
             }
             toast.success("Entertainment area created");
+            // Replace the finished wizard so Back doesn't reopen it.
             void navigate(
               from === "sync"
-                ? { to: "/sync", search: { source: undefined } }
+                ? { to: "/sync", search: { source: undefined }, replace: true }
                 : {
                     to: "/settings",
                     search: { tab: "entertainment" },
+                    replace: true,
                   },
             );
           })

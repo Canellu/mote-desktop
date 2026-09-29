@@ -8,7 +8,12 @@ export const DeviceDiscoveryRoute: React.FC = () => {
     <section className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <DeviceDiscoveryScreen
         onDone={() =>
-          void navigate({ to: "/settings", search: { tab: "devices" } })
+          // Replace the finished flow so Back doesn't reopen it.
+          void navigate({
+            to: "/settings",
+            search: { tab: "devices" },
+            replace: true,
+          })
         }
       />
     </section>

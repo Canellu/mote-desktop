@@ -34,7 +34,7 @@ If you are operating as an reasoning/thinking model, restrict your internal reas
 
 - **Frontend**: React + TypeScript, Vite, Tailwind CSS
 - **Component library**: shadcn/ui (`base-maia` style, built on `@base-ui/react`, not Radix). Components live in `src/components/ui/` and are added with `bunx shadcn@latest add <name>`.
-- **Routing**: TanStack Router with in-memory history for the desktop webview.
+- **Routing**: TanStack Router with hash history for the desktop webview.
 - **Icons**: lucide-react
 - **Animations/interactions**: browser view transitions, `motion`, and dnd-kit for Home layout editing.
 - **Backend**: Tauri 2 (Rust) desktop shell and IPC layer.
@@ -98,8 +98,9 @@ React frontend --Tauri IPC--> Rust backend --Hue bridge client--> Hue Bridge
 The ready-state UI is route-driven and optimized for the desktop webview.
 Routes are defined in `src/router.tsx`; treat that file as the source of truth
 for the current route map instead of relying on a hard-coded route list in this
-guide. The router uses memory history because the desktop shell has no useful
-URL bar.
+guide. The router uses hash history, so every navigation is a webview history
+entry that the mouse back button and Alt+Left step through. Finish a wizard or
+other one-way flow with `replace: true` so Back doesn't reopen it.
 
 ## Frontend
 

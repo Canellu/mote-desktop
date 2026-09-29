@@ -30,8 +30,12 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixes
 
-- Your bridge key is now stored only in Windows Credential Manager, and
-  earlier versions' copies are moved there when Mote starts.
+- The mouse back button no longer reopens a widget, room, scene, or other
+  setup you have just finished.
+- **Your bridge key is kept only in Windows Credential Manager.** Earlier
+  versions also saved a copy in Mote's settings file on your PC. The copy
+  never left your PC, and Mote 0.9.0 removes it from the file the first time
+  it starts.
 
 ## [0.8.2] - 2026-09-27
 

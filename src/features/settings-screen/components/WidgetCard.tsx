@@ -433,6 +433,9 @@ export const WidgetCard = ({
                   </div>
                   <Slider
                     aria-label="Tile opacity"
+                    // The default muted track matches the light settings
+                    // surface, so tint it from the foreground instead.
+                    className="[--slider-track-background:color-mix(in_oklch,var(--foreground)_10%,transparent)]"
                     min={10}
                     max={90}
                     step={5}

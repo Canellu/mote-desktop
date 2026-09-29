@@ -257,7 +257,12 @@ export const CreateSceneRoute = () => {
         toast.error("Scene saved, but the scene list could not refresh.");
       }
       toast.success("Scene created");
-      void navigate({ to: "/settings", search: { tab: "scenes" } });
+      // Replace the finished wizard so Back doesn't reopen it.
+      void navigate({
+        to: "/settings",
+        search: { tab: "scenes" },
+        replace: true,
+      });
     } catch (failure) {
       setError(String(failure) || "Unable to create scene.");
     } finally {
