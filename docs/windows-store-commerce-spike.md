@@ -1,5 +1,17 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-09-29: the unsigned 0.9.0.0 MSIX builds from
+`fc9551f` and is 10,696,322 bytes (SHA-256
+`A6F35D34E62B9A13936CC941D7CE3B0F443F26A8C26C4E784FCF66428CEB221C`, tag
+`v0.9.0`). It adds connecting to a bridge by IP address, a manifest firewall
+rule for mDNS (UDP 5353) so Windows no longer prompts on first discovery, Send
+diagnostics on error screens and in feedback, interface scale and spacing,
+translucent widget tiles, and keeps the bridge key only in the keyring. The
+package installed and passed testing as a Developer Mode registration; the
+firewall rule appeared at registration with no prompt. The `mote-api` Worker
+(migration 0002) and the privacy policy (`mote-website` `b8021bc`) shipped the
+same day, ahead of this package.
+
 Release preparation on 2026-09-26: the unsigned 0.8.0.0 MSIX builds from
 `d1d9c98` and is 10,636,040 bytes (SHA-256
 `859905F9E8BDA3579E6A1C891EC504C54B57E42DA6C4DBD96626EA9BB6765004`, tag
