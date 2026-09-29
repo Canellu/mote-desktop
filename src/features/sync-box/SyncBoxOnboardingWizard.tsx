@@ -1,4 +1,5 @@
 import { DiscoveryWifi } from "@/components/DiscoveryWifi";
+import { SendDiagnosticsButton } from "@/features/feedback/SendDiagnosticsButton";
 import {
   HueSyncBoxIllustration,
   SyncBoxThumb,
@@ -216,6 +217,7 @@ export const SyncBoxOnboardingWizard = ({
                 Try again
               </Button>
             </div>
+            <SendDiagnosticsButton />
           </>
         )}
 

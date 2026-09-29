@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { SendDiagnosticsButton } from "@/features/feedback/SendDiagnosticsButton";
 import type { ErrorStepProps } from "@/types/setup-wizard";
 import { errorHelp, errorTitles } from "../constants";
 import { BridgeStatus } from "@/components/BridgeStatus";
@@ -35,11 +36,14 @@ export const ErrorStep = ({
         Try again
       </Button>
     </div>
-    {(state.reason === "discovery" || state.reason === "no-bridges") && (
-      <div className="flex flex-col items-center gap-1">
-        <ManualEntryLink onClick={onManualEntry} />
-        <FirewallSettingsLink />
-      </div>
-    )}
+    <div className="flex flex-col items-center gap-1">
+      {(state.reason === "discovery" || state.reason === "no-bridges") && (
+        <>
+          <ManualEntryLink onClick={onManualEntry} />
+          <FirewallSettingsLink />
+        </>
+      )}
+      <SendDiagnosticsButton />
+    </div>
   </>
 );

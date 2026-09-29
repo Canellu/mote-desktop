@@ -177,6 +177,13 @@ grep there rather than relying on a list here.
   `entitlements` (Mote Pro and the trial), and `store_commerce` (Store
   updates).
 
+`src-tauri/src/services/diagnostics.rs` keeps an in-memory trail of what Mote
+tried, sent only with a report the user sends. When adding a flow that can fail
+(discovery, pairing, connecting, streaming), record each outcome with
+`diagnostics::record("step", "outcome")`. Steps and outcomes are `&'static str`
+of lowercase letters and underscores only: never put a name, address, id, or
+error text in one. The hosted endpoint refuses anything else.
+
 `src-tauri/src/services/hue_client.rs` is the core Hue bridge client. It handles:
 
 - mDNS discovery with cloud discovery fallback

@@ -1,5 +1,6 @@
 pub mod automations;
 pub mod desktop_shortcut;
+pub mod diagnostics;
 pub mod entertainment;
 pub mod entitlements;
 pub mod hue_client;

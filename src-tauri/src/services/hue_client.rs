@@ -12,6 +12,8 @@ use tauri::{AppHandle, Emitter, Runtime};
 use tauri_plugin_store::StoreExt;
 use tokio::sync::Semaphore;
 
+use crate::services::diagnostics;
+
 const DISCOVERY_URL: &str = "https://discovery.meethue.com/";
 const STORE_FILE: &str = "hue-store.json";
 /// Legacy single-bridge store key. Read once for migration into the multi-bridge
@@ -1220,18 +1222,32 @@ impl HueClient {
     /// Finds bridges via mDNS (preferred) and falls back to the cloud
     /// discovery endpoint. The returned bridges carry no model yet.
     async fn collect_bridges(&self) -> Result<Vec<DiscoveredBridge>, String> {
-        if let Ok(bridges) = self.discover_via_mdns().await {
-            if !bridges.is_empty() {
+        let started = Instant::now();
+        match self.discover_via_mdns().await {
+            Ok(bridges) if !bridges.is_empty() => {
+                diagnostics::record("mdns_discovery", "found")
+                    .n(bridges.len())
+                    .ms(started.elapsed().as_millis())
+                    .save();
+                if let Some(bridge) = bridges.first() {
+                    diagnostics::note_device_ip(&bridge.bridge_ip);
+                }
                 return Ok(bridges);
             }
+            Ok(_) => diagnostics::record("mdns_discovery", "empty")
+                .ms(started.elapsed().as_millis())
+                .save(),
+            Err(_) => diagnostics::record("mdns_discovery", "error").save(),
         }
 
+        let started = Instant::now();
         let response = self
             .client
             .get(DISCOVERY_URL)
             .send()
             .await
             .map_err(|error| {
+                diagnostics::record("cloud_lookup", "unreachable").save();
                 private_error(
                     "No bridge answered on your network, and the Philips online lookup couldn't be reached.",
                     error,
@@ -1240,6 +1256,7 @@ impl HueClient {
 
         let status = response.status();
         let body = response.text().await.map_err(|error| {
+            diagnostics::record("cloud_lookup", "unreadable").save();
             private_error("Bridge discovery returned an unreadable response.", error)
         })?;
 
@@ -1247,11 +1264,17 @@ impl HueClient {
         // the lookup failing is the second problem, not the only one.
         if !status.is_success() {
             if status.as_u16() == 429 {
+                diagnostics::record("cloud_lookup", "busy")
+                    .status(429)
+                    .save();
                 return Err(
                     "No bridge answered on your network, and the Philips online lookup is busy right now."
                         .to_string(),
                 );
             }
+            diagnostics::record("cloud_lookup", "http_error")
+                .status(status.as_u16())
+                .save();
             return Err(format!(
                 "No bridge answered on your network, and the Philips online lookup failed (HTTP {status})."
             ));
@@ -1259,8 +1282,19 @@ impl HueClient {
 
         let bridges =
             serde_json::from_str::<Vec<DiscoveryBridgeResponse>>(&body).map_err(|error| {
+                diagnostics::record("cloud_lookup", "unexpected_response").save();
                 private_error("Hue discovery returned an unexpected response.", error)
             })?;
+        diagnostics::record(
+            "cloud_lookup",
+            if bridges.is_empty() { "empty" } else { "found" },
+        )
+        .n(bridges.len())
+        .ms(started.elapsed().as_millis())
+        .save();
+        if let Some(bridge) = bridges.first() {
+            diagnostics::note_device_ip(&bridge.internalipaddress);
+        }
 
         Ok(bridges
             .into_iter()
@@ -1279,21 +1313,30 @@ impl HueClient {
     /// public config with a bridge id to count as a Hue Bridge.
     pub async fn lookup_bridge(&self, ip: &str) -> Result<DiscoveredBridge, String> {
         let trimmed = ip.trim().trim_start_matches('[').trim_end_matches(']');
-        let address = trimmed
-            .parse::<std::net::IpAddr>()
-            .map_err(|_| "Enter an IP address like 192.168.1.20.".to_string())?;
+        let address = trimmed.parse::<std::net::IpAddr>().map_err(|_| {
+            diagnostics::record("manual_lookup", "invalid_address").save();
+            "Enter an IP address like 192.168.1.20.".to_string()
+        })?;
         let bridge_ip = address.to_string();
+        diagnostics::note_device_ip(&bridge_ip);
 
+        let started = Instant::now();
         let config = self
             .fetch_bridge_public_config(&bridge_ip)
             .await
             .ok_or_else(|| {
+                diagnostics::record("manual_lookup", "no_answer")
+                    .ms(started.elapsed().as_millis())
+                    .save();
                 format!("No Hue Bridge answered at {bridge_ip}. Check the address and that the bridge is powered on.")
             })?;
-        let bridge_id = config
-            .bridgeid
-            .filter(|id| !id.is_empty())
-            .ok_or_else(|| format!("The device at {bridge_ip} is not a Hue Bridge."))?;
+        let bridge_id = config.bridgeid.filter(|id| !id.is_empty()).ok_or_else(|| {
+            diagnostics::record("manual_lookup", "not_a_bridge").save();
+            format!("The device at {bridge_ip} is not a Hue Bridge.")
+        })?;
+        diagnostics::record("manual_lookup", "ok")
+            .ms(started.elapsed().as_millis())
+            .save();
 
         Ok(DiscoveredBridge {
             bridge_id: bridge_id.to_uppercase(),
@@ -1438,15 +1481,25 @@ impl HueClient {
             .send()
             .await
             .map_err(|_| {
+                diagnostics::record("pairing", "unreachable").save();
                 "Failed to reach the Hue Bridge. Ensure it is on the same network and accessible."
                     .to_string()
             })?;
 
         let json = response.json::<Value>().await.map_err(|error| {
+            diagnostics::record("pairing", "unexpected_response").save();
             private_error("The bridge returned an invalid pairing response.", error)
         })?;
 
-        extract_hue_credentials(&json)
+        let credentials = extract_hue_credentials(&json);
+        let outcome = match &credentials {
+            Ok(_) => "ok",
+            // Hue error 101: the round button has not been pressed yet.
+            Err(message) if message.starts_with("Hue error 101") => "button_not_pressed",
+            Err(_) => "rejected",
+        };
+        diagnostics::record("pairing", outcome).save();
+        credentials
     }
 
     /// Fetches the credential's `hue-application-id` from `/auth/v1`. This id
@@ -1547,10 +1600,12 @@ impl HueClient {
             Some(bridge) => bridge,
             None => return Ok(disconnected_session(false, None, None, None)),
         };
+        diagnostics::note_device_ip(&stored_bridge.bridge_ip);
 
         let application_key = match load_application_key(&stored_bridge.bridge_id) {
             Ok(Some(key)) => key,
             Ok(None) => {
+                diagnostics::record("restore", "key_missing").save();
                 // Active bridge has no usable key: drop it and fall back to
                 // whatever else is paired (remove_bridge returns that session).
                 return self.remove_bridge(app, &stored_bridge.bridge_id).await;
@@ -1558,12 +1613,13 @@ impl HueClient {
             // The keyring is unreadable right now, which says nothing about the
             // pairing itself, so keep the bridge and report the failure.
             Err(error) => {
+                diagnostics::record("restore", "keyring_error").save();
                 return Ok(disconnected_session(
                     true,
                     Some(stored_bridge.bridge_id),
                     Some(stored_bridge.bridge_ip),
                     Some(error),
-                ))
+                ));
             }
         };
 
@@ -1572,6 +1628,7 @@ impl HueClient {
             .await
         {
             if bridge_matches(&bridge_id, &stored_bridge.bridge_id) {
+                diagnostics::record("restore", "restored").save();
                 return Ok(HueSession {
                     configured: true,
                     connected: true,
@@ -1581,6 +1638,7 @@ impl HueClient {
                 });
             }
         }
+        diagnostics::record("restore", "saved_address_unreachable").save();
 
         let rediscovered = self
             .discover_bridges()
@@ -1605,6 +1663,7 @@ impl HueClient {
                         entry.bridge_ip = bridge.bridge_ip.clone();
                     }
                     save_bridge_store(app, &store)?;
+                    diagnostics::record("restore", "rediscovered").save();
                     return Ok(HueSession {
                         configured: true,
                         connected: true,
@@ -1616,6 +1675,7 @@ impl HueClient {
             }
         }
 
+        diagnostics::record("restore", "bridge_not_found").save();
         Ok(HueSession {
             configured: true,
             connected: false,
@@ -1636,7 +1696,10 @@ impl HueClient {
     ) -> Result<HueSession, String> {
         // The keyring is the only copy of the key, so a bridge is recorded only
         // once its key is safely stored.
-        save_application_key(&bridge.bridge_id, application_key)?;
+        save_application_key(&bridge.bridge_id, application_key).map_err(|error| {
+            diagnostics::record("save_pairing", "keyring_error").save();
+            error
+        })?;
         let mut store = load_bridge_store(app)?;
         store.upsert_active(bridge.clone());
         save_bridge_store(app, &store)?;
@@ -3456,6 +3519,7 @@ impl HueClient {
                 Ok(mut response) if response.status().is_success() => {
                     #[cfg(debug_assertions)]
                     eprintln!("event stream connected ({})", response.status());
+                    diagnostics::record("event_stream", "connected").save();
                     consecutive_failures = 0;
                     report(true);
                     let mut buffer = String::new();
@@ -3483,11 +3547,13 @@ impl HueClient {
                             Ok(None) => {
                                 #[cfg(debug_assertions)]
                                 eprintln!("event stream closed by bridge");
+                                diagnostics::record("event_stream", "closed_by_bridge").save();
                                 break;
                             }
                             Err(_error) => {
                                 #[cfg(debug_assertions)]
                                 eprintln!("event stream read error: {_error}");
+                                diagnostics::record("event_stream", "dropped").save();
                                 break;
                             }
                         }
@@ -3500,12 +3566,16 @@ impl HueClient {
                         "event stream rejected with HTTP status {}",
                         _response.status()
                     );
+                    diagnostics::record("event_stream", "rejected")
+                        .status(_response.status().as_u16())
+                        .save();
                     consecutive_failures += 1;
                     report(false);
                 }
                 Err(_error) => {
                     #[cfg(debug_assertions)]
                     eprintln!("event stream connection failed: {_error}");
+                    diagnostics::record("event_stream", "unreachable").save();
                     consecutive_failures += 1;
                     report(false);
                 }

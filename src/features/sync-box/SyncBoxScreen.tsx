@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { useHue } from "@/context/HueContext";
+import { useDiagnosticsReport } from "@/features/feedback/diagnosticsReport";
 import { useEntertainmentStore } from "@/stores/EntertainmentStore";
 import { boxesForBridge, useSyncBoxStore } from "@/stores/SyncBoxStore";
 import type {
@@ -118,6 +119,7 @@ export const SyncBoxScreen = ({
   const loadSession = useSyncBoxStore((store) => store.loadSession);
   const setSession = useSyncBoxStore((store) => store.setSession);
   const beginAdd = useSyncBoxStore((store) => store.beginAdd);
+  const showDiagnostics = useDiagnosticsReport((state) => state.show);
 
   useEffect(() => {
     void loadSession();
@@ -161,7 +163,16 @@ export const SyncBoxScreen = ({
           session?.error && (
             <div className="mx-auto flex max-w-2xl items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)">
               <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              <p>{session.error}</p>
+              <div className="grid gap-1">
+                <p>{session.error}</p>
+                <button
+                  type="button"
+                  className="justify-self-start font-medium underline decoration-current/60 underline-offset-4 hover:decoration-current"
+                  onClick={showDiagnostics}
+                >
+                  Send diagnostics
+                </button>
+              </div>
             </div>
           )
         )}

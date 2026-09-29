@@ -41,6 +41,7 @@ import {
   SyncHero,
   SyncToggleButton,
 } from "@/components/sync/SyncControls";
+import { useDiagnosticsReport } from "@/features/feedback/diagnosticsReport";
 import { useEntertainmentStore } from "@/stores/EntertainmentStore";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 import { useSyncBoxStore } from "@/stores/SyncBoxStore";
@@ -133,6 +134,7 @@ const waitForIdle = async () => {
 
 export const PcSyncScreen = ({ areaId }: { areaId: string }) => {
   const navigate = useNavigate();
+  const showDiagnostics = useDiagnosticsReport((state) => state.show);
   const {
     overview,
     status,
@@ -318,7 +320,16 @@ export const PcSyncScreen = ({ areaId }: { areaId: string }) => {
           className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)"
         >
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-          <p>{actionError ?? status.error}</p>
+          <div className="grid gap-1">
+            <p>{actionError ?? status.error}</p>
+            <button
+              type="button"
+              className="justify-self-start font-medium underline decoration-current/60 underline-offset-4 hover:decoration-current"
+              onClick={showDiagnostics}
+            >
+              Send diagnostics
+            </button>
+          </div>
         </div>
       )}
       {runningHere && status.warning && (

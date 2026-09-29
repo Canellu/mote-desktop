@@ -10,7 +10,9 @@ import { Button } from "@/components/ui/button";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { ComponentGallery } from "@/features/dev-gallery/ComponentGallery";
 import { DeviceGallery } from "@/features/dev-gallery/DeviceGallery";
+import { DiagnosticsReportHost } from "@/features/feedback/DiagnosticsReportHost";
 import { FeedbackButton } from "@/features/feedback/FeedbackButton";
+import { SendDiagnosticsButton } from "@/features/feedback/SendDiagnosticsButton";
 import { FocusStatusButton } from "@/features/focus/FocusStatusButton";
 import { UpdateButton } from "@/features/updates/UpdateButton";
 import { WhatsNewButton } from "@/features/whats-new/WhatsNewButton";
@@ -134,13 +136,16 @@ const DisconnectedBridgeView = ({
     title="Bridge unavailable"
     description={error ?? "The saved bridge could not be reached."}
     actions={
-      <div className="flex gap-3">
-        <Button size="xl" variant="outline" onClick={onPairNewBridge}>
-          Pair a new bridge
-        </Button>
-        <Button size="xl" onClick={onRetry}>
-          Retry connection
-        </Button>
+      <div className="flex flex-col items-center gap-6">
+        <div className="flex gap-3">
+          <Button size="xl" variant="outline" onClick={onPairNewBridge}>
+            Pair a new bridge
+          </Button>
+          <Button size="xl" onClick={onRetry}>
+            Retry connection
+          </Button>
+        </div>
+        <SendDiagnosticsButton />
       </div>
     }
   />
@@ -424,6 +429,7 @@ function App() {
           </>
         }
       />
+      <DiagnosticsReportHost />
       {dev.enabled && (
         <WizardDevToolbar
           value={dev.viewId}

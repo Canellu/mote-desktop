@@ -10,6 +10,8 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::StoreExt;
 
+use crate::services::diagnostics;
+
 const STORE_FILE: &str = "hue-store.json";
 const STORE_KEY: &str = "syncBoxes";
 const LEGACY_STORE_KEY: &str = "syncBox";
@@ -257,11 +259,14 @@ impl SyncBoxClient {
     }
 
     pub async fn discover(&self) -> Result<Vec<DiscoveredSyncBox>, String> {
-        let mdns = ServiceDaemon::new()
-            .map_err(|error| private_error("Failed to start Sync Box discovery.", error))?;
-        let receiver = mdns
-            .browse("_huesync._tcp.local.")
-            .map_err(|error| private_error("Failed to browse for Sync Boxes.", error))?;
+        let mdns = ServiceDaemon::new().map_err(|error| {
+            diagnostics::record("sync_box_discovery", "mdns_error").save();
+            private_error("Failed to start Sync Box discovery.", error)
+        })?;
+        let receiver = mdns.browse("_huesync._tcp.local.").map_err(|error| {
+            diagnostics::record("sync_box_discovery", "mdns_error").save();
+            private_error("Failed to browse for Sync Boxes.", error)
+        })?;
 
         let started = Instant::now();
         let mut services = Vec::new();
@@ -291,6 +296,7 @@ impl SyncBoxClient {
         }
 
         let _ = mdns.stop_browse("_huesync._tcp.local.");
+        let answered = services.len();
 
         let mut discovered = Vec::new();
         for service in services {
@@ -310,6 +316,20 @@ impl SyncBoxClient {
         }
 
         discovered.sort_by(|left, right| left.name.cmp(&right.name));
+        // Answered on mDNS but its device info couldn't be read: a different
+        // failure from nothing answering at all.
+        let outcome = match (answered, discovered.len()) {
+            (0, _) => "empty",
+            (_, 0) => "device_unreadable",
+            _ => "found",
+        };
+        diagnostics::record("sync_box_discovery", outcome)
+            .n(discovered.len())
+            .ms(started.elapsed().as_millis())
+            .save();
+        if let Some(sync_box) = discovered.first() {
+            diagnostics::note_device_ip(&sync_box.ip_address);
+        }
         Ok(discovered)
     }
 
@@ -322,10 +342,22 @@ impl SyncBoxClient {
         // pinned client. Everything after it — including re-reading the device
         // info that gets stored — happens over pinned TLS, so a spoofed probe
         // response can only make pairing fail, never leak the access token.
-        let probed = self.get_device(ip_address, port).await?;
+        diagnostics::note_device_ip(ip_address);
+        let probed = self.get_device(ip_address, port).await.map_err(|error| {
+            diagnostics::record("sync_box_pairing", "unreachable").save();
+            error
+        })?;
         let client = self.secure_client(&probed.unique_id, ip_address, port)?;
-        let device = get_device_secure(&client, &probed.unique_id, port).await?;
-        ensure_supported(&device)?;
+        let device = get_device_secure(&client, &probed.unique_id, port)
+            .await
+            .map_err(|error| {
+                diagnostics::record("sync_box_pairing", "secure_connection_failed").save();
+                error
+            })?;
+        ensure_supported(&device).map_err(|error| {
+            diagnostics::record("sync_box_pairing", "unsupported_firmware").save();
+            error
+        })?;
 
         let url = secure_endpoint(&device.unique_id, port, "/api/v1/registrations")?;
         let response = client
@@ -349,6 +381,7 @@ impl SyncBoxClient {
         })?;
 
         if value.get("code").and_then(Value::as_u64) == Some(16) {
+            diagnostics::record("sync_box_pairing", "button_not_pressed").save();
             return Err(
                 "Sync Box button authorization is still required. Hold the button for three seconds until the LED blinks green, then release it."
                     .to_string(),
@@ -356,6 +389,9 @@ impl SyncBoxClient {
         }
 
         if !status.is_success() {
+            diagnostics::record("sync_box_pairing", "rejected")
+                .status(status.as_u16())
+                .save();
             let message = value
                 .get("message")
                 .and_then(Value::as_str)
@@ -367,8 +403,12 @@ impl SyncBoxClient {
             .get("accessToken")
             .and_then(Value::as_str)
             .filter(|token| !token.is_empty())
-            .ok_or_else(|| "Sync Box registration did not return an access token.".to_string())?
+            .ok_or_else(|| {
+                diagnostics::record("sync_box_pairing", "no_token").save();
+                "Sync Box registration did not return an access token.".to_string()
+            })?
             .to_string();
+        diagnostics::record("sync_box_pairing", "ok").save();
 
         Ok((
             StoredSyncBoxInfo {
@@ -430,6 +470,7 @@ impl SyncBoxClient {
             return Ok(empty_session(saved.boxes));
         };
         let Some(access_token) = load_access_token(&sync_box.unique_id)? else {
+            diagnostics::record("sync_box_restore", "token_missing").save();
             return Ok(SyncBoxSession {
                 configured: true,
                 connected: false,
@@ -442,7 +483,18 @@ impl SyncBoxClient {
             });
         };
 
-        match self.get_state(&sync_box, &access_token).await {
+        diagnostics::note_device_ip(&sync_box.ip_address);
+        let state = self.get_state(&sync_box, &access_token).await;
+        diagnostics::record(
+            "sync_box_restore",
+            if state.is_ok() {
+                "restored"
+            } else {
+                "unreachable"
+            },
+        )
+        .save();
+        match state {
             Ok(state) => {
                 let mut sync_box = sync_box;
                 // A box can be moved to another bridge in the Hue Sync app.
@@ -450,9 +502,11 @@ impl SyncBoxClient {
                     && state.hue.bridge_unique_id != sync_box.bridge_unique_id
                 {
                     sync_box.bridge_unique_id = state.hue.bridge_unique_id;
-                    if let Some(entry) = saved.boxes.iter_mut().find(|saved| {
-                        saved.unique_id.eq_ignore_ascii_case(&sync_box.unique_id)
-                    }) {
+                    if let Some(entry) = saved
+                        .boxes
+                        .iter_mut()
+                        .find(|saved| saved.unique_id.eq_ignore_ascii_case(&sync_box.unique_id))
+                    {
                         *entry = sync_box.clone();
                     }
                     let _ = save_saved(app, &saved);
@@ -479,13 +533,21 @@ impl SyncBoxClient {
         Ok(load_saved(app)?.boxes.len())
     }
 
-    pub fn is_active<R: Runtime>(&self, app: &AppHandle<R>, unique_id: &str) -> Result<bool, String> {
+    pub fn is_active<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        unique_id: &str,
+    ) -> Result<bool, String> {
         Ok(load_saved(app)?
             .active()
             .is_some_and(|active| active.unique_id.eq_ignore_ascii_case(unique_id)))
     }
 
-    pub fn is_saved<R: Runtime>(&self, app: &AppHandle<R>, unique_id: &str) -> Result<bool, String> {
+    pub fn is_saved<R: Runtime>(
+        &self,
+        app: &AppHandle<R>,
+        unique_id: &str,
+    ) -> Result<bool, String> {
         Ok(load_saved(app)?.find(unique_id).is_some())
     }
 
@@ -844,9 +906,8 @@ fn active_credentials<R: Runtime>(
         .active()
         .cloned()
         .ok_or_else(|| "No Sync Box is configured.".to_string())?;
-    let access_token = load_access_token(&sync_box.unique_id)?.ok_or_else(|| {
-        "The saved Sync Box access token is missing. Pair it again.".to_string()
-    })?;
+    let access_token = load_access_token(&sync_box.unique_id)?
+        .ok_or_else(|| "The saved Sync Box access token is missing. Pair it again.".to_string())?;
     Ok((sync_box, access_token))
 }
 
@@ -979,7 +1040,10 @@ mod tests {
     #[test]
     fn each_box_has_its_own_keyring_account() {
         assert_eq!(
-            format!("{KEYRING_ACCOUNT_PREFIX}{}", "C429960B4B6C".to_ascii_lowercase()),
+            format!(
+                "{KEYRING_ACCOUNT_PREFIX}{}",
+                "C429960B4B6C".to_ascii_lowercase()
+            ),
             "hue-sync-box-access-token:c429960b4b6c",
         );
         assert_ne!(KEYRING_ACCOUNT_PREFIX, LEGACY_KEYRING_ACCOUNT);

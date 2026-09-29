@@ -17,6 +17,12 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
   Spacious, Default, or Compact spacing to fit more lights on screen.
 - **Translucent widget tiles (Mote Pro).** A widget's tiles can let your
   desktop show through, at the opacity you choose.
+- **Send diagnostics.** When setup, a bridge, a Sync Box, or PC Sync fails,
+  the error screen shows an error code and a Send diagnostics link. It sends
+  a short summary of what Mote tried and your network setup, never names,
+  addresses, or credentials, and you can expand it to read everything first.
+  The feedback form can include the same diagnostics. The privacy policy
+  describes exactly what they contain.
 
 ### Improvements
 

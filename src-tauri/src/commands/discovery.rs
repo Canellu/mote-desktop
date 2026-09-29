@@ -1,8 +1,8 @@
 use tauri::{AppHandle, Manager};
 
 use crate::commands::events::EventStreamState;
-use crate::services::entitlements::Capability;
 use crate::services::entertainment;
+use crate::services::entitlements::Capability;
 use crate::services::hue_client::{DiscoveredBridge, HueClient, HueSession};
 
 #[tauri::command(rename = "discover-bridges")]
@@ -17,7 +17,12 @@ pub fn open_firewall_settings() -> Result<(), String> {
     #[cfg(windows)]
     {
         std::process::Command::new("control.exe")
-            .args(["/name", "Microsoft.WindowsFirewall", "/page", "pageConfigureApps"])
+            .args([
+                "/name",
+                "Microsoft.WindowsFirewall",
+                "/page",
+                "pageConfigureApps",
+            ])
             .spawn()
             .map(|_| ())
             .map_err(|_| "Windows Firewall settings could not be opened.".to_string())

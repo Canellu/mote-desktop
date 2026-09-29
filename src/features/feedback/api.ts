@@ -20,6 +20,10 @@ export interface FeedbackDraft {
   message: string;
   email?: string;
   contactPreference: ContactPreference;
+  /** Attach the diagnostics trail the preview shows. */
+  includeDiagnostics?: boolean;
+  /** From an error screen: Rust writes the message and attaches diagnostics. */
+  diagnosticsReport?: boolean;
 }
 
 /** Exactly what a submission will contain, so the dialog can show it first. */
@@ -30,6 +34,8 @@ export interface FeedbackPreview {
   appVersion: string;
   platform: string;
   releaseChannel: string;
+  /** The attached diagnostics as readable lines; empty when none are sent. */
+  diagnosticsLines: string[];
 }
 
 export interface FeedbackReceipt {
@@ -45,6 +51,10 @@ export const previewFeedback = (draft: FeedbackDraft) =>
 
 export const submitFeedback = (draft: FeedbackDraft) =>
   invoke<FeedbackReceipt>("submit-feedback", { draft });
+
+/** The latest failure's code, e.g. `MDNS-EMPTY-CLOUD-BUSY`, or null. */
+export const getDiagnosticsCode = () =>
+  invoke<string | null>("get-diagnostics-code");
 
 /** Tauri rejects with whatever the command returned in `Err`, always a string. */
 export const feedbackErrorMessage = (error: unknown): string =>

@@ -13,7 +13,18 @@ use std::{sync::OnceLock, time::Duration};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use tauri::AppHandle;
+
+use crate::services::diagnostics;
+
+/// The diagnostics last shown in a preview. Sending reuses them, so what goes
+/// out is exactly what the reporter could expand and read, not a newer
+/// snapshot with steps they never saw.
+fn previewed_diagnostics() -> &'static Mutex<Option<diagnostics::Diagnostics>> {
+    static PREVIEWED: OnceLock<Mutex<Option<diagnostics::Diagnostics>>> = OnceLock::new();
+    PREVIEWED.get_or_init(|| Mutex::new(None))
+}
 
 const ENDPOINT: &str = "https://motedesktop.com/api/feedback";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
@@ -84,11 +95,19 @@ impl ContactPreference {
 #[serde(rename_all = "camelCase")]
 pub struct FeedbackDraft {
     pub category: FeedbackCategory,
+    #[serde(default)]
     pub message: String,
     #[serde(default)]
     pub email: Option<String>,
     #[serde(default = "default_contact_preference")]
     pub contact_preference: ContactPreference,
+    /// Attach the diagnostics trail (see `services::diagnostics`).
+    #[serde(default)]
+    pub include_diagnostics: bool,
+    /// Sent from an error screen: the message is written here, not by the
+    /// user, and diagnostics are always attached.
+    #[serde(default)]
+    pub diagnostics_report: bool,
 }
 
 fn default_contact_preference() -> ContactPreference {
@@ -106,6 +125,10 @@ pub struct FeedbackPreview {
     pub app_version: String,
     pub platform: String,
     pub release_channel: String,
+    /// The attached diagnostics as readable lines; empty when none are sent.
+    pub diagnostics_lines: Vec<String>,
+    #[serde(skip)]
+    pub diagnostics: Option<diagnostics::Diagnostics>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -217,8 +240,50 @@ fn platform() -> String {
     format!("{} {}", std::env::consts::OS, std::env::consts::ARCH)
 }
 
-fn build_preview(app: &AppHandle, draft: &FeedbackDraft) -> Result<FeedbackPreview, String> {
-    let trimmed = draft.message.trim();
+#[cfg(windows)]
+fn is_packaged() -> bool {
+    windows::ApplicationModel::Package::Current().is_ok()
+}
+
+#[cfg(not(windows))]
+fn is_packaged() -> bool {
+    false
+}
+
+fn build_preview(
+    app: &AppHandle,
+    draft: &FeedbackDraft,
+    reuse_previewed: bool,
+) -> Result<FeedbackPreview, String> {
+    let wanted = draft.include_diagnostics || draft.diagnostics_report;
+    let diagnostics = if !wanted {
+        None
+    } else if reuse_previewed {
+        previewed_diagnostics()
+            .lock()
+            .ok()
+            .and_then(|previewed| previewed.clone())
+            .or_else(|| Some(diagnostics::snapshot(is_packaged())))
+    } else {
+        let snapshot = diagnostics::snapshot(is_packaged());
+        if let Ok(mut previewed) = previewed_diagnostics().lock() {
+            *previewed = Some(snapshot.clone());
+        }
+        Some(snapshot)
+    };
+
+    // A diagnostics report's message is fixed so the reporter can't edit it;
+    // the code in it is what support searches for.
+    let generated;
+    let trimmed = if draft.diagnostics_report {
+        generated = match diagnostics.as_ref().and_then(|d| d.code.as_deref()) {
+            Some(code) => format!("Diagnostics report: {}", diagnostics::display_code(code)),
+            None => "Diagnostics report".to_string(),
+        };
+        generated.as_str()
+    } else {
+        draft.message.trim()
+    };
 
     if trimmed.is_empty() {
         return Err("Write a little about what happened before sending.".to_string());
@@ -253,12 +318,23 @@ fn build_preview(app: &AppHandle, draft: &FeedbackDraft) -> Result<FeedbackPrevi
         app_version: app.package_info().version.to_string(),
         platform: platform(),
         release_channel: release_channel().to_string(),
+        diagnostics_lines: diagnostics
+            .as_ref()
+            .map(diagnostics::describe)
+            .unwrap_or_default(),
+        diagnostics,
     })
+}
+
+/// The latest failure's code, formatted for display, for error screens.
+#[tauri::command(rename = "get-diagnostics-code")]
+pub fn get_diagnostics_code() -> Option<String> {
+    diagnostics::current_code().map(|code| diagnostics::display_code(&code))
 }
 
 #[tauri::command(rename = "preview-feedback")]
 pub fn preview_feedback(app: AppHandle, draft: FeedbackDraft) -> Result<FeedbackPreview, String> {
-    build_preview(&app, &draft)
+    build_preview(&app, &draft, false)
 }
 
 #[tauri::command(rename = "submit-feedback")]
@@ -266,7 +342,7 @@ pub async fn submit_feedback(
     app: AppHandle,
     draft: FeedbackDraft,
 ) -> Result<FeedbackReceipt, String> {
-    let preview = build_preview(&app, &draft)?;
+    let preview = build_preview(&app, &draft, true)?;
 
     let Some(token) = APP_TOKEN else {
         return Err(
@@ -291,6 +367,7 @@ pub async fn submit_feedback(
             "platform": preview.platform,
             "releaseChannel": preview.release_channel,
             "source": "app",
+            "diagnostics": preview.diagnostics,
         }))
         .send()
         .await

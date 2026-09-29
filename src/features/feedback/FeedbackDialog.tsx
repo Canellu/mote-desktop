@@ -18,13 +18,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Check, Copy, Loader2, Send } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Check, ChevronDown, Copy, Loader2, Send } from "lucide-react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   feedbackCategories,
   feedbackErrorMessage,
   isFeedbackCategory,
+  previewFeedback,
   submitFeedback,
   type ContactPreference,
   type FeedbackCategory,
@@ -38,28 +45,89 @@ type SubmissionState =
   | { phase: "sent"; reportId: string }
   | { phase: "error"; message: string };
 
+/** A read-only, collapsed view of the diagnostics a report will carry. */
+const DiagnosticsDetails = ({ lines }: { lines: string[] | null }) => (
+  <Collapsible className="rounded-2xl border border-foreground/12 bg-input/30 dark:border-foreground/8">
+    <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium">
+      What's sent
+      <ChevronDown
+        size={16}
+        className="text-muted-foreground transition-transform group-data-panel-open:rotate-180"
+      />
+    </CollapsibleTrigger>
+    <CollapsibleContent>
+      <ScrollArea className="max-h-56 border-t border-foreground/8">
+        {lines === null ? (
+          <p className="px-4 py-3 text-xs text-muted-foreground">Loading…</p>
+        ) : (
+          <pre className="px-4 py-3 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground select-text">
+            {lines.join("\n")}
+          </pre>
+        )}
+      </ScrollArea>
+    </CollapsibleContent>
+  </Collapsible>
+);
+
 /**
- * Controlled so more than one surface can open it — the title-bar button and
- * the Settings row. Rust owns validation, redaction and transport; this
- * component owns nothing but the draft and which of the four phases it is in.
+ * Controlled so more than one surface can open it — the title-bar button, the
+ * Settings row, and error screens. Rust owns validation, redaction, transport,
+ * and the diagnostics themselves; this component owns the draft and which of
+ * the four phases it is in.
+ *
+ * `mode="diagnostics"` is the error-screen report: its message is written by
+ * Rust and read-only, and diagnostics are always attached.
  */
 export const FeedbackDialog = ({
   open,
   onOpenChange,
+  mode = "feedback",
   children,
 }: {
   open: boolean;
   onOpenChange: (next: boolean) => void;
+  mode?: "feedback" | "diagnostics";
   children?: ReactNode;
 }) => {
+  const isReport = mode === "diagnostics";
   const [category, setCategory] = useState<FeedbackCategory>("general");
   const [message, setMessage] = useState("");
   const [email, setEmail] = useState("");
   const [keepUpdated, setKeepUpdated] = useState(false);
+  const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
+  const [reportMessage, setReportMessage] = useState<string | null>(null);
+  const [diagnosticsLines, setDiagnosticsLines] = useState<string[] | null>(
+    null,
+  );
   const [state, setState] = useState<SubmissionState>({ phase: "idle" });
   const [copied, setCopied] = useState(false);
 
   const sending = state.phase === "sending";
+
+  // Capture the diagnostics when the dialog opens. Sending reuses this exact
+  // snapshot, so what the reporter can expand is what leaves the PC.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setDiagnosticsLines(null);
+    void previewFeedback({
+      category: "bug",
+      message: "",
+      contactPreference: "none",
+      diagnosticsReport: true,
+    })
+      .then((preview) => {
+        if (cancelled) return;
+        setDiagnosticsLines(preview.diagnosticsLines);
+        setReportMessage(preview.message);
+      })
+      .catch(() => {
+        if (!cancelled) setDiagnosticsLines([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const contactPreference: ContactPreference = !email.trim()
     ? "none"
@@ -79,6 +147,9 @@ export const FeedbackDialog = ({
       setMessage("");
       setEmail("");
       setKeepUpdated(false);
+      setIncludeDiagnostics(true);
+      setReportMessage(null);
+      setDiagnosticsLines(null);
       setState({ phase: "idle" });
       setCopied(false);
     }
@@ -86,16 +157,18 @@ export const FeedbackDialog = ({
 
   const send = async () => {
     const trimmed = message.trim();
-    if (!trimmed) return;
+    if (!isReport && !trimmed) return;
 
     setState({ phase: "sending" });
 
     try {
       const { reportId } = await submitFeedback({
-        category,
-        message: trimmed,
+        category: isReport ? "bug" : category,
+        message: isReport ? "" : trimmed,
         email: email.trim() || undefined,
         contactPreference,
+        includeDiagnostics: isReport || includeDiagnostics,
+        diagnosticsReport: isReport,
       });
       setState({ phase: "sent", reportId });
     } catch (error) {
@@ -122,7 +195,9 @@ export const FeedbackDialog = ({
         {state.phase === "sent" ? (
           <>
             <DialogHeader>
-              <DialogTitle>Feedback sent</DialogTitle>
+              <DialogTitle>
+                {isReport ? "Diagnostics sent" : "Feedback sent"}
+              </DialogTitle>
               <DialogDescription>
                 Quote this reference if you get in touch about it.
               </DialogDescription>
@@ -148,62 +223,101 @@ export const FeedbackDialog = ({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Send feedback</DialogTitle>
+              <DialogTitle>
+                {isReport ? "Send diagnostics" : "Send feedback"}
+              </DialogTitle>
               <DialogDescription>
-                Tell us what happened or what would make Mote better.
+                {isReport
+                  ? "Sends a technical summary of what Mote tried and where it stopped, so we can see what went wrong. It never includes names, addresses, or credentials."
+                  : "Tell us what happened or what would make Mote better."}
               </DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-5">
-              <div className="grid gap-2">
-                <Label htmlFor="feedback-category">Feedback type</Label>
-                <Select
-                  value={category}
-                  disabled={sending}
-                  onValueChange={(value) => {
-                    if (isFeedbackCategory(value)) setCategory(value);
-                  }}
-                >
-                  <SelectTrigger id="feedback-category" className="w-full">
-                    <SelectValue>
-                      {() => feedbackCategories[category]}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.entries(feedbackCategories).map(
-                      ([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ),
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-2">
-                <div className="flex items-center justify-between gap-3">
-                  <Label htmlFor="feedback-message">Your feedback</Label>
-                  <span className="text-xs tabular-nums text-muted-foreground">
-                    {message.length}/{MAX_MESSAGE_LENGTH}
-                  </span>
+              {isReport && (
+                <div className="grid gap-2">
+                  <Label>Message</Label>
+                  <p
+                    aria-readonly="true"
+                    className="rounded-2xl border border-foreground/12 bg-input/30 px-4 py-3 text-sm text-muted-foreground dark:border-foreground/8"
+                  >
+                    {reportMessage ?? "Diagnostics report"}
+                  </p>
+                  <DiagnosticsDetails lines={diagnosticsLines} />
                 </div>
-                <textarea
-                  id="feedback-message"
-                  value={message}
-                  maxLength={MAX_MESSAGE_LENGTH}
-                  rows={7}
-                  disabled={sending}
-                  placeholder="What should we know?"
-                  className="min-h-36 w-full resize-none rounded-2xl border border-foreground/12 bg-input/30 px-4 py-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50 dark:border-foreground/8"
-                  onChange={(event) => setMessage(event.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Please leave out personal details, credentials, bridge
-                  addresses, and Hue names. Anything that looks like one is
-                  removed before the report is sent.
-                </p>
-              </div>
+              )}
+
+              {!isReport && (
+                <div className="grid gap-2">
+                  <Label htmlFor="feedback-category">Feedback type</Label>
+                  <Select
+                    value={category}
+                    disabled={sending}
+                    onValueChange={(value) => {
+                      if (isFeedbackCategory(value)) setCategory(value);
+                    }}
+                  >
+                    <SelectTrigger id="feedback-category" className="w-full">
+                      <SelectValue>
+                        {() => feedbackCategories[category]}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(feedbackCategories).map(
+                        ([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {!isReport && (
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="feedback-message">Your feedback</Label>
+                    <span className="text-xs tabular-nums text-muted-foreground">
+                      {message.length}/{MAX_MESSAGE_LENGTH}
+                    </span>
+                  </div>
+                  <textarea
+                    id="feedback-message"
+                    value={message}
+                    maxLength={MAX_MESSAGE_LENGTH}
+                    rows={7}
+                    disabled={sending}
+                    placeholder="What should we know?"
+                    className="min-h-36 w-full resize-none rounded-2xl border border-foreground/12 bg-input/30 px-4 py-3 text-base outline-none placeholder:text-muted-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50 dark:border-foreground/8"
+                    onChange={(event) => setMessage(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Please leave out personal details, credentials, bridge
+                    addresses, and Hue names. Anything that looks like one is
+                    removed before the report is sent.
+                  </p>
+                </div>
+              )}
+
+              {!isReport && (
+                <div className="grid gap-2">
+                  <Label className="flex items-center gap-2.5 font-normal">
+                    <Checkbox
+                      checked={includeDiagnostics}
+                      disabled={sending}
+                      onCheckedChange={(checked) =>
+                        setIncludeDiagnostics(checked)
+                      }
+                    />
+                    Include diagnostics
+                  </Label>
+                  {includeDiagnostics && (
+                    <DiagnosticsDetails lines={diagnosticsLines} />
+                  )}
+                </div>
+              )}
 
               <div className="grid gap-2">
                 <Label htmlFor="feedback-email">Email (optional)</Label>
@@ -248,15 +362,17 @@ export const FeedbackDialog = ({
               </DialogClose>
               <Button
                 type="button"
-                disabled={!message.trim() || sending}
+                disabled={(!isReport && !message.trim()) || sending}
                 onClick={() => void send()}
               >
                 {sending ? <Loader2 className="animate-spin" /> : <Send />}
                 {sending
                   ? "Sending…"
-                  : state.phase === "error"
-                    ? "Try again"
-                    : "Send feedback"}
+                  : isReport && state.phase !== "error"
+                    ? "Send diagnostics"
+                    : state.phase === "error"
+                      ? "Try again"
+                      : "Send feedback"}
               </Button>
             </DialogFooter>
           </>

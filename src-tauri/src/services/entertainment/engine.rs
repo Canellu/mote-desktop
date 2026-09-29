@@ -19,7 +19,16 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Runtime};
 use tokio::sync::watch;
 
+use crate::services::diagnostics;
 use crate::services::hue_client::{HueClient, HueEntertainmentArea};
+
+/// Records which PC Sync start stage failed, passing the error through.
+fn pc_sync_failed(outcome: &'static str) -> impl FnOnce(String) -> String {
+    move |error| {
+        diagnostics::record("pc_sync_start", outcome).save();
+        error
+    }
+}
 
 use super::analysis::{SyncIntensity, SyncMode};
 use super::credentials;
@@ -668,18 +677,23 @@ impl HostSyncEngine {
         let tick = Duration::from_secs_f64(1.0 / f64::from(intensity.tick_hz()));
 
         if mode == SyncMode::Music {
-            let outputs = audio::enumerate_audio_outputs()?;
+            let outputs =
+                audio::enumerate_audio_outputs().map_err(pc_sync_failed("audio_unavailable"))?;
             if outputs.is_empty() {
-                return Err("No audio output is available for Music sync.".to_string());
+                return Err("No audio output is available for Music sync.".to_string())
+                    .map_err(pc_sync_failed("no_audio_output"));
             }
             if let Some(selected_id) = prefs.audio_device_id.as_deref() {
                 if !outputs.iter().any(|output| output.id == selected_id) {
-                    return Err("The selected audio output is unavailable.".to_string());
+                    return Err("The selected audio output is unavailable.".to_string())
+                        .map_err(pc_sync_failed("audio_output_missing"));
                 }
             }
             // Resolve the palette before touching the bridge so a missing
             // scene fails fast without claiming anything.
-            let palette = resolve_music_palette(app, &prefs.music_palette).await?;
+            let palette = resolve_music_palette(app, &prefs.music_palette)
+                .await
+                .map_err(pc_sync_failed("palette_unavailable"))?;
 
             let prepared = self
                 .prepare_session(app, &request.area_id, request.confirm_takeover)
@@ -709,6 +723,7 @@ impl HostSyncEngine {
             ) {
                 Ok(rig) => rig,
                 Err(error) => {
+                    diagnostics::record("pc_sync_start", "audio_capture_failed").save();
                     prepared.transport.close().await;
                     let _ = prepared.bridge.release(&request.area_id).await;
                     let _ = prepared.bridge.restore().await;
@@ -736,9 +751,11 @@ impl HostSyncEngine {
 
         // Resolve displays before touching the bridge so a topology problem
         // fails fast without claiming anything.
-        let all_displays = displays::enumerate_displays()?;
+        let all_displays =
+            displays::enumerate_displays().map_err(pc_sync_failed("displays_unavailable"))?;
         let selected =
-            displays::resolve_selected(&all_displays, prefs.automatic_display, &prefs.display_ids)?;
+            displays::resolve_selected(&all_displays, prefs.automatic_display, &prefs.display_ids)
+                .map_err(pc_sync_failed("display_missing"))?;
 
         let prepared = self
             .prepare_session(app, &request.area_id, request.confirm_takeover)
@@ -753,6 +770,7 @@ impl HostSyncEngine {
         let rig = match CaptureRig::start(&selected, &tiles, &board, tick) {
             Ok(rig) => rig,
             Err(error) => {
+                diagnostics::record("pc_sync_start", "screen_capture_failed").save();
                 prepared.transport.close().await;
                 let _ = prepared.bridge.release(&request.area_id).await;
                 let _ = prepared.bridge.restore().await;
@@ -770,6 +788,7 @@ impl HostSyncEngine {
             match AudioRig::start_energy(prefs.audio_device_id.clone(), &board) {
                 Ok(rig) => Some(VideoAudio { board, rig }),
                 Err(error) => {
+                    diagnostics::record("pc_sync_audio_reactive", "unavailable").save();
                     start_warning = Some(format!(
                         "Audio-driven brightness is unavailable: {error} Video sync continues without it."
                     ));
@@ -934,28 +953,39 @@ impl HostSyncEngine {
         confirm_takeover: bool,
     ) -> Result<PreparedSession, String> {
         let client = HueClient::new()?;
-        let bridge = client.get_stored_bridge(app)?;
-        let rest_key = resolve_streaming_rest_key(app, &client, &bridge.bridge_id)?;
-        let client_key = credentials::load_client_key(&bridge.bridge_id)?.ok_or_else(|| {
-            "No entertainment clientkey stored. Enable PC Sync in connection settings first."
-                .to_string()
-        })?;
-        let psk = credentials::decode_client_key(&client_key)?;
+        let bridge = client
+            .get_stored_bridge(app)
+            .map_err(pc_sync_failed("no_bridge"))?;
+        let rest_key = resolve_streaming_rest_key(app, &client, &bridge.bridge_id)
+            .map_err(pc_sync_failed("credential_missing"))?;
+        let client_key = credentials::load_client_key(&bridge.bridge_id)
+            .map_err(pc_sync_failed("keyring_error"))?
+            .ok_or_else(|| {
+                "No entertainment clientkey stored. Enable PC Sync in connection settings first."
+                    .to_string()
+            })
+            .map_err(pc_sync_failed("client_key_missing"))?;
+        let psk = credentials::decode_client_key(&client_key)
+            .map_err(pc_sync_failed("client_key_invalid"))?;
         let application_id = client
             .fetch_application_id(&bridge.bridge_ip, &rest_key)
-            .await?;
+            .await
+            .map_err(pc_sync_failed("application_id_failed"))?;
 
         let area = client
             .get_entertainment_area(&bridge.bridge_ip, &rest_key, area_id)
-            .await?;
+            .await
+            .map_err(pc_sync_failed("area_unavailable"))?;
         if area.channels.is_empty() {
-            return Err("The selected entertainment area has no channels.".to_string());
+            return Err("The selected entertainment area has no channels.".to_string())
+                .map_err(pc_sync_failed("area_empty"));
         }
         if takeover_blocked(&area, &application_id, confirm_takeover) {
             return Err(
                 "Another application is streaming to this entertainment area. Confirm takeover to continue."
                     .to_string(),
-            );
+            )
+            .map_err(pc_sync_failed("area_in_use"));
         }
 
         // An automation ranked above PC Sync keeps its lights: refuse rather
@@ -965,7 +995,7 @@ impl HostSyncEngine {
             &bridge.bridge_id,
             &area.light_ids,
         ) {
-            return Err(conflict);
+            return Err(conflict).map_err(pc_sync_failed("automation_conflict"));
         }
         // Before the snapshot, so no automation writes to these lights while
         // it is taken; the runtime hears the end from `emit_status`.
@@ -979,7 +1009,9 @@ impl HostSyncEngine {
         // Snapshot member lights before claiming: the bridge does not restore
         // state when a stream ends, so this is the only path back.
         let light_snapshots =
-            snapshot::capture(&client, &bridge.bridge_ip, &rest_key, &area.light_ids).await?;
+            snapshot::capture(&client, &bridge.bridge_ip, &rest_key, &area.light_ids)
+                .await
+                .map_err(pc_sync_failed("snapshot_failed"))?;
 
         let session_bridge = HueSessionBridge {
             client,
@@ -995,7 +1027,9 @@ impl HostSyncEngine {
             &application_id,
             psk,
         )
-        .await?;
+        .await
+        .map_err(pc_sync_failed("stream_connect_failed"))?;
+        diagnostics::record("pc_sync_start", "connected").save();
 
         Ok(PreparedSession {
             bridge: session_bridge,
@@ -1234,16 +1268,23 @@ where
             _ = frame_tick.tick() => {
                 let (colors, warning) = match source.next_colors() {
                     Ok(colors) => colors,
-                    Err(error) => return StreamEnd::Failed(error),
+                    Err(error) => {
+                        diagnostics::record("pc_sync_stream", "source_failed").save();
+                        return StreamEnd::Failed(error);
+                    }
                 };
                 if let Some(warning) = warning {
                     on_warning(warning);
                 }
                 let frame = match protocol::encode_frame(area_id, sequence, &colors) {
                     Ok(frame) => frame,
-                    Err(error) => return StreamEnd::Failed(error),
+                    Err(error) => {
+                        diagnostics::record("pc_sync_stream", "encode_failed").save();
+                        return StreamEnd::Failed(error);
+                    }
                 };
                 if let Err(error) = transport.send(&frame).await {
+                    diagnostics::record("pc_sync_stream", "send_failed").save();
                     return StreamEnd::Failed(error);
                 }
                 sequence = sequence.wrapping_add(1);
@@ -1253,6 +1294,7 @@ where
                     Ok(area) => {
                         poll_failures = 0;
                         if ownership_lost(&area, application_id) {
+                            diagnostics::record("pc_sync_stream", "taken_over").save();
                             return StreamEnd::OwnershipLost;
                         }
                     }
@@ -1261,6 +1303,7 @@ where
                         // run of them means the bridge itself is gone.
                         poll_failures += 1;
                         if poll_failures >= BRIDGE_LOSS_THRESHOLD {
+                            diagnostics::record("pc_sync_stream", "bridge_lost").save();
                             return StreamEnd::Failed(format!(
                                 "Lost contact with the bridge while streaming: {error}"
                             ));
