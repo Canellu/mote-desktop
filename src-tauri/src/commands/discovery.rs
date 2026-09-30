@@ -46,14 +46,23 @@ pub async fn lookup_bridge(ip: String) -> Result<DiscoveredBridge, String> {
 /// growing the collection needs Pro.
 #[tauri::command(rename = "pair-bridge")]
 pub async fn pair_bridge(app: AppHandle, ip: String) -> Result<HueSession, String> {
-    if !crate::commands::bridges::list_hue_bridges(app.clone())
-        .unwrap_or_default()
-        .is_empty()
-    {
-        crate::commands::entitlements::require(&app, Capability::MultipleBridges)?;
+    let client = HueClient::new()?;
+    let saved_bridges = crate::commands::bridges::list_hue_bridges(app.clone()).unwrap_or_default();
+    if !saved_bridges.is_empty() {
+        // Re-pairing a bridge that is already saved (its key was revoked) adds
+        // nothing, so it stays free. The public config names the bridge without
+        // a key; if it can't be read, treat the pairing as a new bridge.
+        let repairing = match client.public_bridge_id(&ip).await {
+            Some(bridge_id) => saved_bridges
+                .iter()
+                .any(|saved| saved.bridge_id.eq_ignore_ascii_case(&bridge_id)),
+            None => false,
+        };
+        if !repairing {
+            crate::commands::entitlements::require(&app, Capability::MultipleBridges)?;
+        }
     }
 
-    let client = HueClient::new()?;
     let paired = client.pair_bridge(&ip).await?;
     // New pairings carry the entertainment clientkey alongside the normal app
     // credential; keep it (per bridge) for PC sync so no second link-button flow

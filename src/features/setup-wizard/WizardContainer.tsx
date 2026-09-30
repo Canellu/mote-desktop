@@ -51,12 +51,18 @@ const WizardView = ({ controller }: { controller: WizardController }) => (
 
 const WizardFlowContainer = ({
   autoStartDiscovery,
+  repairBridge,
   onPairingComplete,
 }: {
   autoStartDiscovery: boolean;
+  repairBridge?: WizardContainerProps["repairBridge"];
   onPairingComplete?: () => void | Promise<void>;
 }) => {
-  const controller = useWizardFlow({ autoStartDiscovery, onPairingComplete });
+  const controller = useWizardFlow({
+    autoStartDiscovery,
+    repairBridge,
+    onPairingComplete,
+  });
   return <WizardView controller={controller} />;
 };
 
@@ -67,7 +73,10 @@ const WizardDevContainer = ({
   devBridgeCount,
   devPairingKind,
   onDevPairingKindChange,
-}: Omit<WizardContainerProps, "devMode" | "autoStartDiscovery">) => {
+}: Omit<
+  WizardContainerProps,
+  "devMode" | "autoStartDiscovery" | "repairBridge"
+>) => {
   const controller = useWizardDevDriver({
     devStateId,
     onDevStateChange,
@@ -87,6 +96,7 @@ const WizardDevContainer = ({
 export const WizardContainer = ({
   devMode = false,
   autoStartDiscovery = false,
+  repairBridge,
   onPairingComplete,
   ...devProps
 }: WizardContainerProps) => {
@@ -94,6 +104,7 @@ export const WizardContainer = ({
   return (
     <WizardFlowContainer
       autoStartDiscovery={autoStartDiscovery}
+      repairBridge={repairBridge}
       onPairingComplete={onPairingComplete}
     />
   );

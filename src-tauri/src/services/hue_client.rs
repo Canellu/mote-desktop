@@ -100,17 +100,22 @@ pub struct HueSession {
     pub bridge_id: Option<String>,
     pub bridge_ip: Option<String>,
     pub error: Option<String>,
+    /// The bridge answered but refused the saved application key, usually
+    /// because Mote was removed from the bridge in the Hue app. Only pairing
+    /// again recovers, so the UI offers that instead of a retry.
+    #[serde(default)]
+    pub key_rejected: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredBridgeInfo {
     pub bridge_id: String,
     pub bridge_ip: String,
-    /// Read-only: the application key that older builds wrote into the store
-    /// file. The keyring is the only place the key is persisted now;
-    /// `load_bridge_store` moves any key found here into it, and serialization
-    /// never writes this back.
-    #[serde(default, skip_serializing)]
+    /// The application key that older builds wrote into the store file. New
+    /// pairings never set it; `load_bridge_store` moves it into the keyring and
+    /// clears it only once the keyring holds it, so a keyring that refuses the
+    /// write never costs the pairing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub application_key: Option<String>,
     /// The bridge's user-given name, cached opportunistically (each time the
     /// active bridge's home name is read) so the bridge switcher can label every
@@ -165,6 +170,10 @@ impl BridgeStore {
         bridge.bridge_id = bridge.bridge_id.to_uppercase();
         let id = bridge.bridge_id.clone();
         if let Some(existing) = self.bridges.iter_mut().find(|entry| entry.bridge_id == id) {
+            // Re-pairing keeps the cached name until the next read refreshes it.
+            if bridge.name.is_none() {
+                bridge.name = existing.name.take();
+            }
             *existing = bridge;
         } else {
             self.bridges.push(bridge);
@@ -1346,6 +1355,15 @@ impl HueClient {
         })
     }
 
+    /// The bridge id an address reports in its public config, without a key.
+    pub async fn public_bridge_id(&self, ip: &str) -> Option<String> {
+        self.fetch_bridge_public_config(ip)
+            .await?
+            .bridgeid
+            .filter(|id| !id.is_empty())
+            .map(|id| id.to_uppercase())
+    }
+
     /// Enriches discovered bridges from each bridge's unauthenticated public
     /// config: fills in the hardware model and, crucially, replaces the short
     /// mDNS id with the authoritative full `bridgeid` so it matches the stored
@@ -1390,8 +1408,8 @@ impl HueClient {
                         }
                     }
                 }
-                // Nothing listening at that host: HTTPS won't fare better.
-                Err(error) if error.is_connect() || error.is_timeout() => return None,
+                // Still try HTTPS: a bridge can close port 80 or answer it slowly,
+                // and without this reply rediscovery can't match the bridge id.
                 Err(_) => {}
             }
         }
@@ -1602,13 +1620,13 @@ impl HueClient {
         };
         diagnostics::note_device_ip(&stored_bridge.bridge_ip);
 
-        let application_key = match load_application_key(&stored_bridge.bridge_id) {
+        let application_key = match bridge_application_key(&stored_bridge) {
             Ok(Some(key)) => key,
+            // No key anywhere: keep the bridge and its settings, and ask for the
+            // link button rather than dropping the pairing.
             Ok(None) => {
                 diagnostics::record("restore", "key_missing").save();
-                // Active bridge has no usable key: drop it and fall back to
-                // whatever else is paired (remove_bridge returns that session).
-                return self.remove_bridge(app, &stored_bridge.bridge_id).await;
+                return Ok(key_rejected_session(stored_bridge));
             }
             // The keyring is unreadable right now, which says nothing about the
             // pairing itself, so keep the bridge and report the failure.
@@ -1623,11 +1641,13 @@ impl HueClient {
             }
         };
 
-        if let Ok(bridge_id) = self
-            .fetch_bridge_id(&stored_bridge.bridge_ip, &application_key)
+        match self
+            .probe_bridge(&stored_bridge.bridge_ip, &application_key)
             .await
         {
-            if bridge_matches(&bridge_id, &stored_bridge.bridge_id) {
+            BridgeProbe::Answered(bridge_id)
+                if bridge_matches(&bridge_id, &stored_bridge.bridge_id) =>
+            {
                 diagnostics::record("restore", "restored").save();
                 return Ok(HueSession {
                     configured: true,
@@ -1635,8 +1655,14 @@ impl HueClient {
                     bridge_id: Some(bridge_id.to_uppercase()),
                     bridge_ip: Some(stored_bridge.bridge_ip),
                     error: None,
+                    key_rejected: false,
                 });
             }
+            BridgeProbe::KeyRejected => {
+                diagnostics::record("restore", "key_rejected").save();
+                return Ok(key_rejected_session(stored_bridge));
+            }
+            _ => {}
         }
         diagnostics::record("restore", "saved_address_unreachable").save();
 
@@ -1648,30 +1674,40 @@ impl HueClient {
             .find(|bridge| bridge_matches(&bridge.bridge_id, &stored_bridge.bridge_id));
 
         if let Some(bridge) = rediscovered {
-            if let Ok(bridge_id) = self
-                .fetch_bridge_id(&bridge.bridge_ip, &application_key)
-                .await
-            {
-                if bridge_matches(&bridge_id, &stored_bridge.bridge_id) {
-                    // Persist the bridge's new IP without disturbing the rest of
-                    // the list or which bridge is active.
-                    if let Some(entry) = store
-                        .bridges
-                        .iter_mut()
-                        .find(|entry| bridge_matches(&entry.bridge_id, &stored_bridge.bridge_id))
-                    {
-                        entry.bridge_ip = bridge.bridge_ip.clone();
-                    }
-                    save_bridge_store(app, &store)?;
-                    diagnostics::record("restore", "rediscovered").save();
-                    return Ok(HueSession {
-                        configured: true,
-                        connected: true,
-                        bridge_id: Some(bridge_id.to_uppercase()),
-                        bridge_ip: Some(bridge.bridge_ip),
-                        error: None,
-                    });
+            let probe = self.probe_bridge(&bridge.bridge_ip, &application_key).await;
+            let answered = matches!(
+                &probe,
+                BridgeProbe::Answered(id) if bridge_matches(id, &stored_bridge.bridge_id)
+            );
+            if answered || matches!(probe, BridgeProbe::KeyRejected) {
+                // Persist the bridge's new IP without disturbing the rest of
+                // the list or which bridge is active, so a re-pair targets it.
+                if let Some(entry) = store
+                    .bridges
+                    .iter_mut()
+                    .find(|entry| bridge_matches(&entry.bridge_id, &stored_bridge.bridge_id))
+                {
+                    entry.bridge_ip = bridge.bridge_ip.clone();
                 }
+                save_bridge_store(app, &store)?;
+            }
+            if answered {
+                diagnostics::record("restore", "rediscovered").save();
+                return Ok(HueSession {
+                    configured: true,
+                    connected: true,
+                    bridge_id: Some(stored_bridge.bridge_id.to_uppercase()),
+                    bridge_ip: Some(bridge.bridge_ip),
+                    error: None,
+                    key_rejected: false,
+                });
+            }
+            if matches!(probe, BridgeProbe::KeyRejected) {
+                diagnostics::record("restore", "key_rejected").save();
+                return Ok(key_rejected_session(StoredBridgeInfo {
+                    bridge_ip: bridge.bridge_ip,
+                    ..stored_bridge
+                }));
             }
         }
 
@@ -1682,7 +1718,43 @@ impl HueClient {
             bridge_id: Some(stored_bridge.bridge_id),
             bridge_ip: Some(stored_bridge.bridge_ip),
             error: Some("Unable to reconnect to the saved Hue Bridge.".to_string()),
+            key_rejected: false,
         })
+    }
+
+    /// One unthrottled read of the bridge resource that tells a refused key
+    /// apart from an unreachable bridge, which `fetch_bridge_id` can't.
+    async fn probe_bridge(&self, ip: &str, application_key: &str) -> BridgeProbe {
+        let url = format!("https://{}/clip/v2/resource/bridge", format_host(ip));
+        let response = match self
+            .client
+            .get(&url)
+            .header("hue-application-key", application_key)
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(_) => return BridgeProbe::Unreachable,
+        };
+        if is_key_rejection(response.status()) {
+            return BridgeProbe::KeyRejected;
+        }
+        if !response.status().is_success() {
+            // Busy or mid-restart: the full fetch retries those.
+            return match self.fetch_bridge_id(ip, application_key).await {
+                Ok(id) => BridgeProbe::Answered(id),
+                Err(_) => BridgeProbe::Unreachable,
+            };
+        }
+        match response.json::<HueApiResponse<HueBridgeResource>>().await {
+            Ok(body) => body
+                .data
+                .into_iter()
+                .find_map(|bridge| bridge.bridge_id)
+                .map(BridgeProbe::Answered)
+                .unwrap_or(BridgeProbe::Unreachable),
+            Err(_) => BridgeProbe::Unreachable,
+        }
     }
 
     /// Persists a paired bridge, adding it to the list (or updating it in place)
@@ -1709,6 +1781,7 @@ impl HueClient {
             bridge_id: Some(bridge.bridge_id.to_uppercase()),
             bridge_ip: Some(bridge.bridge_ip.clone()),
             error: None,
+            key_rejected: false,
         })
     }
 
@@ -1815,7 +1888,7 @@ impl HueClient {
         else {
             return Ok(None);
         };
-        Ok(load_application_key(&bridge.bridge_id)?.map(|key| (bridge.bridge_ip.clone(), key)))
+        Ok(bridge_application_key(bridge)?.map(|key| (bridge.bridge_ip.clone(), key)))
     }
 
     pub fn get_stored_application_key<R: Runtime>(
@@ -1823,7 +1896,7 @@ impl HueClient {
         app: &AppHandle<R>,
     ) -> Result<String, String> {
         let stored_bridge = self.get_stored_bridge(app)?;
-        load_application_key(&stored_bridge.bridge_id)?.ok_or_else(|| {
+        bridge_application_key(&stored_bridge)?.ok_or_else(|| {
             "No Hue application key found. Please re-pair your Hue bridge.".to_string()
         })
     }
@@ -3490,9 +3563,11 @@ impl HueClient {
         application_key: &str,
     ) {
         const REDISCOVER_AFTER_FAILURES: u32 = 3;
+        const KEY_REJECTED_RECHECK: Duration = Duration::from_secs(60);
 
         let mut current_ip = ip.to_string();
         let mut consecutive_failures: u32 = 0;
+        let mut key_rejected = false;
         let mut last_reported: Option<bool> = None;
         let mut report = |connected: bool| {
             if last_reported == Some(connected) {
@@ -3521,6 +3596,7 @@ impl HueClient {
                     eprintln!("event stream connected ({})", response.status());
                     diagnostics::record("event_stream", "connected").save();
                     consecutive_failures = 0;
+                    key_rejected = false;
                     report(true);
                     let mut buffer = String::new();
 
@@ -3559,6 +3635,26 @@ impl HueClient {
                         }
                     }
                     report(false);
+                }
+                Ok(response) if is_key_rejection(response.status()) => {
+                    // The bridge revoked this key. Retrying can't help, so say
+                    // so once and idle until a re-pair stops this stream.
+                    if !key_rejected {
+                        key_rejected = true;
+                        diagnostics::record("event_stream", "key_rejected").save();
+                        report(false);
+                        if let Err(_error) = app.emit(
+                            "hue-connection",
+                            json!({ "connected": false, "keyRejected": true }),
+                        ) {
+                            #[cfg(debug_assertions)]
+                            eprintln!("failed to emit hue-connection: {_error}");
+                        }
+                    }
+                    if active.load(Ordering::Relaxed) {
+                        tokio::time::sleep(KEY_REJECTED_RECHECK).await;
+                    }
+                    continue;
                 }
                 Ok(_response) => {
                     #[cfg(debug_assertions)]
@@ -4330,7 +4426,35 @@ fn disconnected_session(
         bridge_id,
         bridge_ip,
         error,
+        key_rejected: false,
     }
+}
+
+/// A saved bridge whose key no longer works: still configured, so its settings
+/// stay, but only a link-button pairing brings it back.
+fn key_rejected_session(bridge: StoredBridgeInfo) -> HueSession {
+    HueSession {
+        configured: true,
+        connected: false,
+        bridge_id: Some(bridge.bridge_id),
+        bridge_ip: Some(bridge.bridge_ip),
+        error: Some(
+            "This bridge no longer accepts Mote. Press the button on the bridge to connect again."
+                .to_string(),
+        ),
+        key_rejected: true,
+    }
+}
+
+enum BridgeProbe {
+    Answered(String),
+    KeyRejected,
+    Unreachable,
+}
+
+/// The bridge refuses an unknown application key with 403 (v2) or 401.
+fn is_key_rejection(status: reqwest::StatusCode) -> bool {
+    status == reqwest::StatusCode::FORBIDDEN || status == reqwest::StatusCode::UNAUTHORIZED
 }
 
 fn public_bridge_rejection(description: &str) -> String {
@@ -4412,7 +4536,10 @@ fn parse_event_block(block: &str) -> Option<Vec<HueEventUpdate>> {
                 resources_changed: matches!(event_type.as_deref(), Some("add" | "delete"))
                     || resource.get("metadata").is_some()
                     || resource.get("children").is_some()
-                    || resource.get("services").is_some(),
+                    || resource.get("services").is_some()
+                    // A light powered off at the wall goes unreachable and comes
+                    // back through its device's connectivity, not the light.
+                    || (rtype == "zigbee_connectivity" && resource.get("status").is_some()),
                 rtype,
                 id,
                 on: resource.pointer("/on/on").and_then(Value::as_bool),
@@ -4475,14 +4602,18 @@ mod bridge_store_tests {
     }
 
     #[test]
-    fn application_key_is_read_but_never_written() {
+    fn application_key_is_kept_until_cleared_and_never_written_empty() {
         let legacy = serde_json::json!({
             "bridge_id": "ABC",
             "bridge_ip": "192.168.0.2",
             "application_key": "secret",
         });
-        let parsed: StoredBridgeInfo = serde_json::from_value(legacy).unwrap();
+        let mut parsed: StoredBridgeInfo = serde_json::from_value(legacy).unwrap();
         assert_eq!(parsed.application_key.as_deref(), Some("secret"));
+        // A key the keyring hasn't taken yet survives a rewrite.
+        let written = serde_json::to_value(&parsed).unwrap();
+        assert_eq!(written["application_key"], "secret");
+        parsed.application_key = None;
         let written = serde_json::to_value(&parsed).unwrap();
         assert!(written.get("application_key").is_none());
     }
@@ -4594,6 +4725,8 @@ mod event_tests {
             r#"{"id":"zone-id","type":"zone","children":[]}"#,
             r#"{"id":"device-id","type":"device","services":[]}"#,
             r#"{"id":"light-id","type":"light","metadata":{"name":"Desk"}}"#,
+            r#"{"id":"zb-id","type":"zigbee_connectivity","status":"connected"}"#,
+            r#"{"id":"zb-id","type":"zigbee_connectivity","status":"connectivity_issue"}"#,
         ] {
             let block = format!(r#"data: [{{"type":"update","data":[{resource}]}}]"#);
             let updates = parse_event_block(&block).expect("valid Hue event");
@@ -4736,8 +4869,8 @@ fn load_bridge_store<R: Runtime>(app: &AppHandle<R>) -> Result<BridgeStore, Stri
                 .map_err(|error| private_error("Failed to read bridge settings.", error))?;
             parsed.normalize();
             if move_store_keys_to_keyring(&mut parsed) {
-                // Rewrite the file without the keys. Best effort: the keys are
-                // already in the keyring, and a failed save retries next load.
+                // Rewrite the file without the keys the keyring now holds. Best
+                // effort: a failed save retries on the next load.
                 if let Ok(value) = serde_json::to_value(&parsed) {
                     store.set(STORE_KEY_BRIDGES, value);
                     let _ = store.save();
@@ -4763,12 +4896,9 @@ fn load_bridge_store<R: Runtime>(app: &AppHandle<R>) -> Result<BridgeStore, Stri
                     bridges: vec![legacy],
                 };
                 migrated.normalize();
-                // The migrated entry is written without the key, so the key must
-                // reach the per-bridge keyring first. If it can't, leave the
-                // legacy entry in place and retry on the next load.
-                if had_key && !move_store_keys_to_keyring(&mut migrated) {
-                    return Ok(migrated);
-                }
+                // A key the keyring refuses stays on the migrated entry and is
+                // retried on the next load.
+                move_store_keys_to_keyring(&mut migrated);
                 store.set(
                     STORE_KEY_BRIDGES,
                     serde_json::to_value(&migrated)
@@ -4790,27 +4920,41 @@ fn load_bridge_store<R: Runtime>(app: &AppHandle<R>) -> Result<BridgeStore, Stri
 }
 
 /// Moves application keys that older builds wrote into the store file into the
-/// per-bridge keyring, clearing them from `store`. Returns whether the file
-/// should be rewritten: only when every key is in the keyring, since a rewrite
-/// drops them all and a key the keyring refused would otherwise be lost.
+/// per-bridge keyring. A key is cleared from `store` only once the keyring
+/// holds it; one the keyring refused stays and is retried on the next load.
+/// Returns whether any key was cleared, so the file should be rewritten.
 fn move_store_keys_to_keyring(store: &mut BridgeStore) -> bool {
-    let mut found = false;
-    let mut all_moved = true;
+    let mut cleared = false;
     for bridge in &mut store.bridges {
-        let Some(key) = bridge.application_key.take() else {
+        let Some(key) = bridge.application_key.as_deref() else {
             continue;
         };
-        found = true;
         // Pairing writes the keyring, so a key already there is at least as new
         // as the file copy and wins.
         let moved = match load_application_key(&bridge.bridge_id) {
             Ok(Some(_)) => true,
-            Ok(None) => save_application_key(&bridge.bridge_id, &key).is_ok(),
+            Ok(None) => save_application_key(&bridge.bridge_id, key).is_ok(),
             Err(_) => false,
         };
-        all_moved &= moved;
+        if moved {
+            bridge.application_key = None;
+            cleared = true;
+        }
     }
-    found && all_moved
+    cleared
+}
+
+/// A bridge's application key: the keyring's, or else a file copy the keyring
+/// hasn't taken yet. `Ok(None)` only when neither has one.
+fn bridge_application_key(bridge: &StoredBridgeInfo) -> Result<Option<String>, String> {
+    match (
+        load_application_key(&bridge.bridge_id),
+        &bridge.application_key,
+    ) {
+        (Ok(Some(key)), _) => Ok(Some(key)),
+        (_, Some(key)) => Ok(Some(key.clone())),
+        (result, None) => result,
+    }
 }
 
 fn keyring_entry(account: &str) -> Result<Entry, String> {

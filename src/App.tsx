@@ -124,27 +124,43 @@ const SplashView = () => {
 
 const DisconnectedBridgeView = ({
   error,
+  keyRejected,
   onRetry,
+  onPairAgain,
   onPairNewBridge,
 }: {
   error: string | null;
+  keyRejected: boolean;
   onRetry: () => void;
+  onPairAgain: () => void;
   onPairNewBridge: () => void;
 }) => (
   <StatusScreen
     visual={<BridgeStatus kind={bridgeKind()} status="error" />}
-    title="Bridge unavailable"
+    title={keyRejected ? "Connect Mote again" : "Bridge unavailable"}
     description={error ?? "The saved bridge could not be reached."}
     actions={
       <div className="flex flex-col items-center gap-6">
-        <div className="flex gap-3">
-          <Button size="xl" variant="outline" onClick={onPairNewBridge}>
-            Pair a new bridge
-          </Button>
-          <Button size="xl" onClick={onRetry}>
-            Retry connection
-          </Button>
-        </div>
+        {/* A revoked key never comes back on retry; your settings are kept. */}
+        {keyRejected ? (
+          <div className="flex gap-3">
+            <Button size="xl" variant="outline" onClick={onRetry}>
+              Try again
+            </Button>
+            <Button size="xl" onClick={onPairAgain}>
+              Connect again
+            </Button>
+          </div>
+        ) : (
+          <div className="flex gap-3">
+            <Button size="xl" variant="outline" onClick={onPairNewBridge}>
+              Pair a new bridge
+            </Button>
+            <Button size="xl" onClick={onRetry}>
+              Retry connection
+            </Button>
+          </div>
+        )}
         <SendDiagnosticsButton />
       </div>
     }
@@ -156,6 +172,9 @@ function App() {
     configured,
     connected,
     error,
+    keyRejected,
+    bridgeId,
+    bridgeIp,
     isLoading,
     refreshSession,
     resetSession,
@@ -164,6 +183,7 @@ function App() {
   } = useHue();
   const dev = useDevViews();
   const [pairNewBridge, setPairNewBridge] = useState(false);
+  const [pairingAgain, setPairingAgain] = useState(false);
   const initialResourcesLoadStartedRef = useRef(false);
   const resourcesHasLoaded = useHueResourcesStore((state) => state.hasLoaded);
   const isAddingSyncBox = useSyncBoxStore((state) => state.isAdding);
@@ -275,7 +295,9 @@ function App() {
         content: (
           <DisconnectedBridgeView
             error={null}
+            keyRejected={false}
             onRetry={dev.startRetryTransition}
+            onPairAgain={() => dev.selectView("discovering")}
             onPairNewBridge={() => dev.selectView("discovering")}
           />
         ),
@@ -370,12 +392,42 @@ function App() {
       return { viewKey: "home", content: <HomeApp /> };
     }
 
+    if (configured && pairingAgain && bridgeId && bridgeIp) {
+      return {
+        viewKey: "wizard",
+        content: (
+          <div className="relative h-full">
+            <WizardContainer
+              repairBridge={{ bridgeId, bridgeIp }}
+              onPairingComplete={async () => {
+                // The old stream idles on the revoked key; stop it so Home
+                // streams with the new one.
+                await invoke("stop-hue-events").catch(() => {});
+                setPairingAgain(false);
+                await router.navigate({ to: "/", replace: true });
+              }}
+            />
+            <Button
+              variant="ghost"
+              size="xl"
+              className="absolute right-6 top-4 z-10"
+              onClick={() => setPairingAgain(false)}
+            >
+              Cancel
+            </Button>
+          </div>
+        ),
+      };
+    }
+
     if (configured) {
       return {
         viewKey: "disconnected",
         content: (
           <DisconnectedBridgeView
             error={error}
+            keyRejected={Boolean(keyRejected)}
+            onPairAgain={() => setPairingAgain(true)}
             onRetry={() => void refreshSession()}
             onPairNewBridge={() => {
               setPairNewBridge(true);

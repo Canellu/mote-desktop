@@ -28,6 +28,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 export const useWizardFlow = ({
   autoStartDiscovery = false,
+  repairBridge,
   onPairingComplete,
 }: WizardFlowOptions): WizardController => {
   const { applySession, bridges: pairedBridges } = useHue();
@@ -36,9 +37,10 @@ export const useWizardFlow = ({
   // Ids of bridges already paired on this device, kept fresh so re-showing the
   // bridge list (after a cancel/retry) always reflects the current pairings.
   const pairedIdsRef = useRef<string[]>([]);
-  pairedIdsRef.current = pairedBridges.map((bridge) =>
-    bridge.bridgeId.toUpperCase(),
-  );
+  // The bridge being paired again is saved but must stay selectable.
+  pairedIdsRef.current = pairedBridges
+    .filter((bridge) => bridge.bridgeId !== repairBridge?.bridgeId)
+    .map((bridge) => bridge.bridgeId.toUpperCase());
   const knownBridgesRef = useRef<DiscoveredBridge[]>([]);
   const selectedBridgeRef = useRef<DiscoveredBridge | null>(null);
   const pendingSessionRef = useRef<HueSession | null>(null);
@@ -202,7 +204,13 @@ export const useWizardFlow = ({
   };
 
   useEffect(() => {
-    if (autoStartDiscovery) void startDiscovery();
+    if (repairBridge) {
+      // Cancel and retry come back to this bridge rather than a fresh search.
+      knownBridgesRef.current = [repairBridge];
+      startPairing(repairBridge);
+    } else if (autoStartDiscovery) {
+      void startDiscovery();
+    }
     // Run once on mount: re-pairing enters the wizard straight at discovery.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

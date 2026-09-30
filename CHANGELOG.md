@@ -5,6 +5,18 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Fixes
+
+- If Mote is removed from your bridge in the Hue app, Mote now says so and
+  offers Connect again, which only needs the bridge button. Your rooms,
+  widgets, and settings stay. Before, Retry connection could never succeed.
+- A light turned off and on at the wall switch becomes controllable again as
+  soon as it reconnects, without reopening Mote.
+- Mote finds your bridge again after its IP address changes, even when the
+  bridge doesn't answer on its older HTTP address.
+- Your bridge key is no longer lost if Windows Credential Manager can't save
+  it while Mote moves it out of its settings file.
+
 ## [0.9.0] - 2026-09-29
 
 ### Highlights

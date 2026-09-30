@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import React, {
   createContext,
   useCallback,
@@ -19,6 +20,8 @@ export interface HueSession {
   bridgeId: string | null;
   bridgeIp: string | null;
   error: string | null;
+  /** The bridge refused the saved key; only pairing again recovers. */
+  keyRejected?: boolean;
 }
 
 /** One paired bridge, for the switcher. `name` is the cached bridge name. */
@@ -55,6 +58,7 @@ const emptySession: HueSession = {
   bridgeId: null,
   bridgeIp: null,
   error: null,
+  keyRejected: false,
 };
 
 const HueContext = createContext<HueContextType | undefined>(undefined);
@@ -183,6 +187,20 @@ export const HueProvider: React.FC<HueProviderProps> = ({ children }) => {
 
   useEffect(() => {
     void refreshSession();
+  }, [refreshSession]);
+
+  // The event stream sees a revoked key first; re-read the session so the app
+  // leaves Home for the pair-again screen.
+  useEffect(() => {
+    const unlisten = listen<{ keyRejected?: boolean }>(
+      "hue-connection",
+      (event) => {
+        if (event.payload.keyRejected) void refreshSession();
+      },
+    );
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
   }, [refreshSession]);
 
   useEffect(() => {
