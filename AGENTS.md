@@ -266,6 +266,8 @@ repositories are public. The value must match the `APP_TOKEN` secret on the
   as `data-density` on the root): `localStorage` key `uiDensity`
 - Home custom layout: `localStorage` key `hue-dashboard-layout`
 - Home grouping mode: `localStorage` key `hue-dashboard-grouping-mode`
+- Fixtures grouped by hand, per bridge id: `localStorage` key
+  `hue-fixtures`
 - Automations: Tauri store files `automations.json` (on-air, away, and the
   priority order), `focus.json`, `presence.json`, and `calendar.json`; the
   recovery journal `automation-journal.json` in the app config directory,

@@ -20,7 +20,8 @@ export function SegmentedControl<T extends string>({
   options: ReadonlyArray<{
     value: T;
     label: string;
-    icon: SegmentIcon;
+    /** Left out where room is tight, so the options fit on one row. */
+    icon?: SegmentIcon;
     swatch?: string;
     detail?: string;
   }>;
@@ -42,7 +43,9 @@ export function SegmentedControl<T extends string>({
         aria-label={ariaLabel}
         // A fixed radius rather than rounded-full: identical on one row, and still a
         // clean rounded rectangle when narrow widths wrap the options.
-        className="max-w-full flex-wrap justify-start rounded-[1.25rem] bg-foreground/6 p-1 data-[orientation=horizontal]:h-auto dark:bg-muted"
+        // A tint of the text color shows on every surface; --muted matched
+        // the dark settings card and hid the track.
+        className="max-w-full flex-wrap justify-start rounded-[1.25rem] bg-foreground/6 p-1 data-[orientation=horizontal]:h-auto dark:bg-foreground/8"
       >
         {options.map(
           ({ value: optionValue, label, icon: Icon, swatch, detail }) => {
@@ -72,9 +75,9 @@ export function SegmentedControl<T extends string>({
                       className="size-4 shrink-0 rounded-full border border-foreground/20"
                       style={{ backgroundColor: swatch }}
                     />
-                  ) : (
+                  ) : Icon ? (
                     <Icon size={17} />
-                  )}
+                  ) : null}
                   <span>{label}</span>
                   {detail && (
                     <span className="text-xs tabular-nums">{detail}</span>

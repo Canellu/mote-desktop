@@ -9,7 +9,9 @@ const inputVariants = cva(
   {
     variants: {
       size: {
-        default: "h-9 px-3 py-1 text-base file:h-7 md:text-sm",
+        // One size at every width: the mobile-browser 16px (which stops iOS
+        // zooming into a field) only made the text jump in a desktop window.
+        default: "h-9 px-3 py-1 text-sm file:h-7",
         lg: "h-10 px-4 py-1.5 text-base file:h-8",
         xl: "h-12 px-5 py-2 text-base file:h-9",
       },

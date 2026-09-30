@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { ComponentGallery } from "@/features/dev-gallery/ComponentGallery";
 import { DeviceGallery } from "@/features/dev-gallery/DeviceGallery";
+import { DevicesPreview } from "@/features/dev-gallery/DevicesPreview";
 import { DiagnosticsReportHost } from "@/features/feedback/DiagnosticsReportHost";
 import { FeedbackButton } from "@/features/feedback/FeedbackButton";
 import { SendDiagnosticsButton } from "@/features/feedback/SendDiagnosticsButton";
@@ -27,6 +28,7 @@ import { SyncBoxConnectedView } from "@/features/sync-box/SyncBoxScreen";
 import {
   COMPONENT_GALLERY_VIEW_ID,
   DEVICE_GALLERY_VIEW_ID,
+  DEVICES_PREVIEW_VIEW_ID,
   ERROR_BOUNDARY_VIEW_ID,
   widgetWizardStepForViewId,
 } from "@/features/setup-wizard/hooks/useDevViews";
@@ -230,6 +232,10 @@ function App() {
 
     if (dev.viewId === DEVICE_GALLERY_VIEW_ID) {
       return { viewKey: "device-gallery", content: <DeviceGallery /> };
+    }
+
+    if (dev.viewId === DEVICES_PREVIEW_VIEW_ID) {
+      return { viewKey: "devices-preview", content: <DevicesPreview /> };
     }
 
     if (dev.viewId === ERROR_BOUNDARY_VIEW_ID) {
@@ -465,7 +471,7 @@ function App() {
       ];
 
   return (
-    <main className="h-screen overflow-hidden bg-background pt-10 text-foreground">
+    <main className="h-screen overflow-hidden bg-background pt-(--title-bar-height) text-foreground">
       <TitleBar
         onDevBack={
           dev.enabled && dev.viewId === "home-preview"

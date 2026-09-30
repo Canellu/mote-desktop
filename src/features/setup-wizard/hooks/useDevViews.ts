@@ -29,6 +29,9 @@ export const COMPONENT_GALLERY_VIEW_ID = "component-gallery";
 /** Dev-only id for the hardware-illustration showcase (bridges + sync box). */
 export const DEVICE_GALLERY_VIEW_ID = "device-gallery";
 
+/** Dev-only id for Settings > Devices filled with a made-up home. */
+export const DEVICES_PREVIEW_VIEW_ID = "devices-preview";
+
 /** Dev-only id for the app-level error boundary fallback preview. */
 export const ERROR_BOUNDARY_VIEW_ID = "error-boundary";
 
@@ -56,6 +59,7 @@ export const devViewGroups = [
     options: [
       { id: COMPONENT_GALLERY_VIEW_ID, label: "Components" },
       { id: DEVICE_GALLERY_VIEW_ID, label: "Devices" },
+      { id: DEVICES_PREVIEW_VIEW_ID, label: "Devices settings" },
     ],
   },
   { label: "App", options: appDevViewOptions },

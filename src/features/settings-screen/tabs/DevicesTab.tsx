@@ -10,9 +10,7 @@ import {
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -20,25 +18,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PowerOnFields } from "@/features/light-settings/PowerOnFields";
+import { getLightIcon } from "@/features/space-screen/utils/light-icons";
+import { useHue } from "@/context/HueContext";
 import {
-  roomForLight,
-  sameIds,
-  updateRoomPlacement,
-  updateZonesPlacement,
-  zonesForLight,
-} from "@/features/light-settings/lightPlacement";
-import {
-  buildPowerOnBody,
-  powerOnDraftFromLight,
-  powerupSummary,
-  samePowerOnDraft,
-} from "@/features/light-settings/powerOn";
-import {
-  getLightIcon,
-  LIGHT_ICON_OPTIONS,
-} from "@/features/space-screen/utils/light-icons";
+  freeLights,
+  groupFixtures,
+  renameFixture,
+  saveFixture,
+  suggestFixtureLights,
+  targetsOfLights,
+  ungroupFixture,
+  type Fixture,
+  type FixtureGroup,
+  type FixtureResult,
+} from "@/lib/fixtures";
+import { CONTROL_SURFACE_CLASS } from "@/lib/control-surface";
 import { cn } from "@/lib/utils";
+import {
+  useFixtureGroups,
+  useFixtureGroupsStore,
+} from "@/stores/FixtureGroupsStore";
 import type {
   HueAccessoryService,
   HueLight,
@@ -48,24 +47,37 @@ import type {
   HueSwitchInputConfiguration,
 } from "@/types/hue";
 import {
+  ChevronRight,
   CircleX,
+  Cpu,
   FilterX,
+  Layers,
   Loader2,
+  Radar,
   Search,
+  ToggleRight,
   SlidersHorizontal,
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { CollapsibleSection } from "../components/CollapsibleSection";
-import { DeleteResourceButton } from "../components/DeleteResourceButton";
-import { EditableResourceRow } from "../components/EditableResourceRow";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { SegmentedControl } from "../components/SegmentedControl";
 import { EmptyText } from "../components/EmptyText";
-import { FLAT_CARD } from "../constants";
-import type {
-  DeleteResource,
-  RenameResource,
-  SaveSwitchConfig,
-} from "../types";
+import { SETTINGS_EXPANDABLE_CARD } from "../constants";
+import {
+  DetailsFrame,
+  DetailsSection,
+  DetailsSheet,
+  DetailsSpacer,
+} from "../components/DetailsSheet";
+import { FixtureDialog } from "../components/FixtureDialog";
+import { LightSettingsFields } from "../components/LightSettingsFields";
+import {
+  MIXED,
+  useLightSettings,
+  type LightSettings,
+} from "../components/useLightSettings";
+import { LightHero } from "@/features/light-settings/LightHero";
+import { RemoveResourceSection } from "@/features/space-screen/components/RemoveResourceSection";
+import type { DeleteResource, SaveSwitchConfig } from "../types";
 import { classifyDevice } from "../utils/devices";
 import { humanize, isRecord } from "../utils/format";
 
@@ -78,12 +90,34 @@ const deviceStatusItems: Record<DeviceStatusFilter, string> = {
   unreachable: "Unreachable",
 };
 
-/** Type-level sections, in display order. Also drives expand/collapse all. */
-const SECTION_KEYS = ["Lights", "Switches", "Sensors", "Other Devices"];
+/** The kinds of device, as the tabs along the top, in display order. */
+type DeviceKindTab = "lights" | "switches" | "sensors" | "other";
+
+// Labels only, so the four fit on one row at the narrowest window.
+const DEVICE_KIND_TABS: ReadonlyArray<{
+  value: DeviceKindTab;
+  label: string;
+}> = [
+  { value: "lights", label: "Lights" },
+  { value: "switches", label: "Switches" },
+  { value: "sensors", label: "Sensors" },
+  { value: "other", label: "Other" },
+];
+
+/** Devices of one kind on the bridge, before any search or filter. */
+const totalOfKind = (
+  summary: HueSettingsSummary | null,
+  kind: "switch" | "sensor" | null,
+) =>
+  (summary?.devices ?? []).filter((device) => {
+    const found = classifyDevice(device);
+    return kind
+      ? found === kind
+      : found !== "light" && found !== "switch" && found !== "sensor";
+  }).length;
 
 /** Bucket key for devices/lights not placed in any room. */
 const UNASSIGNED_KEY = "__unassigned";
-const NO_ROOM = "__none__";
 
 /** A by-room bucket of items, used to subdivide each type section. */
 interface RoomGroup<T> {
@@ -132,20 +166,21 @@ const groupByRoom = <T,>(
 };
 
 export const DevicesTab = ({
+  bridgeId: bridgeIdOverride,
   summary,
   isLoadingSummary,
   lights,
   roomZones,
-  onRename,
   onDelete,
   onSaveSwitchConfig,
   onRefresh,
 }: {
+  /** The bridge whose fixtures to show; the active one by default. */
+  bridgeId?: string;
   summary: HueSettingsSummary | null;
   isLoadingSummary: boolean;
   lights: HueLight[];
   roomZones: HueRoomZone[];
-  onRename: RenameResource;
   onDelete: DeleteResource;
   onSaveSwitchConfig: SaveSwitchConfig;
   onRefresh: () => Promise<void>;
@@ -153,11 +188,8 @@ export const DevicesTab = ({
   const [deviceQuery, setDeviceQuery] = useState("");
   const [deviceStatus, setDeviceStatus] = useState<DeviceStatusFilter>("all");
 
-  // Tracks which device sections the user has collapsed. Devices defaults to a
-  // compact view, so known sections start collapsed.
-  const [collapsedSections, setCollapsedSections] = useState<Set<string>>(
-    () => new Set(["Lights", "Switches", "Sensors", "Other Devices"]),
-  );
+  // One kind of device at a time, each as its full list of rooms.
+  const [kind, setKind] = useState<DeviceKindTab>("lights");
 
   const accessoryServicesByDevice = useMemo(() => {
     const map = new Map<string, HueAccessoryService[]>();
@@ -232,10 +264,71 @@ export const DevicesTab = ({
     () => roomZones.filter((roomZone) => roomZone.resourceType === "room"),
     [roomZones],
   );
-  const lightRoomGroups = useMemo(
-    () => groupByRoom(filteredLights, (light) => light.deviceId, rooms),
-    [filteredLights, rooms],
+  // Lights are listed as fixtures. The bridge only knows devices, so a product
+  // whose heads are separate devices, like a Centris, is grouped by the person
+  // and kept per bridge, which the map shares.
+  const { bridgeId: activeBridgeId } = useHue();
+  const bridgeId = bridgeIdOverride ?? activeBridgeId;
+  const fixtureGroups = useFixtureGroups(bridgeId);
+  const targetOfLight = useMemo(() => targetsOfLights(roomZones), [roomZones]);
+  // Grouped over every light so a search matching one head still shows its
+  // whole fixture.
+  const allFixtures = useMemo(
+    () => groupFixtures(lights, { overrides: fixtureGroups }),
+    [lights, fixtureGroups],
   );
+  const lightFixtures = useMemo(() => {
+    const shown = new Set(filteredLights.map((light) => light.id));
+    return allFixtures.filter((fixture) =>
+      fixture.lightIds.some((id) => shown.has(id)),
+    );
+  }, [filteredLights, allFixtures]);
+  const [panel, setPanel] = useState<PanelTarget | null>(null);
+  const roomKeyOfLight = (light: HueLight | undefined) =>
+    rooms.find(
+      (room) => light?.deviceId && room.deviceIds.includes(light.deviceId),
+    )?.id ?? UNASSIGNED_KEY;
+  const lightRoomGroups = useMemo(
+    () =>
+      groupByRoom(
+        lightFixtures,
+        (fixture) => fixture.lights[0]?.deviceId,
+        rooms,
+      ),
+    [lightFixtures, rooms],
+  );
+  const lightsByRoom = useMemo(
+    () =>
+      new Map(
+        groupByRoom(lights, (light) => light.deviceId, rooms).map((group) => [
+          group.key,
+          group.items,
+        ]),
+      ),
+    [lights, rooms],
+  );
+  const [fixtureError, setFixtureError] = useState<string | null>(null);
+  /** Stores a grouping change; returns the error to show, or null. */
+  const applyFixtureGroups = (result: FixtureResult<FixtureGroup[]>) => {
+    if (!result.ok) {
+      setFixtureError(result.error);
+      return result.error;
+    }
+    setFixtureError(null);
+    if (bridgeId)
+      useFixtureGroupsStore.getState().setGroups(bridgeId, result.value);
+    return null;
+  };
+  /** Creates a fixture, or changes which lights `existing` holds. */
+  const storeFixture = (name: string, lightIds: string[], existing?: string) =>
+    applyFixtureGroups(
+      saveFixture(
+        fixtureGroups,
+        lightIds,
+        name,
+        existing ?? `fixture-${crypto.randomUUID()}`,
+      ),
+    );
 
   const matchCount =
     filteredLights.length +
@@ -249,32 +342,54 @@ export const DevicesTab = ({
       devices.filter((device) => classifyDevice(device) !== "light").length
     );
   }, [lights.length, summary?.devices]);
-  const emptyDevicesMessage = isLoadingSummary
-    ? "Loading devices..."
-    : query || deviceStatus !== "all"
-      ? "No devices match your filters."
-      : "No devices found.";
-  // An active search or status filter narrows the list to a handful of
-  // matches, so force every rendered section open — otherwise the results
-  // (and their controls, like delete) stay hidden behind a collapsed header.
-  const isFiltering = query !== "" || deviceStatus !== "all";
-  const isSectionOpen = (key: string) =>
-    isFiltering || !collapsedSections.has(key);
-  const toggleSection = (key: string) =>
-    setCollapsedSections((current) => {
-      const next = new Set(current);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  const expandAllSections = () => setCollapsedSections(new Set());
-  const collapseAllSections = () => setCollapsedSections(new Set(SECTION_KEYS));
+  const kindCounts: Record<DeviceKindTab, number> = {
+    lights: filteredLights.length,
+    switches: deviceGroups.switches.length,
+    sensors: deviceGroups.sensors.length,
+    other: deviceGroups.other.length,
+  };
+  // A kind with nothing in it, even unfiltered, has no tab; Other is often
+  // empty. The chosen kind falls back to the first one there is.
+  const kindOptions = DEVICE_KIND_TABS.filter(
+    (option) =>
+      option.value === "lights" ||
+      (option.value === "switches"
+        ? totalOfKind(summary, "switch")
+        : option.value === "sensors"
+          ? totalOfKind(summary, "sensor")
+          : totalOfKind(summary, null)) > 0,
+  ).map((option) => ({
+    ...option,
+    detail: String(kindCounts[option.value]),
+  }));
+  const activeKind = kindOptions.some((option) => option.value === kind)
+    ? kind
+    : "lights";
+  const deviceKindDevices =
+    activeKind === "switches"
+      ? deviceGroups.switches
+      : activeKind === "sensors"
+        ? deviceGroups.sensors
+        : deviceGroups.other;
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="relative flex-1">
+      {/* Stays at the top while the list scrolls, so switching kinds or
+          searching never needs a scroll back up. It sticks to the scroll
+          area's very top edge, past its top padding, so nothing shows above
+          it. The 2rem of card color above the tabs sits in the page header's
+          bottom space at rest, and takes the scroll area's top fade once
+          scrolled, so the fade never reaches the tabs. */}
+      <div className="sticky top-[calc(-1*var(--settings-scroll-pad-top,0px))] z-10 -mt-8 flex flex-col gap-3 bg-card pt-8 pb-3">
+        <SegmentedControl
+          value={activeKind}
+          onValueChange={setKind}
+          ariaLabel="Kind of device"
+          options={kindOptions}
+          layoutId="devices-kind-pill"
+        />
+        <div className="flex items-center gap-3">
+          <div className="relative min-w-0 flex-1">
             <Search
               size={16}
               className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground"
@@ -304,7 +419,7 @@ export const DevicesTab = ({
               setDeviceStatus(value as DeviceStatusFilter)
             }
           >
-            <SelectTrigger size="sm" className="w-40 rounded-4xl">
+            <SelectTrigger size="sm" className="w-40 shrink-0 rounded-4xl">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -321,119 +436,119 @@ export const DevicesTab = ({
           </Select>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">
+        {(query || deviceStatus !== "all") && (
+          <p className="flex items-center text-xs text-muted-foreground">
             Showing{" "}
-            <span className="font-medium text-foreground">{matchCount}</span> of{" "}
-            {totalCount} devices
-            {(query || deviceStatus !== "all") && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="ml-2 h-7 gap-1.5 px-2 text-xs"
-                onClick={() => {
-                  setDeviceQuery("");
-                  setDeviceStatus("all");
-                }}
-              >
-                <FilterX size={14} />
-                Clear filters
-              </Button>
-            )}
+            <span className="mx-1 font-medium text-foreground">
+              {matchCount}
+            </span>{" "}
+            of {totalCount} devices
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="ml-2 h-7 gap-1.5 px-2 text-xs"
+              onClick={() => {
+                setDeviceQuery("");
+                setDeviceStatus("all");
+              }}
+            >
+              <FilterX size={14} />
+              Clear filters
+            </Button>
           </p>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={expandAllSections}
-            >
-              Expand all
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={collapseAllSections}
-            >
-              Collapse all
-            </Button>
-          </div>
-        </div>
+        )}
       </div>
 
-      {matchCount === 0 ? (
-        <EmptyText>{emptyDevicesMessage}</EmptyText>
-      ) : (
-        <>
-          {filteredLights.length > 0 && (
-            <CollapsibleSection
-              title="Lights"
-              count={filteredLights.length}
-              open={isSectionOpen("Lights")}
-              onToggle={() => toggleSection("Lights")}
-            >
-              <RoomGroupedList groups={lightRoomGroups} getKey={(l) => l.id}>
-                {(light) => (
-                  <EditableLightRow
-                    light={light}
-                    roomZones={roomZones}
-                    onRename={onRename}
-                    onDelete={onDelete}
-                    onRefresh={onRefresh}
+      {activeKind === "lights" ? (
+        filteredLights.length === 0 ? (
+          <EmptyText>{emptyMessageFor("lights")}</EmptyText>
+        ) : (
+          <div className="grid gap-3">
+            {fixtureError && (
+              <p className="text-sm text-(--destructive-text)">
+                {fixtureError}
+              </p>
+            )}
+            <RoomGroupedList
+              groups={lightRoomGroups}
+              framed
+              getKey={(fixture) => fixture.id}
+              getCount={(fixture) => fixture.lights.length}
+              headingAction={(group) => {
+                // A light is in one fixture at most, so a room offers
+                // Create fixture only while two of its lights are free.
+                const free = freeLights(
+                  lightsByRoom.get(group.key) ?? [],
+                  fixtureGroups,
+                );
+                if (free.length < 2) return null;
+                return (
+                  <FixtureDialog
+                    lights={free}
+                    suggestedIds={suggestFixtureLights(free, targetOfLight)}
+                    onSave={(name, lightIds) => storeFixture(name, lightIds)}
                   />
-                )}
-              </RoomGroupedList>
-            </CollapsibleSection>
-          )}
-
-          {deviceGroups.switches.length > 0 && (
-            <DeviceGroupPanel
-              title="Switches"
-              devices={deviceGroups.switches}
-              rooms={rooms}
-              servicesByDevice={accessoryServicesByDevice}
-              switchConfigsByDevice={switchConfigsByDevice}
-              isLoading={isLoadingSummary}
-              open={isSectionOpen("Switches")}
-              onToggle={() => toggleSection("Switches")}
-              onDelete={onDelete}
-              onSaveSwitchConfig={onSaveSwitchConfig}
-            />
-          )}
-          {deviceGroups.sensors.length > 0 && (
-            <DeviceGroupPanel
-              title="Sensors"
-              devices={deviceGroups.sensors}
-              rooms={rooms}
-              servicesByDevice={accessoryServicesByDevice}
-              switchConfigsByDevice={switchConfigsByDevice}
-              isLoading={isLoadingSummary}
-              open={isSectionOpen("Sensors")}
-              onToggle={() => toggleSection("Sensors")}
-              onDelete={onDelete}
-              onSaveSwitchConfig={onSaveSwitchConfig}
-            />
-          )}
-          {deviceGroups.other.length > 0 && (
-            <DeviceGroupPanel
-              title="Other Devices"
-              devices={deviceGroups.other}
-              rooms={rooms}
-              servicesByDevice={accessoryServicesByDevice}
-              switchConfigsByDevice={switchConfigsByDevice}
-              isLoading={isLoadingSummary}
-              open={isSectionOpen("Other Devices")}
-              onToggle={() => toggleSection("Other Devices")}
-              onDelete={onDelete}
-              onSaveSwitchConfig={onSaveSwitchConfig}
-            />
-          )}
-        </>
+                );
+              }}
+            >
+              {(fixture) => (
+                <FixtureListItems fixture={fixture} onOpen={setPanel} />
+              )}
+            </RoomGroupedList>
+          </div>
+        )
+      ) : (
+        <DeviceKindList
+          emptyText={emptyMessageFor(activeKind)}
+          devices={deviceKindDevices}
+          rooms={rooms}
+          servicesByDevice={accessoryServicesByDevice}
+          switchConfigsByDevice={switchConfigsByDevice}
+          onDelete={onDelete}
+          onSaveSwitchConfig={onSaveSwitchConfig}
+        />
       )}
+      <LightsPanel
+        panel={panel}
+        lights={lights}
+        fixtures={allFixtures}
+        roomZones={roomZones}
+        roomLightsOf={(fixture) => [
+          // Its own lights, then the free ones in its room; never another
+          // fixture's.
+          ...fixture.lights,
+          ...freeLights(
+            lightsByRoom.get(roomKeyOfLight(fixture.lights[0])) ?? [],
+            fixtureGroups,
+          ),
+        ]}
+        onOpen={setPanel}
+        onEditFixture={(fixture, name, lightIds) =>
+          storeFixture(name, lightIds, fixture.id)
+        }
+        onRenameFixture={(fixture, name) =>
+          applyFixtureGroups(renameFixture(fixtureGroups, fixture.id, name))
+        }
+        onUngroupFixture={(fixture) => {
+          applyFixtureGroups(ungroupFixture(fixtureGroups, fixture.id));
+          setPanel(null);
+        }}
+        onDelete={onDelete}
+        onRefresh={onRefresh}
+      />
     </div>
   );
+
+  function emptyMessageFor(tab: DeviceKindTab) {
+    if (isLoadingSummary && tab !== "lights") return "Loading devices...";
+    const noun = DEVICE_KIND_TABS.find(
+      (option) => option.value === tab,
+    )!.label.toLowerCase();
+    return query || deviceStatus !== "all"
+      ? `No ${noun} match your filters.`
+      : `No ${noun} found.`;
+  }
 };
 
 /**
@@ -444,28 +559,63 @@ export const DevicesTab = ({
 function RoomGroupedList<T>({
   groups,
   getKey,
+  getCount = () => 1,
+  headingAction,
+  framed = false,
   children,
 }: {
   groups: RoomGroup<T>[];
+  /**
+   * Each room as one block: its heading as the first row and its items as
+   * rows below, so rooms read apart without cards inside cards.
+   */
+  framed?: boolean;
   getKey: (item: T) => string;
+  /** How many devices an item stands for, for the room badge. */
+  getCount?: (item: T) => number;
+  /** A control at the end of a room's heading, such as Create fixture. */
+  headingAction?: (group: RoomGroup<T>) => React.ReactNode;
   children: (item: T) => React.ReactNode;
 }) {
   const showHeadings = groups.length > 1 || groups[0]?.key !== UNASSIGNED_KEY;
   return (
-    <div className="grid gap-5">
+    <div className={framed ? "grid gap-3" : "grid gap-5"}>
       {groups.map((group) => (
-        <div key={group.key} className="grid gap-2.5">
-          {showHeadings && (
-            <div className="flex items-center gap-2">
-              <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                {group.title}
-              </h3>
-              <Badge variant="outline" className="tabular-nums">
-                {group.items.length}
-              </Badge>
+        <div
+          key={group.key}
+          className={
+            framed
+              ? cn("overflow-hidden rounded-2xl", SETTINGS_EXPANDABLE_CARD)
+              : "grid gap-2.5"
+          }
+        >
+          {(showHeadings || headingAction) && (
+            <div
+              className={cn(
+                "flex min-h-7 items-center gap-2",
+                framed && "py-2.5 pr-3 pl-4",
+              )}
+            >
+              {showHeadings && (
+                <>
+                  <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    {group.title}
+                  </h3>
+                  <Badge variant="outline" className="tabular-nums">
+                    {group.items.reduce((sum, item) => sum + getCount(item), 0)}
+                  </Badge>
+                </>
+              )}
+              <span className="ml-auto">{headingAction?.(group)}</span>
             </div>
           )}
-          <div className="grid gap-3">
+          <div
+            className={
+              framed
+                ? "divide-y divide-border/60 border-t border-border/60 first:border-t-0"
+                : "grid gap-3"
+            }
+          >
             {group.items.map((item) => (
               <Fragment key={getKey(item)}>{children(item)}</Fragment>
             ))}
@@ -476,361 +626,582 @@ function RoomGroupedList<T>({
   );
 }
 
-const EditableLightRow = ({
-  light,
+/**
+ * A list inside the side panel. Its rows open something, so it takes the same
+ * surface as the fields below it.
+ */
+const PANEL_LIST_CLASS = cn(
+  "divide-y divide-border/60 overflow-hidden rounded-2xl",
+  CONTROL_SURFACE_CLASS,
+);
+
+/** What the side panel shows: a light, or a fixture and its lights. */
+type PanelTarget =
+  | { kind: "light"; id: string; fixtureId?: string }
+  | { kind: "fixture"; id: string };
+
+/** "Hue Centris spot" in the "Hue Centris" fixture reads as "Spot". */
+const headKind = (light: HueLight, fixtureName: string) => {
+  const product = light.productName?.trim();
+  if (!product) return null;
+  const rest = product.toLowerCase().startsWith(fixtureName.toLowerCase())
+    ? product.slice(fixtureName.length).trim()
+    : product;
+  return rest ? rest.charAt(0).toUpperCase() + rest.slice(1) : product;
+};
+
+const lightMeta = (light: HueLight, fixture?: Fixture) =>
+  [
+    fixture ? headKind(light, fixture.name) : light.productName,
+    light.reachable ? null : "Unreachable",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+/** A line in the list that opens its details in the side panel. */
+const ListRow = ({
+  icon: Icon,
+  title,
+  meta,
+  indent = false,
+  inset = "section",
+  trailing,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
+  title: string;
+  meta: string;
+  indent?: boolean;
+  /** "section" lines up with a room block's heading; "panel" sits in a box. */
+  inset?: "section" | "panel";
+  /** Shown before the arrow, such as a battery gauge. */
+  trailing?: React.ReactNode;
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={cn(
+      "flex w-full min-w-0 items-center gap-3 py-2.5 text-left text-foreground transition-colors outline-none hover:bg-foreground/6 focus-visible:bg-foreground/6",
+      inset === "section" ? "pr-4" : "pr-3",
+      indent
+        ? inset === "section"
+          ? "pl-11"
+          : "pl-10"
+        : inset === "section"
+          ? "pl-4"
+          : "pl-3",
+    )}
+  >
+    <Icon
+      className="size-4.5 shrink-0 text-muted-foreground"
+      strokeWidth={2.25}
+    />
+    <span className="min-w-0 flex-1">
+      <span className="block truncate text-sm font-medium">{title}</span>
+      {meta && (
+        <span className="block truncate text-xs text-muted-foreground">
+          {meta}
+        </span>
+      )}
+    </span>
+    {trailing}
+    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+  </button>
+);
+
+/**
+ * A fixture in the Lights list: a single light is one line; a fixture is a
+ * line of its own with its lights indented once beneath it.
+ */
+const FixtureListItems = ({
+  fixture,
+  onOpen,
+}: {
+  fixture: Fixture;
+  onOpen: (target: PanelTarget) => void;
+}) => {
+  if (fixture.lights.length === 1) {
+    const light = fixture.lights[0];
+    return (
+      <ListRow
+        icon={getLightIcon(light.typeName)}
+        title={light.name}
+        meta={lightMeta(light)}
+        onClick={() => onOpen({ kind: "light", id: light.id })}
+      />
+    );
+  }
+  return (
+    <div className="divide-y divide-border/40">
+      <ListRow
+        icon={Layers}
+        title={fixture.name}
+        meta={fixtureMeta(fixture)}
+        onClick={() => onOpen({ kind: "fixture", id: fixture.id })}
+      />
+      {fixture.lights.map((light) => (
+        <ListRow
+          key={light.id}
+          icon={getLightIcon(light.typeName)}
+          title={light.name}
+          meta={lightMeta(light, fixture)}
+          indent
+          onClick={() =>
+            onOpen({ kind: "light", id: light.id, fixtureId: fixture.id })
+          }
+        />
+      ))}
+    </div>
+  );
+};
+
+const fixtureMeta = (fixture: Fixture) => {
+  const unreachable = fixture.lights.filter((light) => !light.reachable).length;
+  return [
+    fixture.custom ? "Fixture" : "Multi-light device",
+    `${fixture.lights.length} lights`,
+    unreachable > 0 ? `${unreachable} unreachable` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+};
+
+/**
+ * The side panel for the Lights list, laid out like the light side pane: the
+ * icon and name at the top, then the settings, the device facts, and removal
+ * at the bottom, with Cancel and Save pinned below. A fixture shows its lights
+ * and settings that apply to all of them.
+ */
+const LightsPanel = ({
+  panel,
+  lights,
+  fixtures,
   roomZones,
-  onRename,
+  roomLightsOf,
+  onOpen,
+  onEditFixture,
+  onRenameFixture,
+  onUngroupFixture,
+  onDelete,
+  onRefresh,
+}: {
+  panel: PanelTarget | null;
+  lights: HueLight[];
+  fixtures: Fixture[];
+  roomZones: HueRoomZone[];
+  /** The lights an edited fixture may be made of: those in its room. */
+  roomLightsOf: (fixture: Fixture) => HueLight[];
+  onOpen: (target: PanelTarget | null) => void;
+  onEditFixture: (
+    fixture: Fixture,
+    name: string,
+    lightIds: string[],
+  ) => string | null;
+  onRenameFixture: (fixture: Fixture, name: string) => void;
+  onUngroupFixture: (fixture: Fixture) => void;
+  onDelete: DeleteResource;
+  onRefresh: () => Promise<void>;
+}) => {
+  const light =
+    panel?.kind === "light"
+      ? lights.find((entry) => entry.id === panel.id)
+      : undefined;
+  const fixture = fixtures.find(
+    (entry) =>
+      entry.id === (panel?.kind === "fixture" ? panel.id : panel?.fixtureId),
+  );
+  const close = () => onOpen(null);
+
+  // A light deleted from its panel, or a fixture ungrouped, closes it. Each
+  // panel is keyed so its draft starts fresh for what it shows.
+  const content = light ? (
+    <LightDetailsPanel
+      key={light.id}
+      light={light}
+      fixture={fixture}
+      roomZones={roomZones}
+      onClose={close}
+      onBack={
+        fixture ? () => onOpen({ kind: "fixture", id: fixture.id }) : undefined
+      }
+      onDelete={onDelete}
+      onRefresh={onRefresh}
+    />
+  ) : panel?.kind === "fixture" && fixture ? (
+    <FixtureDetailsPanel
+      key={fixture.id}
+      fixture={fixture}
+      roomZones={roomZones}
+      roomLights={roomLightsOf(fixture)}
+      onClose={close}
+      onOpenLight={(head) =>
+        onOpen({ kind: "light", id: head.id, fixtureId: fixture.id })
+      }
+      onEditLights={(name, lightIds) => onEditFixture(fixture, name, lightIds)}
+      onRename={(name) => onRenameFixture(fixture, name)}
+      onUngroup={() => onUngroupFixture(fixture)}
+      onRefresh={onRefresh}
+    />
+  ) : null;
+  // One sheet stays mounted, so it slides in and out; while it slides away it
+  // keeps showing what it last showed.
+  const shown = useRef<React.ReactNode>(null);
+  if (content) shown.current = content;
+  return (
+    <DetailsSheet open={content != null} onClose={close}>
+      {content ?? shown.current}
+    </DetailsSheet>
+  );
+};
+
+/** Cancel and Save, pinned to the bottom of a panel. */
+const SaveFooter = ({
+  settings,
+  onCancel,
+}: {
+  settings: LightSettings;
+  onCancel: () => void;
+}) => (
+  <>
+    <Button
+      type="button"
+      variant="outline"
+      className="flex-1"
+      disabled={settings.isSaving}
+      onClick={onCancel}
+    >
+      Cancel
+    </Button>
+    <Button
+      type="button"
+      className="flex-1"
+      disabled={!settings.dirty || settings.isSaving}
+      onClick={() => void settings.save()}
+    >
+      {settings.isSaving && <Loader2 className="animate-spin" />}
+      Save
+    </Button>
+  </>
+);
+
+const LightDetailsPanel = ({
+  light,
+  fixture,
+  roomZones,
+  onClose,
+  onBack,
   onDelete,
   onRefresh,
 }: {
   light: HueLight;
+  /** The fixture it was opened from, if any. */
+  fixture?: Fixture;
   roomZones: HueRoomZone[];
-  onRename: RenameResource;
+  onClose: () => void;
+  onBack?: () => void;
   onDelete: DeleteResource;
   onRefresh: () => Promise<void>;
 }) => {
-  const [icon, setIcon] = useState(light.typeName ?? "");
-  const [func, setFunc] = useState(light.function ?? "");
-  const [room, setRoom] = useState<string | null>(
-    roomForLight(light, roomZones),
-  );
-  const [zoneIds, setZoneIds] = useState<string[]>(
-    zonesForLight(light, roomZones),
-  );
-  const [powerOn, setPowerOn] = useState(() => powerOnDraftFromLight(light));
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setIcon(light.typeName ?? "");
-    setFunc(light.function ?? "");
-    setRoom(roomForLight(light, roomZones));
-    setZoneIds(zonesForLight(light, roomZones));
-    setPowerOn(powerOnDraftFromLight(light));
-    setError(null);
-  }, [light, roomZones]);
-
-  const rooms = roomZones.filter((space) => space.resourceType === "room");
-  const zones = roomZones.filter((space) => space.resourceType === "zone");
-  const originalRoom = roomForLight(light, roomZones);
-  const originalZones = zonesForLight(light, roomZones);
-  const originalPowerOn = powerOnDraftFromLight(light);
-  const metadataChanged =
-    icon !== (light.typeName ?? "") || func !== (light.function ?? "");
-  const powerOnChanged =
-    light.powerup != null && !samePowerOnDraft(powerOn, originalPowerOn);
-  const placementChanged =
-    room !== originalRoom || !sameIds(zoneIds, originalZones);
-  const dirty = metadataChanged || powerOnChanged || placementChanged;
-
-  const save = async () => {
-    if (!dirty) return;
-    if (placementChanged && !light.deviceId) {
-      setError("This light is missing its owning device id.");
-      return;
-    }
-
-    setIsSaving(true);
-    setError(null);
-    try {
-      if (metadataChanged || powerOnChanged) {
-        await invoke("update-hue-resource", {
-          resourceType: "light",
-          id: light.id,
-          body: {
-            ...(metadataChanged
-              ? {
-                  metadata: {
-                    name: light.name,
-                    ...(icon ? { archetype: icon } : null),
-                    ...(func ? { function: func } : null),
-                  },
-                }
-              : null),
-            ...(powerOnChanged ? buildPowerOnBody(powerOn) : null),
-          },
-        });
-      }
-      if (room !== originalRoom) {
-        await updateRoomPlacement(light, roomZones, room);
-      }
-      if (!sameIds(zoneIds, originalZones)) {
-        await updateZonesPlacement(light, roomZones, zoneIds);
-      }
-      await onRefresh();
-    } catch (saveError) {
-      setError(String(saveError) || "Unable to save light settings.");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const iconOptions =
-    icon && !LIGHT_ICON_OPTIONS.some((option) => option.value === icon)
-      ? [
-          ...LIGHT_ICON_OPTIONS,
-          { value: icon, label: humanize(icon), Icon: getLightIcon(icon) },
-        ]
-      : LIGHT_ICON_OPTIONS;
-  const iconItems = Object.fromEntries(
-    iconOptions.map((option) => [option.value, option.label]),
-  );
+  const settings = useLightSettings({
+    lights: [light],
+    roomZones,
+    name: light.name,
+    onRefresh,
+  });
+  const inGroup = fixture != null && fixture.lights.length > 1;
 
   return (
-    <EditableResourceRow
-      id={light.id}
-      resourceType="light"
-      name={light.name}
-      eyebrow={light.productName ?? light.typeName ?? "Hue light"}
-      meta={[
-        !light.reachable ? "Offline" : null,
-        light.powerup ? `Power on: ${powerupSummary(light.powerup)}` : null,
-      ]}
-      onRename={onRename}
-      onDelete={onDelete}
-      deleteDescription={`Delete light "${light.name}" from the bridge.`}
+    <DetailsFrame
+      onClose={onClose}
+      eyebrow={lightMeta(light) || "Hue light"}
+      title={light.name}
+      back={
+        fixture && onBack ? { label: fixture.name, onClick: onBack } : undefined
+      }
+      guard={settings}
+      footer={
+        <SaveFooter
+          settings={settings}
+          // Cancel drops the edits; with none, it closes like the side pane.
+          onCancel={settings.dirty ? settings.discard : onClose}
+        />
+      }
     >
-      <Accordion className="mt-3 rounded-xl border-border/60">
-        <AccordionItem value="settings">
-          <AccordionTrigger className="p-3">Light settings</AccordionTrigger>
-          <AccordionContent className="px-3">
-            <div className="grid gap-4">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="grid gap-1.5">
-                  <Label>Icon</Label>
-                  <Select
-                    items={iconItems}
-                    value={icon || null}
-                    onValueChange={(value) => setIcon(value ?? "")}
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Choose icon">
-                        {(value: string | null) => {
-                          const option = iconOptions.find(
-                            (item) => item.value === value,
-                          );
-                          if (!option) return "Choose icon";
-                          const Icon = option.Icon;
-                          return (
-                            <>
-                              <Icon
-                                className="size-4.5 text-muted-foreground"
-                                strokeWidth={2.25}
-                              />
-                              <span>{option.label}</span>
-                            </>
-                          );
-                        }}
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {iconOptions.map(({ value, label, Icon }) => (
-                        <SelectItem key={value} value={value}>
-                          <Icon
-                            className="size-4.5 text-muted-foreground"
-                            strokeWidth={2.25}
-                          />
-                          <span>{label}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid gap-1.5">
-                  <Label>Function</Label>
-                  <Select
-                    items={{
-                      functional: "Task",
-                      decorative: "Decorative",
-                      mixed: "Mixed",
-                    }}
-                    value={func || null}
-                    onValueChange={(value) => setFunc(value ?? "")}
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Choose function" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="functional">Task</SelectItem>
-                      <SelectItem value="decorative">Decorative</SelectItem>
-                      <SelectItem value="mixed">Mixed</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <div className="grid gap-1.5">
-                  <Label>Room</Label>
-                  <Select
-                    items={{
-                      [NO_ROOM]: "No room",
-                      ...Object.fromEntries(
-                        rooms.map((space) => [space.id, space.name]),
-                      ),
-                    }}
-                    value={room ?? NO_ROOM}
-                    onValueChange={(value) =>
-                      setRoom(value === NO_ROOM ? null : value)
-                    }
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={NO_ROOM}>No room</SelectItem>
-                      {rooms.map((space) => (
-                        <SelectItem key={space.id} value={space.id}>
-                          {space.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid gap-1.5">
-                  <Label>Zones</Label>
-                  <Select
-                    multiple
-                    items={Object.fromEntries(
-                      zones.map((space) => [space.id, space.name]),
-                    )}
-                    value={zoneIds}
-                    onValueChange={setZoneIds}
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="No zones">
-                        {(value: string[]) =>
-                          value.length === 0
-                            ? "No zones"
-                            : value
-                                .map(
-                                  (id) =>
-                                    zones.find((space) => space.id === id)
-                                      ?.name ?? id,
-                                )
-                                .join(", ")
-                        }
-                      </SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {zones.map((space) => (
-                        <SelectItem
-                          key={space.id}
-                          value={space.id}
-                          indicator="checkbox"
-                        >
-                          {space.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <PowerOnFields
-                light={light}
-                value={powerOn}
-                onChange={setPowerOn}
-                disabled={isSaving}
-              />
-
-              {error && (
-                <p className="text-sm text-(--destructive-text)">{error}</p>
-              )}
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  size="sm"
-                  disabled={!dirty || isSaving}
-                  onClick={() => void save()}
-                >
-                  {isSaving && <Loader2 className="animate-spin" />}
-                  Save changes
-                </Button>
-              </div>
-            </div>
-          </AccordionContent>
-        </AccordionItem>
-        <AccordionItem value="details">
-          <AccordionTrigger className="p-3">Device details</AccordionTrigger>
-          <AccordionContent className="px-3">
-            <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-              <DeviceField
-                label="Product"
-                value={light.productName ?? light.typeName}
-              />
-              <DeviceField label="Model" value={light.modelId} />
-              <DeviceField label="Firmware" value={light.swVersion} />
-              <DeviceField label="Zigbee ID" value={light.uniqueId} mono />
-            </dl>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
-    </EditableResourceRow>
+      <LightHero
+        icon={settings.draft.icon}
+        name={settings.draft.name}
+        disabled={settings.isSaving}
+        onIconChange={(icon) => settings.set({ icon })}
+        onNameChange={(name) => settings.set({ name })}
+      />
+      {inGroup && (
+        <p className="-mt-3 text-center text-xs text-muted-foreground">
+          Part of {fixture.name}. Changes here are for this light only.
+        </p>
+      )}
+      <LightSettingsFields
+        settings={settings}
+        lights={[light]}
+        roomZones={roomZones}
+        roomLockedReason={
+          inGroup
+            ? fixture.custom
+              ? `Set from ${fixture.name}, so all of its lights stay in one room.`
+              : `The room belongs to the whole device. Set it from ${fixture.name}.`
+            : undefined
+        }
+      />
+      {settings.error && (
+        <p className="text-sm text-(--destructive-text)">{settings.error}</p>
+      )}
+      <DetailsSection title="Device details">
+        <LightDeviceFields light={light} />
+      </DetailsSection>
+      <DetailsSpacer />
+      <RemoveResourceSection
+        title={`Delete ${light.name}`}
+        description="Removes it from your Hue Bridge."
+        actionLabel="Delete"
+        confirmTone="danger"
+        confirmTitle={`Delete "${light.name}"?`}
+        confirmBody={`It is removed from your Hue Bridge, along with its rooms, zones and scenes. To use it again, you have to add it to the bridge again.`}
+        disabled={settings.isSaving}
+        onConfirm={() => onDelete("light", light.id)}
+      />
+    </DetailsFrame>
   );
 };
 
-const DeviceGroupPanel = ({
-  title,
+const FixtureDetailsPanel = ({
+  fixture,
+  roomZones,
+  roomLights,
+  onClose,
+  onOpenLight,
+  onEditLights,
+  onRename,
+  onUngroup,
+  onRefresh,
+}: {
+  fixture: Fixture;
+  roomZones: HueRoomZone[];
+  /** The lights its lights may be chosen from: its own and its room's free ones. */
+  roomLights: HueLight[];
+  onClose: () => void;
+  onOpenLight: (light: HueLight) => void;
+  onEditLights: (name: string, lightIds: string[]) => string | null;
+  onRename: (name: string) => void;
+  onUngroup: () => void;
+  onRefresh: () => Promise<void>;
+}) => {
+  const settings = useLightSettings({
+    lights: fixture.lights,
+    roomZones,
+    name: fixture.name,
+    // A fixture is Mote's, so only one the person made can be renamed.
+    saveName: fixture.custom ? onRename : undefined,
+    onRefresh,
+  });
+  const roomNameOf = (head: HueLight) =>
+    roomZones.find(
+      (space) =>
+        space.resourceType === "room" &&
+        head.deviceId != null &&
+        space.deviceIds.includes(head.deviceId),
+    )?.name ?? "No room";
+  // A fixture hangs in one room; lights moved apart elsewhere say so.
+  const apart = new Set(fixture.lights.map(roomNameOf)).size > 1;
+
+  return (
+    <DetailsFrame
+      onClose={onClose}
+      eyebrow={fixtureMeta(fixture)}
+      title={fixture.name}
+      guard={settings}
+      footer={
+        <SaveFooter
+          settings={settings}
+          onCancel={settings.dirty ? settings.discard : onClose}
+        />
+      }
+    >
+      <LightHero
+        icon={settings.draft.icon === MIXED ? "" : settings.draft.icon}
+        fallbackIcon={Layers}
+        name={settings.draft.name}
+        disabled={settings.isSaving}
+        onIconChange={(icon) => settings.set({ icon })}
+        onNameChange={
+          fixture.custom ? (name) => settings.set({ name }) : undefined
+        }
+      />
+      <DetailsSection
+        title="Lights"
+        description={
+          apart
+            ? "Its lights are in different rooms. Choose one room below to bring them together."
+            : undefined
+        }
+        action={
+          fixture.custom && (
+            <FixtureDialog
+              fixture={fixture}
+              lights={roomLights}
+              onSave={onEditLights}
+            />
+          )
+        }
+      >
+        <div className={PANEL_LIST_CLASS}>
+          {fixture.lights.map((head) => (
+            <ListRow
+              key={head.id}
+              icon={getLightIcon(head.typeName)}
+              title={head.name}
+              meta={[lightMeta(head, fixture), apart ? roomNameOf(head) : null]
+                .filter(Boolean)
+                .join(" · ")}
+              inset="panel"
+              onClick={() => onOpenLight(head)}
+            />
+          ))}
+        </div>
+      </DetailsSection>
+      <DetailsSection
+        title="Settings"
+        description={`Applies to ${fixture.lights.length === 2 ? "both" : `all ${fixture.lights.length}`} lights, including the icon above.`}
+      >
+        <LightSettingsFields
+          settings={settings}
+          lights={fixture.lights}
+          roomZones={roomZones}
+        />
+      </DetailsSection>
+      {settings.error && (
+        <p className="text-sm text-(--destructive-text)">{settings.error}</p>
+      )}
+      {fixture.custom && (
+        <>
+          <DetailsSpacer />
+          <RemoveResourceSection
+            title="Ungroup fixture"
+            description="Lists its lights separately again."
+            actionLabel="Ungroup"
+            confirmTitle={`Ungroup "${fixture.name}"?`}
+            confirmBody="Its lights are listed and placed on the map separately again. Nothing changes on the bridge, and you can group them again at any time."
+            disabled={settings.isSaving}
+            onConfirm={async () => onUngroup()}
+          />
+        </>
+      )}
+    </DetailsFrame>
+  );
+};
+
+/** Product facts about a light's device, for its panel. */
+const LightDeviceFields = ({ light }: { light: HueLight }) => (
+  <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+    <DeviceField label="Product" value={light.productName ?? light.typeName} />
+    <DeviceField label="Model" value={light.modelId} />
+    <DeviceField label="Firmware" value={light.swVersion} />
+    <DeviceField label="Zigbee ID" value={light.uniqueId} mono />
+  </dl>
+);
+
+/** One kind of device (switches, sensors, other) as rooms of rows. */
+const DeviceKindList = ({
+  emptyText,
   devices,
   rooms,
   servicesByDevice,
   switchConfigsByDevice,
-  isLoading,
-  open,
-  onToggle,
   onDelete,
   onSaveSwitchConfig,
 }: {
-  title: string;
+  emptyText: string;
   devices: HueSettingsDevice[];
   rooms: HueRoomZone[];
   servicesByDevice: Map<string, HueAccessoryService[]>;
   switchConfigsByDevice: Map<string, HueSwitchInputConfiguration[]>;
-  isLoading: boolean;
-  open: boolean;
-  onToggle: () => void;
   onDelete: DeleteResource;
   onSaveSwitchConfig: SaveSwitchConfig;
 }) => {
   const groups = groupByRoom(devices, (device) => device.id, rooms);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const opened = devices.find((device) => device.id === openId);
+  // Kept while the sheet slides away, so it doesn't empty as it closes.
+  const lastOpened = useRef<HueSettingsDevice | undefined>(undefined);
+  if (opened) lastOpened.current = opened;
+  const shown = opened ?? lastOpened.current;
   return (
-    <CollapsibleSection
-      title={title}
-      count={devices.length}
-      open={open}
-      onToggle={onToggle}
-    >
+    <>
       {devices.length === 0 ? (
-        <EmptyText>
-          {isLoading
-            ? "Loading devices..."
-            : `No ${title.toLowerCase()} found.`}
-        </EmptyText>
+        <EmptyText>{emptyText}</EmptyText>
       ) : (
-        <RoomGroupedList groups={groups} getKey={(device) => device.id}>
-          {(device) => (
-            <DeviceRow
-              device={device}
-              services={servicesByDevice.get(device.id) ?? []}
-              switchConfigs={switchConfigsByDevice.get(device.id) ?? []}
+        <RoomGroupedList groups={groups} framed getKey={(device) => device.id}>
+          {(device) => {
+            const battery = servicesByDevice
+              .get(device.id)
+              ?.find((service) => service.resourceType === "device_power");
+            return (
+              <ListRow
+                icon={deviceIcon(device)}
+                title={device.name}
+                meta={[
+                  device.productName ?? friendlyDeviceType(device),
+                  device.reachable ? null : "Unreachable",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                trailing={battery && <SensorBatteryGauge service={battery} />}
+                onClick={() => setOpenId(device.id)}
+              />
+            );
+          }}
+        </RoomGroupedList>
+      )}
+      <DetailsSheet open={Boolean(opened)} onClose={() => setOpenId(null)}>
+        {shown && (
+          <DetailsFrame
+            onClose={() => setOpenId(null)}
+            title={shown.name}
+            eyebrow={[
+              shown.productName ?? friendlyDeviceType(shown),
+              shown.reachable ? null : "Unreachable",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          >
+            <LightHero
+              icon=""
+              fallbackIcon={deviceIcon(shown)}
+              name={shown.name}
+            />
+            <DeviceDetails
+              key={shown.id}
+              device={shown}
+              services={servicesByDevice.get(shown.id) ?? []}
+              switchConfigs={switchConfigsByDevice.get(shown.id) ?? []}
               onDelete={onDelete}
               onSaveSwitchConfig={onSaveSwitchConfig}
             />
-          )}
-        </RoomGroupedList>
-      )}
-    </CollapsibleSection>
+          </DetailsFrame>
+        )}
+      </DetailsSheet>
+    </>
   );
 };
 
-const DeviceRow = ({
+const deviceIcon = (device: HueSettingsDevice) => {
+  const kind = classifyDevice(device);
+  if (kind === "switch") return ToggleRight;
+  if (kind === "sensor") return Radar;
+  return Cpu;
+};
+
+/** Everything about a switch, sensor or other device, for the side panel. */
+const DeviceDetails = ({
   device,
   services,
   switchConfigs,
@@ -858,120 +1229,97 @@ const DeviceRow = ({
   const serviceTypes = [...new Set(device.serviceTypes)];
 
   return (
-    <Card size="sm" className={cn("bg-background/70", FLAT_CARD)}>
-      <CardContent>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate font-medium">{device.name}</p>
-            <p className="truncate text-sm text-muted-foreground">
-              {device.productName ?? friendlyDeviceType(device)}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {!device.reachable && <Badge variant="destructive">Offline</Badge>}
+    <>
+      {(battery || primaryReadings.length > 0) && (
+        <DetailsSection title="Readings">
+          <div className="flex flex-wrap items-center gap-1.5">
             {battery && <SensorBatteryGauge service={battery} />}
-          </div>
-        </div>
-
-        {primaryReadings.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-1.5">
             {primaryReadings.map((service) => (
               <SensorReadingPill key={service.id} service={service} />
             ))}
           </div>
+        </DetailsSection>
+      )}
+
+      <DetailsSection title="Device details">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+          <DeviceField label="Product" value={device.productName} />
+          <DeviceField label="Model" value={device.modelId} />
+          <DeviceField label="Firmware" value={device.swVersion} />
+          <DeviceField label="Zigbee ID" value={device.uniqueId} mono />
+        </dl>
+        {serviceTypes.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {serviceTypes.map((serviceType) => (
+              <Badge key={serviceType} variant="outline">
+                {humanize(serviceType)}
+              </Badge>
+            ))}
+          </div>
         )}
+      </DetailsSection>
 
-        <Accordion className="mt-3 rounded-xl border-border/60">
-          <AccordionItem value="details">
-            <AccordionTrigger className="p-3">Device details</AccordionTrigger>
-            <AccordionContent className="px-3">
-              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-                <DeviceField label="Product" value={device.productName} />
-                <DeviceField label="Model" value={device.modelId} />
-                <DeviceField label="Firmware" value={device.swVersion} />
-                <DeviceField label="Zigbee ID" value={device.uniqueId} mono />
-              </dl>
-
-              {serviceTypes.length > 0 && (
-                <div className="mt-4">
-                  <p className="mb-2 text-xs font-medium text-muted-foreground">
-                    Services
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {serviceTypes.map((serviceType) => (
-                      <Badge key={serviceType} variant="outline">
-                        {humanize(serviceType)}
-                      </Badge>
+      {(services.length > 0 || switchConfigs.length > 0) && (
+        <DetailsSection
+          title="Troubleshooting"
+          description="What the bridge reports, for when something misbehaves."
+        >
+          <Accordion className="rounded-xl border-border/60">
+            {services.length > 0 && (
+              <AccordionItem value="services">
+                <AccordionTrigger className="p-3">
+                  Service diagnostics
+                </AccordionTrigger>
+                <AccordionContent className="px-3">
+                  <div className="grid gap-2">
+                    {services.map((service) => (
+                      <AccessoryServiceRow key={service.id} service={service} />
                     ))}
                   </div>
-                </div>
-              )}
-
-              {(services.length > 0 || switchConfigs.length > 0) && (
-                <Accordion className="mt-4 rounded-xl border-border/60">
-                  {services.length > 0 && (
-                    <AccordionItem value="services">
-                      <AccordionTrigger className="p-3">
-                        Service diagnostics
-                      </AccordionTrigger>
-                      <AccordionContent className="px-3">
-                        <div className="grid gap-2">
-                          {services.map((service) => (
-                            <AccessoryServiceRow
-                              key={service.id}
-                              service={service}
-                            />
-                          ))}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  )}
-                  {switchConfigs.length > 0 && (
-                    <AccordionItem value="switch-config">
-                      <AccordionTrigger className="p-3">
-                        Advanced switch configuration
-                      </AccordionTrigger>
-                      <AccordionContent className="px-3">
-                        <p className="mb-3 text-xs text-muted-foreground">
-                          Raw bridge configuration for troubleshooting and
-                          custom switch behavior.
-                        </p>
-                        <div className="grid gap-2">
-                          {switchConfigs.map((config) => (
-                            <SwitchConfigEditor
-                              key={config.id}
-                              config={config}
-                              onSave={onSaveSwitchConfig}
-                            />
-                          ))}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  )}
-                </Accordion>
-              )}
-
-              {!isBridgeDevice(device) && (
-                <div className="mt-4 flex flex-col items-start gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Remove device</p>
-                    <p className="text-xs text-muted-foreground">
-                      Disconnect this device from the Hue Bridge.
-                    </p>
+                </AccordionContent>
+              </AccordionItem>
+            )}
+            {switchConfigs.length > 0 && (
+              <AccordionItem value="switch-config">
+                <AccordionTrigger className="p-3">
+                  Advanced switch configuration
+                </AccordionTrigger>
+                <AccordionContent className="px-3">
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    Raw bridge configuration for troubleshooting and custom
+                    switch behavior.
+                  </p>
+                  <div className="grid gap-2">
+                    {switchConfigs.map((config) => (
+                      <SwitchConfigEditor
+                        key={config.id}
+                        config={config}
+                        onSave={onSaveSwitchConfig}
+                      />
+                    ))}
                   </div>
-                  <DeleteResourceButton
-                    label={device.name}
-                    description={`Delete device "${device.name}" from the bridge.`}
-                    triggerLabel="Remove device"
-                    onDelete={() => onDelete("device", device.id)}
-                  />
-                </div>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-        </Accordion>
-      </CardContent>
-    </Card>
+                </AccordionContent>
+              </AccordionItem>
+            )}
+          </Accordion>
+        </DetailsSection>
+      )}
+
+      {!isBridgeDevice(device) && (
+        <>
+          <DetailsSpacer />
+          <RemoveResourceSection
+            title={`Delete ${device.name}`}
+            description="Removes it from your Hue Bridge."
+            actionLabel="Delete"
+            confirmTone="danger"
+            confirmTitle={`Delete "${device.name}"?`}
+            confirmBody="It is removed from your Hue Bridge, along with anything it controls there. To use it again, you have to add it to the bridge again."
+            onConfirm={() => onDelete("device", device.id)}
+          />
+        </>
+      )}
+    </>
   );
 };
 

@@ -9,9 +9,21 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 - A light the bridge can't reach, such as one turned off at the wall, now
   says Unreachable under its name.
+- Group lights that are one physical product, such as the spots and ceiling
+  of a Hue Centris, into a fixture with Create fixture in Settings > Devices.
+  Mote suggests the likely lights, and the fixture shows as one card there
+  and one marker on the map. Settings changed on a fixture apply to all of
+  its lights, including its room, so they stay together. A light can be in
+  one fixture; change its lights or Ungroup it at any time.
+- Settings > Devices is a plain list per room. Choose a light, switch, or
+  sensor to see and change its settings in a side panel.
+- Custom power-on uses a brightness slider and the same color and white
+  wheels as the light controls, instead of number fields.
 
 ### Fixes
 
+- Side panels no longer slide under the title bar, so their title and close
+  button are always visible.
 - Lights that come back after a power cut no longer show full brightness
   after they have returned to their real state.
 

@@ -64,7 +64,7 @@ export class ErrorBoundary extends Component<
       // The window has no native frame, so without its own title bar a crash
       // would leave nothing to move, minimise, or close it with.
       return (
-        <main className="h-screen overflow-hidden bg-background pt-10 text-foreground">
+        <main className="h-screen overflow-hidden bg-background pt-(--title-bar-height) text-foreground">
           <TitleBar plain />
           <ErrorScreen
             error={error}

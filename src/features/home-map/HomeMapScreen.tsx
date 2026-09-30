@@ -59,14 +59,20 @@ import {
   addFloor,
   buildTray,
   placeFixture,
-  rejoinFixture,
   removeFloor,
   renameFloor,
-  splitFixture,
-  targetsOfLights,
   unplaceFixture,
 } from "./placement";
 import { groupFixtures, indexFixtures } from "./fixtures";
+import {
+  ungroupFixture,
+  type FixtureGroup,
+  type FixtureResult,
+} from "@/lib/fixtures";
+import {
+  useFixtureGroups,
+  useFixtureGroupsStore,
+} from "@/stores/FixtureGroupsStore";
 import { insertCorner, mergeCorners, removeCorner } from "./walls";
 import type { HomeMapLighting } from "./lighting";
 import { getMapControlScope } from "./controlScope";
@@ -189,22 +195,21 @@ export function HomeMapScreen({
   } | null>(null);
   const removeZoneRef = useRef<HTMLDivElement>(null);
   const { blinkingKeys, blink } = useBlinkLights();
+  // Fixtures the person grouped in Settings > Devices, kept per bridge.
+  const fixtureGroups = useFixtureGroups(map.bridgeId);
   // Markers, labels and placement all work on whole products, not single bulbs.
   const fixtures = useMemo(
     () =>
       indexFixtures(
-        groupFixtures(lighting.lights, {
-          targetOfLight: targetsOfLights(roomZones),
-          overrides: map.fixtures,
-        }),
+        groupFixtures(lighting.lights, { overrides: fixtureGroups }),
       ),
-    [lighting.lights, roomZones, map.fixtures],
+    [lighting.lights, fixtureGroups],
   );
   // Every bridge fixture measured against the map, so the screen can say how
   // many are still waiting to be placed before the editor is even opened.
   const tray = useMemo(
-    () => buildTray(map, lighting.lights, roomZones),
-    [map, lighting.lights, roomZones],
+    () => buildTray(map, lighting.lights, roomZones, fixtureGroups),
+    [map, lighting.lights, roomZones, fixtureGroups],
   );
   const unplacedCount = tray.filter((entry) => entry.floorId === null).length;
   /** Leaves the editor's transient selections behind before a mode change. */
@@ -298,6 +303,15 @@ export function HomeMapScreen({
     }
     setWallError(null);
     onEditMap(result.value);
+  }
+
+  function applyFixtureGroups(result: FixtureResult<FixtureGroup[]>) {
+    if (!result.ok) {
+      setWallError(result.error);
+      return;
+    }
+    setWallError(null);
+    useFixtureGroupsStore.getState().setGroups(map.bridgeId, result.value);
   }
 
   /** Returns whether the edit was accepted, so tools stay open on failure. */
@@ -464,11 +478,8 @@ export function HomeMapScreen({
       onChoose={setPlacingFixtureId}
       onLift={(fixture) => setLiftedFixtureId(fixture.id)}
       onIdentify={(fixture) => void blink(fixture.id, fixture.lightIds)}
-      onSplit={(fixture) =>
-        applyMapEdit(splitFixture(map, lighting.lights, roomZones, fixture.id))
-      }
-      onRejoin={(fixture) =>
-        applyMapEdit(rejoinFixture(map, lighting.lights, roomZones, fixture.id))
+      onUngroup={(fixture) =>
+        applyFixtureGroups(ungroupFixture(fixtureGroups, fixture.id))
       }
       onRemove={(fixture) =>
         applyMapEdit(unplaceFixture(map, fixture.lightIds))

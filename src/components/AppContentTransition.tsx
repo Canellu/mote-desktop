@@ -5,6 +5,7 @@ export type AppViewKey =
   | "wizard-dev"
   | "component-gallery"
   | "device-gallery"
+  | "devices-preview"
   | "widget-wizard"
   | "home-preview"
   | "loading"

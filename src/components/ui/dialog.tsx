@@ -2,6 +2,10 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import * as React from "react";
 
 import { Button } from "@/components/ui/button";
+import {
+  OverlayLayerContext,
+  useInsideOverlayLayer,
+} from "@/components/ui/layer-context";
 import { cn } from "@/lib/utils";
 import { XIcon } from "lucide-react";
 
@@ -32,7 +36,7 @@ function DialogOverlay({
       // plan's flight back to the badge) keeps the backdrop mounted, and without
       // it the backdrop snaps back to full strength until the popup is gone.
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/80 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 data-closed:[--tw-animation-fill-mode:forwards]",
+        "fixed inset-0 isolate z-50 bg-black/80 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 data-closed:pointer-events-none data-closed:[--tw-animation-fill-mode:forwards]",
         className,
       )}
       {...props}
@@ -48,9 +52,18 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
 }) {
+  const nested = useInsideOverlayLayer();
   return (
     <DialogPortal>
-      <DialogOverlay />
+      {/* On top of a sheet or dialog, a see-through backdrop takes the outside
+          click, so it closes this dialog and not the layer below. */}
+      <DialogOverlay
+        forceRender={nested}
+        className={cn(
+          nested &&
+            "bg-transparent supports-backdrop-filter:backdrop-blur-none",
+        )}
+      />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
@@ -59,7 +72,9 @@ function DialogContent({
         )}
         {...props}
       >
-        {children}
+        <OverlayLayerContext.Provider value>
+          {children}
+        </OverlayLayerContext.Provider>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
 
+import { useInsideOverlayLayer } from "@/components/ui/layer-context";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -30,7 +31,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/80 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/80 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 data-closed:pointer-events-none",
         className,
       )}
       {...props}
@@ -45,9 +46,18 @@ function AlertDialogContent({
 }: AlertDialogPrimitive.Popup.Props & {
   size?: "default" | "sm";
 }) {
+  const nested = useInsideOverlayLayer();
   return (
     <AlertDialogPortal>
-      <AlertDialogOverlay />
+      {/* On top of a sheet or dialog, a see-through backdrop keeps an outside
+          click from reaching the layer below. */}
+      <AlertDialogOverlay
+        forceRender={nested}
+        className={cn(
+          nested &&
+            "bg-transparent supports-backdrop-filter:backdrop-blur-none",
+        )}
+      />
       <AlertDialogPrimitive.Popup
         data-slot="alert-dialog-content"
         data-size={size}

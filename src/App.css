@@ -66,6 +66,11 @@
 }
 
 :root {
+  /* The custom title bar is fixed over the top of every window; the app shell
+     pads below it and anything anchored to the window edge, like a sheet,
+     starts below it too. */
+  --title-bar-height: 2.5rem;
+
   /* Surface elevation ladder: each step up the stack (background → card → tile
      → popover) is equal or lighter in both themes, so elevation reads
      consistently. In light mode card and tiles sit at or just under the white

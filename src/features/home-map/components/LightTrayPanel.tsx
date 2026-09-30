@@ -2,7 +2,6 @@ import {
   Crosshair,
   GripVertical,
   Lightbulb,
-  Link2,
   Loader2,
   MapPin,
   Unlink2,
@@ -26,10 +25,8 @@ interface TrayActions {
   onRemove: (fixture: MapFixture) => void;
   /** Places without aiming, so a mouse drag is never required. */
   onPlaceInArea: (entry: TrayFixture) => void;
-  /** Breaks a joined-up product back into the devices the bridge reports. */
-  onSplit: (fixture: MapFixture) => void;
-  /** Lets a split product group itself up again. */
-  onRejoin: (fixture: MapFixture) => void;
+  /** Undoes a fixture the person grouped in Settings > Devices. */
+  onUngroup: (fixture: MapFixture) => void;
 }
 
 export function LightTrayPanel({
@@ -191,8 +188,7 @@ function TrayRow({
   onIdentify,
   onRemove,
   onPlaceInArea,
-  onSplit,
-  onRejoin,
+  onUngroup,
 }: TrayActions & {
   entry: TrayFixture;
   floor: MapFloor;
@@ -286,27 +282,16 @@ function TrayRow({
           )}
         </span>
         <span className="pointer-events-auto flex items-center">
-          {fixture.deviceCount > 1 ? (
+          {fixture.custom ? (
             <Button
               size="icon-sm"
               variant="ghost"
-              aria-label={`Split ${fixture.name} into ${fixture.deviceCount} fixtures`}
-              title={`Split into ${fixture.deviceCount} fixtures`}
+              aria-label={`Ungroup ${fixture.name}`}
+              title="Ungroup into separate lights"
               disabled={busy}
-              onClick={() => onSplit(fixture)}
+              onClick={() => onUngroup(fixture)}
             >
               <Unlink2 />
-            </Button>
-          ) : entry.rejoins ? (
-            <Button
-              size="icon-sm"
-              variant="ghost"
-              aria-label={`Group ${fixture.name} back into ${entry.rejoins}`}
-              title={`Group back into ${entry.rejoins}`}
-              disabled={busy}
-              onClick={() => onRejoin(fixture)}
-            >
-              <Link2 />
             </Button>
           ) : null}
           <Button

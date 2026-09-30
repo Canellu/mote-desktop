@@ -26,6 +26,15 @@ import { useBlinkLights } from "@/hooks/useBlinkLights";
 import { useGlobalKeyboardShortcut } from "@/hooks/useGlobalKeyboardShortcut";
 import type { HueLight, HueRoomZone } from "@/types/hue";
 import { groupFixtures, indexFixtures } from "../fixtures";
+import {
+  ungroupFixture,
+  type FixtureGroup,
+  type FixtureResult,
+} from "@/lib/fixtures";
+import {
+  useFixtureGroups,
+  useFixtureGroupsStore,
+} from "@/stores/FixtureGroupsStore";
 import { createHomeMapDocument } from "../creation";
 import {
   combineMapAreas,
@@ -33,14 +42,7 @@ import {
   renameMapArea,
   splitMapArea,
 } from "../operations";
-import {
-  buildTray,
-  placeFixture,
-  rejoinFixture,
-  splitFixture,
-  targetsOfLights,
-  unplaceFixture,
-} from "../placement";
+import { buildTray, placeFixture, unplaceFixture } from "../placement";
 import {
   nearestIncrement,
   readSnapSettings,
@@ -194,20 +196,17 @@ export function CreateMapWizard({
   );
 
   const floor = document?.floors[0] ?? null;
+  // Fixtures the person grouped in Settings > Devices, kept per bridge.
+  const fixtureGroups = useFixtureGroups(bridgeId);
   const tray = useMemo(
-    () => (document ? buildTray(document, lights, roomZones) : []),
-    [document, lights, roomZones],
+    () =>
+      document ? buildTray(document, lights, roomZones, fixtureGroups) : [],
+    [document, lights, roomZones, fixtureGroups],
   );
   // Markers, labels and placement all work on whole products, not single bulbs.
   const fixtures = useMemo(
-    () =>
-      indexFixtures(
-        groupFixtures(lights, {
-          targetOfLight: targetsOfLights(roomZones),
-          overrides: document?.fixtures,
-        }),
-      ),
-    [lights, roomZones, document?.fixtures],
+    () => indexFixtures(groupFixtures(lights, { overrides: fixtureGroups })),
+    [lights, fixtureGroups],
   );
   // Only a fixture already on the plan can be dropped back out of it.
   const removing = fixtureDrag
@@ -235,6 +234,15 @@ export function CreateMapWizard({
     }
     setStepError(null);
     setDocument(result.value);
+  }
+
+  function editFixtureGroups(result: FixtureResult<FixtureGroup[]>) {
+    if (!result.ok) {
+      setStepError(result.error);
+      return;
+    }
+    setStepError(null);
+    useFixtureGroupsStore.getState().setGroups(bridgeId, result.value);
   }
 
   /** Leaving the outline behind builds the document the later steps edit. */
@@ -771,13 +779,8 @@ export function CreateMapWizard({
                 onIdentify={(fixture) =>
                   void blink(fixture.id, fixture.lightIds)
                 }
-                onSplit={(fixture) =>
-                  editMap(splitFixture(document, lights, roomZones, fixture.id))
-                }
-                onRejoin={(fixture) =>
-                  editMap(
-                    rejoinFixture(document, lights, roomZones, fixture.id),
-                  )
+                onUngroup={(fixture) =>
+                  editFixtureGroups(ungroupFixture(fixtureGroups, fixture.id))
                 }
                 onRemove={(fixture) =>
                   editMap(unplaceFixture(document, fixture.lightIds))

@@ -103,19 +103,20 @@ have rounded line ends and shared segments render once. Light markers are
 fixed-size circles (5px radius) with a background fill and foreground outline
 (2px); they indicate placement and are not individual light controls.
 
-A marker stands for a fixture, not a bulb. Some products are one Hue device
-carrying several light services, so a three-head spot bar is one device and one
-marker. Others — a Centris plate, a run of downlights — register every spot as
-its own device, and those are joined back up by what they are and where they
-are: the same fixed archetype (spot, ceiling, downlight, pendant), the same Hue
-room or zone, and a name that starts the same way for two words. Portable lamps,
-light strips and Play bars are never joined, however they are named. A joined
-product takes the shared start of its heads' names ("Hue Centris"), places,
-moves and removes as one marker, and draws a filled dot inside its ring to say
-it carries several bulbs. The guess is always reversible: a joined row offers
-Split, a split row offers to group back, and the map records either decision in
-`fixtures` so it survives a reload. Membership still decides what a control
-affects; the marker only says where the product is.
+A marker stands for a fixture, not a bulb. A single Hue device carrying several
+light services — a three-head spot bar — is one fixture and one marker, because
+the bridge says so. Products that register every head as its own device, like a
+Centris plate, are linked by nothing the bridge exposes: each head has its own
+Zigbee address, and the same product twice in a room looks exactly like one
+product with more heads. So Mote never joins them on its own. The person groups
+them with Create fixture in Settings > Devices, which pre-ticks a likely set
+(parts of one model number in one room, such as `5060730P7_01` to `_05`) but
+only groups what they confirm. A fixture they made places, moves and removes as
+one marker, draws a filled dot inside its ring to say it carries several bulbs,
+and offers Ungroup in the tray. The grouping lives in `src/lib/fixtures.ts` and
+is kept per bridge (`FixtureGroupsStore`), so the Devices list and the map show
+the same fixtures. Membership still decides what a control affects; the marker
+only says where the product is.
 
 Editor handles are told apart by shape, not only by size: corners are small
 squares, the dashed circle on a wall adds a corner, and lights stay circles.

@@ -1,4 +1,3 @@
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -7,11 +6,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  rgbToHex,
-  rgbToXy,
-  xyBriToRgb,
-} from "@/features/space-screen/utils/color";
+import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ColorWheel } from "@/features/space-screen/components/ColorWheel";
+import { TemperatureWheel } from "@/features/space-screen/components/TemperatureWheel";
 import type { HueLight, HuePowerupPreset } from "@/types/hue";
 import type { PowerOnDraft } from "./powerOn";
 
@@ -29,12 +27,6 @@ const PRESET_HELP: Record<HuePowerupPreset, string> = {
     "Restores the state from before power was lost, including staying off.",
   custom: "Turns on with the brightness and color selected below.",
 };
-
-const parseHex = (hex: string): [number, number, number] => [
-  Number.parseInt(hex.slice(1, 3), 16),
-  Number.parseInt(hex.slice(3, 5), 16),
-  Number.parseInt(hex.slice(5, 7), 16),
-];
 
 export const PowerOnFields = ({
   light,
@@ -62,12 +54,7 @@ export const PowerOnFields = ({
   const colorMode = value.xy != null ? "color" : "temperature";
   const ctMin = light.ctMin ?? 153;
   const ctMax = light.ctMax ?? 500;
-  const kelvinMin = Math.round(1_000_000 / ctMax);
-  const kelvinMax = Math.round(1_000_000 / ctMin);
   const kelvin = Math.round(1_000_000 / (value.mirek ?? ctMin));
-  const colorHex = value.xy
-    ? rgbToHex(xyBriToRgb(value.xy[0], value.xy[1]))
-    : "#ffffff";
 
   return (
     <div className="grid gap-2">
@@ -96,119 +83,97 @@ export const PowerOnFields = ({
       </p>
 
       {value.preset === "custom" && (
-        <div className="mt-1 grid gap-3 rounded-xl bg-muted/45 p-3">
-          <div className="grid gap-1.5">
-            <Label htmlFor={`power-on-brightness-${light.id}`}>
-              Brightness
-            </Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id={`power-on-brightness-${light.id}`}
-                type="number"
-                min={1}
-                max={100}
-                value={value.brightness}
-                disabled={disabled}
-                onChange={(event) =>
-                  onChange({
-                    ...value,
-                    brightness: Math.min(
-                      100,
-                      Math.max(1, Number(event.target.value) || 1),
-                    ),
-                  })
-                }
-              />
-              <span className="text-sm text-muted-foreground">%</span>
+        <div className="mt-1 grid gap-4 rounded-xl bg-muted/45 p-4">
+          <div className="grid gap-2.5">
+            <div className="flex items-center justify-between">
+              <Label>Brightness</Label>
+              <span className="text-xs text-muted-foreground tabular-nums">
+                {value.brightness}%
+              </span>
             </div>
+            <Slider
+              value={[value.brightness]}
+              min={1}
+              max={100}
+              disabled={disabled}
+              aria-label="Power-on brightness"
+              onValueChange={(next) =>
+                onChange({
+                  ...value,
+                  brightness: Array.isArray(next) ? next[0] : next,
+                })
+              }
+            />
           </div>
 
-          {supportsColorChoice && (
-            <div className="grid gap-1.5">
-              <Label>Color type</Label>
-              <Select
-                items={{ temperature: "White", color: "Color" }}
-                value={colorMode}
-                disabled={disabled}
-                onValueChange={(mode) =>
-                  onChange(
-                    mode === "color"
-                      ? {
-                          ...value,
-                          mirek: null,
-                          xy: light.xy ?? [0.3127, 0.329],
-                        }
-                      : {
-                          ...value,
-                          mirek: light.ct ?? Math.round((ctMin + ctMax) / 2),
-                          xy: null,
-                        },
-                  )
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="temperature">White</SelectItem>
-                  <SelectItem value="color">Color</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-
-          {value.mirek != null && light.supportsCt && (
-            <div className="grid gap-1.5">
-              <Label htmlFor={`power-on-temperature-${light.id}`}>
-                Color temperature
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id={`power-on-temperature-${light.id}`}
-                  type="number"
-                  min={kelvinMin}
-                  max={kelvinMax}
-                  value={kelvin}
-                  disabled={disabled}
-                  onChange={(event) => {
-                    const nextKelvin = Math.min(
-                      kelvinMax,
-                      Math.max(
-                        kelvinMin,
-                        Number(event.target.value) || kelvinMin,
-                      ),
-                    );
-                    onChange({
-                      ...value,
-                      mirek: Math.round(1_000_000 / nextKelvin),
-                      xy: null,
-                    });
-                  }}
-                />
-                <span className="text-sm text-muted-foreground">K</span>
+          {(light.supportsColor || light.supportsCt) && (
+            // The same wheels and tabs the light's own controls use.
+            <Tabs
+              value={colorMode}
+              onValueChange={(mode) =>
+                onChange(
+                  mode === "color"
+                    ? {
+                        ...value,
+                        mirek: null,
+                        xy: value.xy ?? light.xy ?? [0.3127, 0.329],
+                      }
+                    : {
+                        ...value,
+                        mirek:
+                          value.mirek ??
+                          light.ct ??
+                          Math.round((ctMin + ctMax) / 2),
+                        xy: null,
+                      },
+                )
+              }
+            >
+              <div className="flex items-center justify-between gap-3">
+                {supportsColorChoice ? (
+                  <TabsList className="w-full">
+                    <TabsTrigger value="temperature" disabled={disabled}>
+                      White
+                    </TabsTrigger>
+                    <TabsTrigger value="color" disabled={disabled}>
+                      Color
+                    </TabsTrigger>
+                  </TabsList>
+                ) : (
+                  <Label>{light.supportsCt ? "White" : "Color"}</Label>
+                )}
               </div>
-            </div>
-          )}
-
-          {value.xy != null && light.supportsColor && (
-            <div className="grid gap-1.5">
-              <Label htmlFor={`power-on-color-${light.id}`}>Color</Label>
-              <Input
-                id={`power-on-color-${light.id}`}
-                type="color"
-                value={colorHex}
-                disabled={disabled}
-                className="h-10 cursor-pointer p-1"
-                onChange={(event) => {
-                  const [r, g, b] = parseHex(event.target.value);
-                  onChange({
-                    ...value,
-                    mirek: null,
-                    xy: rgbToXy(r, g, b, light.gamut),
-                  });
-                }}
-              />
-            </div>
+              {light.supportsCt && (
+                <TabsContent
+                  value="temperature"
+                  className="grid justify-items-center gap-2 px-6 pt-4"
+                  inert={disabled}
+                >
+                  <TemperatureWheel
+                    value={value.mirek ?? Math.round((ctMin + ctMax) / 2)}
+                    min={ctMin}
+                    max={ctMax}
+                    onPick={(mirek) => onChange({ ...value, mirek, xy: null })}
+                  />
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {kelvin} K
+                  </span>
+                </TabsContent>
+              )}
+              {light.supportsColor && (
+                <TabsContent
+                  value="color"
+                  className="flex w-full px-6 pt-4"
+                  inert={disabled}
+                >
+                  <ColorWheel
+                    xy={value.xy}
+                    gamut={light.gamut}
+                    onPick={(xy) => onChange({ ...value, mirek: null, xy })}
+                  />
+                </TabsContent>
+              )}
+            </Tabs>
           )}
         </div>
       )}

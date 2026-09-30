@@ -310,12 +310,16 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
             // The bottom padding clears the floating scroll-to-top button (40px,
             // 16px off the edge), so the last row never ends up underneath it.
             // The left padding leaves room for rings and focus outlines, which draw
-            // outside their box and would otherwise be clipped at the edge.
-            viewportClassName="overflow-x-hidden pt-4 pr-4 pb-18 pl-1 @2xl:pt-6 @2xl:pr-6"
+            // outside their box and would otherwise be clipped at the edge. The
+            // top padding is a variable so sticky bars can reach past it to the
+            // very top edge instead of leaving a strip content scrolls through.
+            viewportClassName="overflow-x-hidden [--settings-scroll-pad-top:1rem] pt-(--settings-scroll-pad-top) pr-4 pb-18 pl-1 @2xl:[--settings-scroll-pad-top:1.5rem] @2xl:pr-6"
             viewportRef={viewportRef}
           >
             <div className="mx-auto w-full max-w-3xl pt-8">
-              <div className="flex flex-col items-start justify-between gap-4 pb-8 @2xl:flex-row @2xl:items-center @2xl:pb-10">
+              {/* One row at every width, the action level with the title: the
+                  description wraps beneath it, and the button keeps its size. */}
+              <div className="flex items-start justify-between gap-4 pb-8 @2xl:pb-10">
                 <div className="min-w-0 flex-1 space-y-2">
                   <h1 className="flex items-center gap-2.5 font-heading text-2xl font-semibold tracking-tight">
                     {activeTabDetails.label}
@@ -424,7 +428,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   isLoadingSummary={isLoadingSummary}
                   lights={lights}
                   roomZones={roomZones}
-                  onRename={renameResource}
                   onDelete={deleteResource}
                   onSaveSwitchConfig={saveSwitchConfig}
                   onRefresh={refreshSettings}
