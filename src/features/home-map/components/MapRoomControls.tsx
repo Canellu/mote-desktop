@@ -241,7 +241,7 @@ export function MapRoomControls({
                 {lighting.syncedLightIds.includes(light.id)
                   ? "Syncing"
                   : !light.reachable
-                    ? "Offline"
+                    ? "Unreachable"
                     : light.isOn
                       ? "On"
                       : "Off"}

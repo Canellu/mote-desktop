@@ -47,11 +47,14 @@ export const LightCard: React.FC<LightCardProps> = ({
     store.syncedLightIds.includes(light.id),
   );
   const pct = Math.round(light.brightness ?? 0);
+  const unreachable = !light.reachable;
   // When the light is on, tint the whole card with its live color (mirrors the
   // Home room/zone tiles); off or color-less lights stay on the muted surface.
-  const color = light.isOn && !syncLocked ? lightColorHex(light) : null;
+  // An unreachable light only has the bridge's last known state, so it is drawn
+  // off, with its controls faded and its text at full contrast.
+  const isOn = light.isOn && !unreachable;
+  const color = isOn && !syncLocked ? lightColorHex(light) : null;
   const active = color != null;
-  const unreachable = !light.reachable;
   const DeviceIcon = getLightIcon(light.typeName);
 
   return (
@@ -73,7 +76,6 @@ export const LightCard: React.FC<LightCardProps> = ({
         TILE_INTERACTION_TRANSITION_CLASS,
         active && "ring-transparent",
         selected && overlaySelectionClassName,
-        unreachable && "opacity-50",
       )}
       style={
         {
@@ -94,6 +96,7 @@ export const LightCard: React.FC<LightCardProps> = ({
           className={cn(
             "relative flex size-(--tile-icon-box) shrink-0 items-center justify-center",
             active ? "text-foreground" : "text-muted-foreground",
+            unreachable && "opacity-40",
           )}
         >
           <DeviceIcon
@@ -113,15 +116,23 @@ export const LightCard: React.FC<LightCardProps> = ({
           <p className="truncate text-base font-medium" title={light.name}>
             {light.name}
           </p>
+          {unreachable && (
+            <p className="truncate text-sm text-muted-foreground">
+              Unreachable
+            </p>
+          )}
         </div>
         {syncLocked ? (
           <span aria-hidden="true" />
         ) : (
-          <div onClick={(e) => !editing && e.stopPropagation()}>
+          <div
+            className={cn(unreachable && "opacity-40")}
+            onClick={(e) => !editing && e.stopPropagation()}
+          >
             <Switch
               size="xl"
               className={TILE_POWER_SWITCH_CLASS}
-              checked={light.isOn}
+              checked={isOn}
               disabled={unreachable || editing}
               aria-label={`Toggle ${light.name}`}
               onCheckedChange={(checked) => onToggle(light, checked)}
@@ -140,17 +151,17 @@ export const LightCard: React.FC<LightCardProps> = ({
         </div>
       ) : (
         <div
-          className="px-(--card-spacing)"
+          className={cn("px-(--card-spacing)", unreachable && "opacity-40")}
           onClick={(e) => !editing && e.stopPropagation()}
         >
           <PacedSlider
-            value={light.isOn ? Math.max(1, pct) : 1}
+            value={isOn ? Math.max(1, pct) : 1}
             min={1}
             disabled={unreachable || editing}
             ariaLabel={`${light.name} brightness`}
             className={cn(
               TILE_BRIGHTNESS_SLIDER_CLASS,
-              !light.isOn && "tile-brightness-slider-off",
+              !isOn && "tile-brightness-slider-off",
             )}
             size="default"
             isGroup={false}

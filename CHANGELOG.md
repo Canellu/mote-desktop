@@ -5,7 +5,15 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Improvements
+
+- A light the bridge can't reach, such as one turned off at the wall, now
+  says Unreachable under its name.
+
 ### Fixes
+
+- Lights that come back after a power cut no longer show full brightness
+  after they have returned to their real state.
 
 - If Mote is removed from your bridge in the Hue app, Mote now says so and
   offers Connect again, which only needs the bridge button. Your rooms,

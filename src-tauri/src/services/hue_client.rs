@@ -949,7 +949,7 @@ impl HueClient {
         application_key: &str,
         resource: &str,
     ) -> Result<Vec<T>, String> {
-        let url = format!("https://{ip}/clip/v2/resource/{resource}");
+        let url = format!("https://{}/clip/v2/resource/{resource}", format_host(ip));
         let text = self.fetch_text(&url, application_key, resource).await?;
 
         let response = serde_json::from_str::<HueApiResponse<T>>(&text).map_err(|error| {
@@ -1048,7 +1048,10 @@ impl HueClient {
         body: Value,
     ) -> Result<(), String> {
         ensure_resource_id(id)?;
-        let url = format!("https://{ip}/clip/v2/resource/{resource}/{id}");
+        let url = format!(
+            "https://{}/clip/v2/resource/{resource}/{id}",
+            format_host(ip)
+        );
         let permit = bridge_semaphore().acquire().await.ok();
         let response = self
             .client
@@ -1092,7 +1095,10 @@ impl HueClient {
         id: &str,
     ) -> Result<(), String> {
         ensure_resource_id(id)?;
-        let url = format!("https://{ip}/clip/v2/resource/{resource}/{id}");
+        let url = format!(
+            "https://{}/clip/v2/resource/{resource}/{id}",
+            format_host(ip)
+        );
         let permit = bridge_semaphore().acquire().await.ok();
         let text = self
             .client
@@ -1131,7 +1137,7 @@ impl HueClient {
         resource: &str,
         body: Value,
     ) -> Result<String, String> {
-        let url = format!("https://{ip}/clip/v2/resource/{resource}");
+        let url = format!("https://{}/clip/v2/resource/{resource}", format_host(ip));
         let permit = bridge_semaphore().acquire().await.ok();
         let text = self
             .client
@@ -3581,7 +3587,7 @@ impl HueClient {
         };
 
         while active.load(Ordering::Relaxed) {
-            let url = format!("https://{current_ip}/eventstream/clip/v2");
+            let url = format!("https://{}/eventstream/clip/v2", format_host(&current_ip));
             let result = self
                 .client
                 .get(&url)
@@ -4406,6 +4412,10 @@ fn bridge_matches(left: &str, right: &str) -> bool {
 /// Normalizes a discovered address into a URL host: strips any IPv6 zone id
 /// (`%scope`) and wraps IPv6 literals in brackets.
 fn format_host(ip: &str) -> String {
+    // Already a URL host: some callers pass a formatted host through again.
+    if ip.starts_with('[') {
+        return ip.to_string();
+    }
     let clean_ip = ip.split('%').next().unwrap_or(ip);
     if clean_ip.contains(':') {
         format!("[{clean_ip}]")
@@ -4590,7 +4600,14 @@ fn parse_event_block(block: &str) -> Option<Vec<HueEventUpdate>> {
 
 #[cfg(test)]
 mod bridge_store_tests {
-    use super::{BridgeStore, StoredBridgeInfo};
+    use super::{format_host, BridgeStore, StoredBridgeInfo};
+
+    #[test]
+    fn format_host_brackets_ipv6_once() {
+        assert_eq!(format_host("192.168.1.20"), "192.168.1.20");
+        assert_eq!(format_host("fe80::1%12"), "[fe80::1]");
+        assert_eq!(format_host("[fe80::1]"), "[fe80::1]");
+    }
 
     fn bridge(id: &str) -> StoredBridgeInfo {
         StoredBridgeInfo {

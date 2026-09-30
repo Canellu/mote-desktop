@@ -239,6 +239,14 @@ const SCENE_SETTLE_MS = SCENE_TRANSITION_MS + 3000;
 const SCENE_EVENT_REFRESH_DELAY_MS = 500;
 let sceneEventRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
+// Light state that streams in while a full load is in flight is newer than the
+// snapshot that load returns, e.g. lights restoring their brightness as they
+// rejoin after a power cut. Each running load records it and replays it, in
+// order, over its snapshot so the snapshot never rolls a light back.
+const loadEventBuffers = new Set<HueEventUpdate[]>();
+const isLiveStateEvent = (update: HueEventUpdate) =>
+  update.type === "light" || update.type === "grouped_light";
+
 interface PendingLightColorWrite {
   id: string;
   xy: [number, number] | null;
@@ -751,6 +759,8 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
 
   loadAll: async () => {
     set({ isLoading: true, error: null });
+    const liveEvents: HueEventUpdate[] = [];
+    loadEventBuffers.add(liveEvents);
     try {
       // Each resource degrades independently: a failure in any one (zones,
       // scenes, rooms, lights) leaves the others usable rather than blanking
@@ -784,11 +794,16 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
       // Reached only if loadLights rejects (it has no per-call fallback).
       set({ error: String(loadError) || "Failed to load your Hue setup." });
     } finally {
+      loadEventBuffers.delete(liveEvents);
+      if (liveEvents.length > 0) get().applyHueEvents(liveEvents);
       set({ isLoading: false, hasLoaded: true });
     }
   },
 
   applyHueEvents: (updates) => {
+    for (const buffer of loadEventBuffers) {
+      buffer.push(...updates.filter(isLiveStateEvent));
+    }
     const changes = coalesceHueEvents(updates);
     const sceneChanges = changes.filter(
       (change) =>

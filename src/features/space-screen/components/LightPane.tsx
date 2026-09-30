@@ -195,7 +195,13 @@ export const LightPane: React.FC<LightPaneProps> = ({
 
       <div className="flex items-center justify-between">
         <span className="text-sm text-muted-foreground">
-          {syncLocked ? "Syncing" : light.isOn ? "On" : "Off"}
+          {syncLocked
+            ? "Syncing"
+            : !light.reachable
+              ? "Unreachable"
+              : light.isOn
+                ? "On"
+                : "Off"}
         </span>
         <Switch
           checked={light.isOn}
