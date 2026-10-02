@@ -5,6 +5,16 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.10.0] - 2026-10-02
+
+### Highlights
+
+- Set up what each button on a Hue switch or dimmer does, and what a motion
+  sensor turns on, from Settings > Devices.
+- Choose 12- or 24-hour time, metric or imperial lengths, and °C or °F in
+  Settings > General > Units and formats. Mote starts from your Windows
+  region settings.
+
 ### Improvements
 
 - A light the bridge can't reach, such as one turned off at the wall, now
@@ -20,13 +30,18 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 - Custom power-on uses a brightness slider and the same color and white
   wheels as the light controls, instead of number fields.
 
+- Delete an automation from its edit page.
+- Setting up PC Sync waits for you to press the bridge button instead of
+  failing straight away.
+
 ### Fixes
 
+- The back arrow on Automations, Focus, and Sync returns to the page you
+  opened them from, such as Settings, instead of always going Home.
 - Side panels no longer slide under the title bar, so their title and close
   button are always visible.
 - Lights that come back after a power cut no longer show full brightness
   after they have returned to their real state.
-
 - If Mote is removed from your bridge in the Hue app, Mote now says so and
   offers Connect again, which only needs the bridge button. Your rooms,
   widgets, and settings stay. Before, Retry connection could never succeed.
