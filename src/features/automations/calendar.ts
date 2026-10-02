@@ -1,3 +1,4 @@
+import { formatTimeOfDay } from "@/stores/FormatPreferencesStore";
 import { useEffect, useRef, useState } from "react";
 import { invoke, isTauri } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -281,5 +282,5 @@ export function formatWhen(at: number, allDay = false): string {
         ? "Tomorrow"
         : date.toLocaleDateString([], { weekday: "short" });
   if (allDay) return `${day}, all day`;
-  return `${day} ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  return `${day} ${formatTimeOfDay(date)}`;
 }

@@ -33,7 +33,8 @@ const tabsListVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-muted",
+        // A faint hairline keeps the unselected track readable on any surface.
+        default: "border border-foreground/10 bg-muted",
         line: "gap-1 bg-transparent",
       },
       size: {
@@ -79,7 +80,9 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
       className={cn(
         "relative inline-flex h-full flex-1 items-center justify-center gap-1.5 rounded-xl border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-[size=lg]/tabs-list:gap-1.5 group-data-[size=lg]/tabs-list:rounded-2xl group-data-[size=lg]/tabs-list:px-3 group-data-[size=lg]/tabs-list:pb-1.5 group-data-[size=lg]/tabs-list:text-[15px] group-data-[size=xl]/tabs-list:gap-2 group-data-[size=xl]/tabs-list:rounded-[1.25rem] group-data-[size=xl]/tabs-list:px-4 group-data-[size=xl]/tabs-list:text-base data-[orientation=vertical]:w-full data-[orientation=vertical]:justify-start data-[orientation=vertical]:px-2.5 data-[orientation=vertical]:py-1.5 hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 group-data-[size=xl]/tabs-list:has-data-[icon=inline-end]:pr-3 group-data-[size=xl]/tabs-list:has-data-[icon=inline-start]:pl-3 aria-disabled:pointer-events-none aria-disabled:opacity-50 dark:text-muted-foreground dark:hover:text-foreground group-data-[variant=default]/tabs-list:data-active:shadow-sm dark:group-data-[variant=default]/tabs-list:data-active:shadow-none group-data-[variant=line]/tabs-list:data-active:shadow-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 group-data-[size=xl]/tabs-list:[&_svg:not([class*='size-'])]:size-5",
         "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-active:bg-transparent dark:group-data-[variant=line]/tabs-list:data-active:border-transparent dark:group-data-[variant=line]/tabs-list:data-active:bg-transparent",
-        "data-active:border-foreground/12 data-active:bg-background data-active:text-foreground dark:data-active:border-foreground/8 dark:data-active:bg-input/30 dark:data-active:text-foreground",
+        // In dark the selected pill takes a light tint: a background-colored fill
+        // vanishes against the list there.
+        "data-active:border-foreground/12 data-active:bg-background data-active:text-foreground dark:data-active:border-foreground/8 dark:data-active:bg-foreground/10 dark:data-active:text-foreground",
         "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity data-[orientation=horizontal]:after:inset-x-0 data-[orientation=horizontal]:after:bottom-[-5px] data-[orientation=horizontal]:after:h-0.5 data-[orientation=vertical]:after:inset-y-0 data-[orientation=vertical]:after:-right-1 data-[orientation=vertical]:after:w-0.5 group-data-[variant=line]/tabs-list:data-active:after:opacity-100",
         className,
       )}

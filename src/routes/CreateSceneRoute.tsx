@@ -166,14 +166,15 @@ export const CreateSceneRoute = () => {
   const details = (
     <section
       aria-label="Scene details"
-      className="grid gap-4 rounded-2xl bg-(--settings-surface) p-5 min-[520px]:grid-cols-2 min-[520px]:items-end"
+      className="grid gap-4 rounded-2xl bg-(--settings-surface) p-5 dark:bg-card min-[520px]:grid-cols-2 min-[520px]:items-end"
     >
       <div className="grid min-w-0 gap-2">
         <Label htmlFor="scene-name">Scene name</Label>
         <Input
           id="scene-name"
           size="lg"
-          className="h-11"
+          // Fields sit a step above the panel, like the light tiles below.
+          className="h-11 bg-(--settings-surface-hover)"
           value={name}
           onChange={(event) => setName(event.target.value)}
           placeholder="Enter scene name"
@@ -203,7 +204,10 @@ export const CreateSceneRoute = () => {
           }}
           disabled={isSaving || previewBusy}
         >
-          <SelectTrigger id="scene-space" className="w-full">
+          <SelectTrigger
+            id="scene-space"
+            className="w-full bg-(--settings-surface-hover) dark:bg-(--settings-surface-hover)"
+          >
             <SelectValue placeholder="Choose a space" />
           </SelectTrigger>
           <SelectContent>
@@ -307,7 +311,7 @@ export const CreateSceneRoute = () => {
             }
           />
         ) : (
-          <section className="flex min-h-80 min-w-0 flex-1 flex-col items-center justify-center gap-3 rounded-2xl bg-(--settings-surface) p-8 text-center">
+          <section className="flex min-h-80 min-w-0 flex-1 flex-col items-center justify-center gap-3 rounded-2xl bg-(--settings-surface) p-8 text-center dark:bg-card">
             <span className="flex size-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
               <Palette size={26} />
             </span>

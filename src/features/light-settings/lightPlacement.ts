@@ -35,16 +35,27 @@ export const updateRoomPlacement = (
  * same snapshot would put back the devices an earlier write removed. Adding
  * reads the room fresh on the bridge, so those run one after another.
  */
-export const updateRoomPlacementForLights = async (
+export const updateRoomPlacementForLights = (
   lights: HueLight[],
   roomZones: HueRoomZone[],
   roomId: string | null,
+) =>
+  updateRoomPlacementForDevices(
+    [
+      ...new Set(
+        lights.flatMap((light) => (light.deviceId ? [light.deviceId] : [])),
+      ),
+    ],
+    roomZones,
+    roomId,
+  );
+
+/** Moves devices (lights, switches or sensors) into one room, or none. */
+export const updateRoomPlacementForDevices = async (
+  deviceIds: string[],
+  roomZones: HueRoomZone[],
+  roomId: string | null,
 ) => {
-  const deviceIds = [
-    ...new Set(
-      lights.flatMap((light) => (light.deviceId ? [light.deviceId] : [])),
-    ),
-  ];
   if (deviceIds.length === 0) return;
 
   await Promise.all(

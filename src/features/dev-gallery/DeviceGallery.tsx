@@ -2,6 +2,10 @@ import { HueBridgeBody } from "@/components/HueBridgeIllustration";
 import { HueBridgeProBody } from "@/components/HueBridgeProIllustration";
 import { HueSyncBoxBody } from "@/components/HueSyncBoxIllustration";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DimmerModel3D,
+  type DimmerButton,
+} from "@/features/switch-editor/DimmerModel3D";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -27,7 +31,27 @@ const DEVICES: { name: string; subtitle: string; render: (pulse: boolean) => Rea
     subtitle: "Play HDMI Sync Box",
     render: (pulse) => <HueSyncBoxBody pulse={pulse} />,
   },
+  {
+    name: "Dimmer switch",
+    subtitle: "3D model from the switch editor",
+    render: () => <DimmerPreview />,
+  },
 ];
+
+/** The switch editor's dimmer, clickable, at the size of a gallery card. */
+const DimmerPreview = () => {
+  const [selected, setSelected] = useState<DimmerButton>(1);
+  return (
+    <div className="h-52 w-40" onClick={(event) => event.stopPropagation()}>
+      <DimmerModel3D
+        className="h-full w-full"
+        selected={selected}
+        configurable={() => true}
+        onSelect={setSelected}
+      />
+    </div>
+  );
+};
 
 /**
  * Dev-only showcase of the hardware illustrations used in the setup wizard.

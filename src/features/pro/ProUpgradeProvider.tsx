@@ -156,7 +156,7 @@ export const ProUpgradeProvider: React.FC<{ children: ReactNode }> = ({
             // The one row is what lets the dialog shrink to this cap, so its
             // footer stays inside the dialog instead of being clipped by it.
             // The cap leaves the title bar clear, which sits above dialogs.
-            "max-h-[min(calc(100vh-6rem),44rem)] grid-rows-[minmax(0,1fr)]",
+            "max-h-[min(var(--overlay-max-height),44rem)] grid-rows-[minmax(0,1fr)]",
             view.kind === "plan" ? "sm:max-w-[38rem]" : "sm:max-w-[54rem]",
           )}
         >

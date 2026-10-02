@@ -1,16 +1,8 @@
-import {
-  SensorBatteryGauge,
-  SensorReadingPill,
-} from "@/components/SensorReadingPill";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { SensorBatteryGauge } from "@/components/SensorReadingPill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -56,9 +48,8 @@ import {
   Radar,
   Search,
   ToggleRight,
-  SlidersHorizontal,
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { SegmentedControl } from "../components/SegmentedControl";
 import { EmptyText } from "../components/EmptyText";
 import { SETTINGS_EXPANDABLE_CARD } from "../constants";
@@ -66,7 +57,6 @@ import {
   DetailsFrame,
   DetailsSection,
   DetailsSheet,
-  DetailsSpacer,
 } from "../components/DetailsSheet";
 import { FixtureDialog } from "../components/FixtureDialog";
 import { LightSettingsFields } from "../components/LightSettingsFields";
@@ -76,6 +66,12 @@ import {
   type LightSettings,
 } from "../components/useLightSettings";
 import { LightHero } from "@/features/light-settings/LightHero";
+import { DeviceStatusList } from "../components/DeviceStatusList";
+import {
+  ExpandableRow,
+  ExpandableRowGroup,
+} from "@/components/ui/expandable-row";
+import { DeviceSettingsPanel } from "../components/DeviceSettingsPanel";
 import { RemoveResourceSection } from "@/features/space-screen/components/RemoveResourceSection";
 import type { DeleteResource, SaveSwitchConfig } from "../types";
 import { classifyDevice } from "../utils/devices";
@@ -103,6 +99,15 @@ const DEVICE_KIND_TABS: ReadonlyArray<{
   { value: "sensors", label: "Sensors" },
   { value: "other", label: "Other" },
 ];
+
+/**
+ * What the Devices tab was showing, kept for the session so that leaving for a
+ * full-screen editor and coming back returns to the same tab and panel.
+ */
+const devicesTabMemory: { kind: DeviceKindTab; openId: string | null } = {
+  kind: "lights",
+  openId: null,
+};
 
 /** Devices of one kind on the bridge, before any search or filter. */
 const totalOfKind = (
@@ -167,7 +172,7 @@ const groupByRoom = <T,>(
 
 export const DevicesTab = ({
   bridgeId: bridgeIdOverride,
-  summary,
+  summary: bridgeSummary,
   isLoadingSummary,
   lights,
   roomZones,
@@ -185,11 +190,27 @@ export const DevicesTab = ({
   onSaveSwitchConfig: SaveSwitchConfig;
   onRefresh: () => Promise<void>;
 }) => {
+  // The bridge reports itself as a device; it has its own page under
+  // Connections, so it isn't listed here.
+  const summary = useMemo(
+    () =>
+      bridgeSummary && {
+        ...bridgeSummary,
+        devices: bridgeSummary.devices.filter(
+          (device) => !isBridgeDevice(device),
+        ),
+      },
+    [bridgeSummary],
+  );
   const [deviceQuery, setDeviceQuery] = useState("");
   const [deviceStatus, setDeviceStatus] = useState<DeviceStatusFilter>("all");
 
   // One kind of device at a time, each as its full list of rooms.
-  const [kind, setKind] = useState<DeviceKindTab>("lights");
+  const [kind, setKindState] = useState<DeviceKindTab>(devicesTabMemory.kind);
+  const setKind = (next: DeviceKindTab) => {
+    devicesTabMemory.kind = next;
+    setKindState(next);
+  };
 
   const accessoryServicesByDevice = useMemo(() => {
     const map = new Map<string, HueAccessoryService[]>();
@@ -353,6 +374,9 @@ export const DevicesTab = ({
   const kindOptions = DEVICE_KIND_TABS.filter(
     (option) =>
       option.value === "lights" ||
+      // Before the first load, switches and sensors keep their tabs so they
+      // don't pop in late; only an empty Other stays hidden.
+      (summary == null && option.value !== "other") ||
       (option.value === "switches"
         ? totalOfKind(summary, "switch")
         : option.value === "sensors"
@@ -503,10 +527,12 @@ export const DevicesTab = ({
           emptyText={emptyMessageFor(activeKind)}
           devices={deviceKindDevices}
           rooms={rooms}
+          roomZones={roomZones}
           servicesByDevice={accessoryServicesByDevice}
           switchConfigsByDevice={switchConfigsByDevice}
           onDelete={onDelete}
           onSaveSwitchConfig={onSaveSwitchConfig}
+          onRefresh={onRefresh}
         />
       )}
       <LightsPanel
@@ -871,7 +897,8 @@ const SaveFooter = ({
       disabled={settings.isSaving}
       onClick={onCancel}
     >
-      Cancel
+      {/* Says what it does: drops the edits, or with none, closes. */}
+      {settings.dirty ? "Discard" : "Cancel"}
     </Button>
     <Button
       type="button"
@@ -916,6 +943,18 @@ const LightDetailsPanel = ({
       onClose={onClose}
       eyebrow={lightMeta(light) || "Hue light"}
       title={light.name}
+      removal={
+        <RemoveResourceSection
+          title={`Delete ${light.name}`}
+          description="Removes it from your Hue Bridge."
+          actionLabel="Delete"
+          confirmTone="danger"
+          confirmTitle={`Delete "${light.name}"?`}
+          confirmBody="It is removed from your Hue Bridge, along with its rooms, zones and scenes. To use it again, you have to add it to the bridge again."
+          disabled={settings.isSaving}
+          onConfirm={() => onDelete("light", light.id)}
+        />
+      }
       back={
         fixture && onBack ? { label: fixture.name, onClick: onBack } : undefined
       }
@@ -958,17 +997,6 @@ const LightDetailsPanel = ({
       <DetailsSection title="Device details">
         <LightDeviceFields light={light} />
       </DetailsSection>
-      <DetailsSpacer />
-      <RemoveResourceSection
-        title={`Delete ${light.name}`}
-        description="Removes it from your Hue Bridge."
-        actionLabel="Delete"
-        confirmTone="danger"
-        confirmTitle={`Delete "${light.name}"?`}
-        confirmBody={`It is removed from your Hue Bridge, along with its rooms, zones and scenes. To use it again, you have to add it to the bridge again.`}
-        disabled={settings.isSaving}
-        onConfirm={() => onDelete("light", light.id)}
-      />
     </DetailsFrame>
   );
 };
@@ -1019,6 +1047,19 @@ const FixtureDetailsPanel = ({
       eyebrow={fixtureMeta(fixture)}
       title={fixture.name}
       guard={settings}
+      removal={
+        fixture.custom && (
+          <RemoveResourceSection
+            title="Ungroup fixture"
+            description="Lists its lights separately again."
+            actionLabel="Ungroup"
+            confirmTitle={`Ungroup "${fixture.name}"?`}
+            confirmBody="Its lights are listed and placed on the map separately again. Nothing changes on the bridge, and you can group them again at any time."
+            disabled={settings.isSaving}
+            onConfirm={async () => onUngroup()}
+          />
+        )
+      }
       footer={
         <SaveFooter
           settings={settings}
@@ -1081,20 +1122,6 @@ const FixtureDetailsPanel = ({
       {settings.error && (
         <p className="text-sm text-(--destructive-text)">{settings.error}</p>
       )}
-      {fixture.custom && (
-        <>
-          <DetailsSpacer />
-          <RemoveResourceSection
-            title="Ungroup fixture"
-            description="Lists its lights separately again."
-            actionLabel="Ungroup"
-            confirmTitle={`Ungroup "${fixture.name}"?`}
-            confirmBody="Its lights are listed and placed on the map separately again. Nothing changes on the bridge, and you can group them again at any time."
-            disabled={settings.isSaving}
-            onConfirm={async () => onUngroup()}
-          />
-        </>
-      )}
     </DetailsFrame>
   );
 };
@@ -1114,26 +1141,100 @@ const DeviceKindList = ({
   emptyText,
   devices,
   rooms,
+  roomZones,
   servicesByDevice,
   switchConfigsByDevice,
   onDelete,
   onSaveSwitchConfig,
+  onRefresh,
 }: {
   emptyText: string;
   devices: HueSettingsDevice[];
   rooms: HueRoomZone[];
+  roomZones: HueRoomZone[];
   servicesByDevice: Map<string, HueAccessoryService[]>;
   switchConfigsByDevice: Map<string, HueSwitchInputConfiguration[]>;
   onDelete: DeleteResource;
   onSaveSwitchConfig: SaveSwitchConfig;
+  onRefresh: () => Promise<void>;
 }) => {
   const groups = groupByRoom(devices, (device) => device.id, rooms);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenIdState] = useState<string | null>(
+    devicesTabMemory.openId,
+  );
+  const setOpenId = (next: string | null) => {
+    devicesTabMemory.openId = next;
+    setOpenIdState(next);
+  };
   const opened = devices.find((device) => device.id === openId);
   // Kept while the sheet slides away, so it doesn't empty as it closes.
   const lastOpened = useRef<HueSettingsDevice | undefined>(undefined);
   if (opened) lastOpened.current = opened;
   const shown = opened ?? lastOpened.current;
+
+  // Called, not rendered as a component, so the panel keeps its draft
+  // across re-renders.
+  const renderPanel = (device: HueSettingsDevice) => {
+    const eyebrow = [
+      device.productName ?? friendlyDeviceType(device),
+      device.reachable ? null : "Unreachable",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    const removal = !isBridgeDevice(device) && (
+      <RemoveResourceSection
+        title={`Delete ${device.name}`}
+        description="Removes it from your Hue Bridge."
+        actionLabel="Delete"
+        confirmTone="danger"
+        confirmTitle={`Delete "${device.name}"?`}
+        confirmBody="It is removed from your Hue Bridge, along with anything it controls there. To use it again, you have to add it to the bridge again."
+        onConfirm={() => onDelete("device", device.id)}
+      />
+    );
+    const details = (
+      <DeviceDetails
+        device={device}
+        services={servicesByDevice.get(device.id) ?? []}
+        switchConfigs={switchConfigsByDevice.get(device.id) ?? []}
+        onSaveSwitchConfig={onSaveSwitchConfig}
+      />
+    );
+    const kind = classifyDevice(device);
+    // Switches and sensors have settings of their own; anything else only
+    // shows what it is.
+    if (kind === "switch" || kind === "sensor")
+      return (
+        <DeviceSettingsPanel
+          key={device.id}
+          device={device}
+          services={servicesByDevice.get(device.id) ?? []}
+          roomZones={roomZones}
+          icon={deviceIcon(device)}
+          eyebrow={eyebrow}
+          removal={removal}
+          onClose={() => setOpenId(null)}
+          onRefresh={onRefresh}
+        >
+          {details}
+        </DeviceSettingsPanel>
+      );
+    return (
+      <DetailsFrame
+        onClose={() => setOpenId(null)}
+        title={device.name}
+        eyebrow={eyebrow}
+        removal={removal}
+      >
+        <LightHero
+          icon=""
+          fallbackIcon={deviceIcon(device)}
+          name={device.name}
+        />
+        {details}
+      </DetailsFrame>
+    );
+  };
   return (
     <>
       {devices.length === 0 ? (
@@ -1162,32 +1263,7 @@ const DeviceKindList = ({
         </RoomGroupedList>
       )}
       <DetailsSheet open={Boolean(opened)} onClose={() => setOpenId(null)}>
-        {shown && (
-          <DetailsFrame
-            onClose={() => setOpenId(null)}
-            title={shown.name}
-            eyebrow={[
-              shown.productName ?? friendlyDeviceType(shown),
-              shown.reachable ? null : "Unreachable",
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          >
-            <LightHero
-              icon=""
-              fallbackIcon={deviceIcon(shown)}
-              name={shown.name}
-            />
-            <DeviceDetails
-              key={shown.id}
-              device={shown}
-              services={servicesByDevice.get(shown.id) ?? []}
-              switchConfigs={switchConfigsByDevice.get(shown.id) ?? []}
-              onDelete={onDelete}
-              onSaveSwitchConfig={onSaveSwitchConfig}
-            />
-          </DetailsFrame>
-        )}
+        {shown && renderPanel(shown)}
       </DetailsSheet>
     </>
   );
@@ -1200,220 +1276,182 @@ const deviceIcon = (device: HueSettingsDevice) => {
   return Cpu;
 };
 
-/** Everything about a switch, sensor or other device, for the side panel. */
+/** Friendlier names for what a device can do, for its details. */
+const CAPABILITY_LABELS: Record<string, string> = {
+  device_power: "Battery",
+  device_software_update: "Software updates",
+  zigbee_connectivity: "Zigbee",
+  light_level: "Light level",
+  relative_rotary: "Dial",
+  camera_motion: "Motion",
+};
+
+/**
+ * Everything about a switch, sensor or other device, for the side panel: what
+ * it reports now, the facts about it, and, for switches, the bridge's raw
+ * button setup. Sections are set apart by dividers; nothing is folded away.
+ */
 const DeviceDetails = ({
   device,
   services,
   switchConfigs,
-  onDelete,
   onSaveSwitchConfig,
 }: {
   device: HueSettingsDevice;
   services: HueAccessoryService[];
   switchConfigs: HueSwitchInputConfiguration[];
-  onDelete: DeleteResource;
   onSaveSwitchConfig: SaveSwitchConfig;
 }) => {
-  const battery = services.find(
-    (service) => service.resourceType === "device_power",
+  const capabilities = [
+    ...new Set(
+      device.serviceTypes.map(
+        (type) => CAPABILITY_LABELS[type] ?? humanize(type),
+      ),
+    ),
+  ];
+
+  // Battery shows at the top of the panel, so the readings here leave it out.
+  const readings = services.filter(
+    (service) => service.resourceType !== "device_power",
   );
-  const primaryReadings = services.filter(
-    (service) =>
-      service.value &&
-      service.resourceType !== "button" &&
-      service.resourceType !== "relative_rotary" &&
-      service.resourceType !== "device_power" &&
-      service.resourceType !== "zigbee_connectivity" &&
-      service.resourceType !== "light_level",
-  );
-  const serviceTypes = [...new Set(device.serviceTypes)];
 
   return (
-    <>
-      {(battery || primaryReadings.length > 0) && (
-        <DetailsSection title="Readings">
-          <div className="flex flex-wrap items-center gap-1.5">
-            {battery && <SensorBatteryGauge service={battery} />}
-            {primaryReadings.map((service) => (
-              <SensorReadingPill key={service.id} service={service} />
-            ))}
-          </div>
-        </DetailsSection>
-      )}
-
-      <DetailsSection title="Device details">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
-          <DeviceField label="Product" value={device.productName} />
-          <DeviceField label="Model" value={device.modelId} />
-          <DeviceField label="Firmware" value={device.swVersion} />
-          <DeviceField label="Zigbee ID" value={device.uniqueId} mono />
-        </dl>
-        {serviceTypes.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {serviceTypes.map((serviceType) => (
-              <Badge key={serviceType} variant="outline">
-                {humanize(serviceType)}
-              </Badge>
-            ))}
-          </div>
+    <div className="grid gap-6">
+      <ExpandableRowGroup>
+        {readings.length > 0 && (
+          <ExpandableRow
+            title="Status"
+            value={`${readings.length} ${readings.length === 1 ? "reading" : "readings"}`}
+          >
+            <DeviceStatusList services={readings} />
+          </ExpandableRow>
         )}
-      </DetailsSection>
-
-      {(services.length > 0 || switchConfigs.length > 0) && (
-        <DetailsSection
-          title="Troubleshooting"
-          description="What the bridge reports, for when something misbehaves."
+        <ExpandableRow
+          title="Device details"
+          value={device.modelId ?? undefined}
         >
-          <Accordion className="rounded-xl border-border/60">
-            {services.length > 0 && (
-              <AccordionItem value="services">
-                <AccordionTrigger className="p-3">
-                  Service diagnostics
-                </AccordionTrigger>
-                <AccordionContent className="px-3">
-                  <div className="grid gap-2">
-                    {services.map((service) => (
-                      <AccessoryServiceRow key={service.id} service={service} />
-                    ))}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <DeviceField label="Product" value={device.productName} />
+            <DeviceField label="Model" value={device.modelId} />
+            <DeviceField label="Firmware" value={device.swVersion} />
+            <DeviceField label="Zigbee ID" value={device.uniqueId} mono />
+            {capabilities.length > 0 && (
+              <div className="col-span-2">
+                <dt className="text-xs text-muted-foreground">Capabilities</dt>
+                <dd className="text-sm">{capabilities.join(", ")}</dd>
+              </div>
             )}
-            {switchConfigs.length > 0 && (
-              <AccordionItem value="switch-config">
-                <AccordionTrigger className="p-3">
-                  Advanced switch configuration
-                </AccordionTrigger>
-                <AccordionContent className="px-3">
-                  <p className="mb-3 text-xs text-muted-foreground">
-                    Raw bridge configuration for troubleshooting and custom
-                    switch behavior.
-                  </p>
-                  <div className="grid gap-2">
-                    {switchConfigs.map((config) => (
-                      <SwitchConfigEditor
-                        key={config.id}
-                        config={config}
-                        onSave={onSaveSwitchConfig}
-                      />
-                    ))}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
-          </Accordion>
+          </dl>
+        </ExpandableRow>
+      </ExpandableRowGroup>
+
+      {switchConfigs.length > 0 && (
+        <DetailsSection
+          title="Wired switch"
+          description="The kind of wall switch wired to this module, so its presses are read the right way."
+        >
+          <div className="grid gap-5">
+            {switchConfigs.map((config, index) => (
+              <SwitchModeField
+                key={config.id}
+                label={
+                  switchConfigs.length > 1
+                    ? `Switch ${index + 1}`
+                    : "Switch type"
+                }
+                config={config}
+                onSave={onSaveSwitchConfig}
+              />
+            ))}
+          </div>
         </DetailsSection>
       )}
-
-      {!isBridgeDevice(device) && (
-        <>
-          <DetailsSpacer />
-          <RemoveResourceSection
-            title={`Delete ${device.name}`}
-            description="Removes it from your Hue Bridge."
-            actionLabel="Delete"
-            confirmTone="danger"
-            confirmTitle={`Delete "${device.name}"?`}
-            confirmBody="It is removed from your Hue Bridge, along with anything it controls there. To use it again, you have to add it to the bridge again."
-            onConfirm={() => onDelete("device", device.id)}
-          />
-        </>
-      )}
-    </>
+    </div>
   );
 };
 
-const AccessoryServiceRow = ({ service }: { service: HueAccessoryService }) => (
-  <div className="rounded-lg bg-muted/45 px-3 py-2 text-sm">
-    <div className="flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <p className="truncate font-medium">{humanize(service.resourceType)}</p>
-        <p className="truncate text-xs text-muted-foreground">
-          {[service.value, service.updated].filter(Boolean).join(" · ") ||
-            "No state reported"}
-        </p>
-      </div>
-      <div className="flex shrink-0 gap-1">
-        {service.enabled !== null && (
-          <Badge variant={service.enabled ? "secondary" : "outline"}>
-            {service.enabled ? "Enabled" : "Disabled"}
-          </Badge>
-        )}
-        <Badge variant={service.reachable ? "secondary" : "destructive"}>
-          {service.reachable ? "Reachable" : "Offline"}
-        </Badge>
-      </div>
-    </div>
-  </div>
-);
+const SWITCH_MODE_LABELS: Record<string, string> = {
+  switch_single_rocker: "Single rocker",
+  switch_single_pushbutton: "Single push button",
+  switch_dual_rocker: "Dual rocker",
+  switch_dual_pushbutton: "Dual push button",
+};
 
-const SwitchConfigEditor = ({
+/** The switch_mode a wall switch module reports: its mode and the choices. */
+const switchModeOf = (raw: unknown) => {
+  const mode = isRecord(raw) ? raw.switch_mode : null;
+  if (!isRecord(mode)) return null;
+  return {
+    mode: typeof mode.mode === "string" ? mode.mode : null,
+    values: Array.isArray(mode.mode_values)
+      ? mode.mode_values.filter(
+          (value): value is string => typeof value === "string",
+        )
+      : Object.keys(SWITCH_MODE_LABELS),
+    changing: mode.status === "changing",
+  };
+};
+
+/** Picks the wired switch type; a choice is written straight away. */
+const SwitchModeField = ({
+  label,
   config,
   onSave,
 }: {
+  label: string;
   config: HueSwitchInputConfiguration;
   onSave: SaveSwitchConfig;
 }) => {
-  const [draft, setDraft] = useState(() =>
-    JSON.stringify(writableSwitchConfig(config.raw), null, 2),
-  );
+  const current = switchModeOf(config.raw);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  if (!current) return null;
 
-  useEffect(() => {
-    setDraft(JSON.stringify(writableSwitchConfig(config.raw), null, 2));
-  }, [config.raw]);
-
-  const save = async () => {
+  const choose = async (mode: string | null) => {
+    if (!mode || mode === current.mode) return;
     setIsSaving(true);
     setError(null);
     try {
-      const parsed = JSON.parse(draft) as unknown;
-      if (!isRecord(parsed)) {
-        throw new Error("Configuration body must be a JSON object.");
-      }
-      await onSave(config.id, parsed);
+      await onSave(config.id, { switch_mode: { mode } });
     } catch (saveError) {
-      setError(String(saveError) || "Unable to save switch configuration.");
+      setError(String(saveError) || "Unable to change the switch type.");
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <div className="rounded-lg bg-muted/45 p-3">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium">
-            {config.mode ?? "Switch input configuration"}
-          </p>
-          <p className="truncate text-xs text-muted-foreground">{config.id}</p>
-        </div>
-        <Button
-          type="button"
-          size="sm"
-          className="gap-2"
-          disabled={isSaving}
-          onClick={() => void save()}
-        >
-          {isSaving ? (
-            <Loader2 className="animate-spin" />
-          ) : (
-            <SlidersHorizontal />
-          )}
-          Save
-        </Button>
-      </div>
-      <textarea
-        className="min-h-28 w-full resize-y rounded-xl border border-border bg-background/80 px-3 py-2 font-mono text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        aria-label="Switch input configuration JSON"
-        spellCheck={false}
-      />
-      {error && (
-        <p className="mt-2 text-sm text-(--destructive-text)">{error}</p>
+    <div className="grid gap-2">
+      <Label>{label}</Label>
+      <Select
+        items={Object.fromEntries(
+          current.values.map((value) => [
+            value,
+            SWITCH_MODE_LABELS[value] ?? humanize(value),
+          ]),
+        )}
+        value={current.mode}
+        onValueChange={(value) => void choose(value)}
+        disabled={isSaving}
+      >
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Choose switch type" />
+        </SelectTrigger>
+        <SelectContent>
+          {current.values.map((value) => (
+            <SelectItem key={value} value={value}>
+              {SWITCH_MODE_LABELS[value] ?? humanize(value)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {(isSaving || current.changing) && (
+        <p className="text-xs text-muted-foreground">
+          The module applies this the next time it wakes, which can take a
+          minute. Press the switch to wake it sooner.
+        </p>
       )}
+      {error && <p className="text-sm text-(--destructive-text)">{error}</p>}
     </div>
   );
 };
@@ -1454,16 +1492,6 @@ const friendlyDeviceType = (device: HueSettingsDevice) => {
   if (kind === "sensor") return "Sensor";
   if (kind === "light") return "Light";
   return "Hue device";
-};
-
-const writableSwitchConfig = (raw: unknown): Record<string, unknown> => {
-  if (!isRecord(raw)) return {};
-  const next = { ...raw };
-  delete next.id;
-  delete next.type;
-  delete next.owner;
-  delete next.metadata;
-  return next;
 };
 
 /** True when every search token appears in at least one of the given fields. */

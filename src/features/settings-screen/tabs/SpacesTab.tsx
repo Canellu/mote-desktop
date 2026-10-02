@@ -277,7 +277,7 @@ const MembershipEditor = ({
           </Button>
         }
       />
-      <DialogContent className="flex h-[min(46rem,calc(100dvh-2rem))] min-h-0 flex-col overflow-hidden sm:max-w-4xl">
+      <DialogContent className="flex h-[min(46rem,var(--overlay-max-height))] min-h-0 flex-col overflow-hidden sm:max-w-4xl">
         <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>
             Edit {roomZone.resourceType === "room" ? "room" : "zone"}

@@ -25,6 +25,11 @@ export const SceneTile: React.FC<{
   fullWidth?: boolean;
   /** Small label pinned to the top-right corner (e.g. brightness). */
   cornerLabel?: React.ReactNode;
+  /**
+   * A quiet line under the name (e.g. brightness and speed), for values that
+   * would crowd the visual in a corner. Give the tile room for it.
+   */
+  meta?: React.ReactNode;
   /** Small label pinned to the top-left corner (e.g. dynamic speed). */
   cornerLabelLeft?: React.ReactNode;
   /**
@@ -50,6 +55,7 @@ export const SceneTile: React.FC<{
   fullWidth = false,
   cornerLabel,
   cornerLabelLeft,
+  meta,
   topRightAction,
   disabled = false,
   ariaPressed,
@@ -177,6 +183,18 @@ export const SceneTile: React.FC<{
           </span>
         )}
       </span>
+      {meta != null && (
+        <span
+          className={cn(
+            "-mt-1 flex items-center justify-center gap-2 text-xs font-medium tabular-nums",
+            activeBackground
+              ? "text-foreground/80 drop-shadow"
+              : "text-muted-foreground",
+          )}
+        >
+          {meta}
+        </span>
+      )}
     </Card>
   );
 };

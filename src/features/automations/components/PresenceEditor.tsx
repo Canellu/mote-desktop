@@ -1,3 +1,4 @@
+import { formatTimeOfDay } from "@/stores/FormatPreferencesStore";
 import { useState, type ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -46,7 +47,7 @@ const minutesAgo = (at: number) => {
   const minutes = Math.round((Date.now() - at) / 60000);
   if (minutes < 1) return "just now";
   if (minutes < 60) return `${minutes} min ago`;
-  return `at ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
+  return `at ${formatTimeOfDay(new Date(at))}`;
 };
 
 /**

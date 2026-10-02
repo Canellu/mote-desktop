@@ -1,5 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS as DndCSS } from "@dnd-kit/utilities";
+import { GripHorizontal } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -15,9 +16,21 @@ export const SortableItem: React.FC<{
   id: string;
   editing: boolean;
   transitionDisabled?: boolean;
+  /**
+   * Fade in a small reorder grip at the top on hover, for lists where tiles
+   * are always draggable and nothing else says so.
+   */
+  hoverHandle?: boolean;
   className?: string;
   children: React.ReactNode;
-}> = ({ id, editing, transitionDisabled = false, className, children }) => {
+}> = ({
+  id,
+  editing,
+  transitionDisabled = false,
+  hoverHandle = false,
+  className,
+  children,
+}) => {
   const {
     attributes,
     listeners,
@@ -38,11 +51,23 @@ export const SortableItem: React.FC<{
       }}
       className={cn(
         editing && "relative cursor-grab touch-none active:cursor-grabbing",
+        hoverHandle && "group/sortable",
         className,
       )}
       {...(editing ? { ...attributes, ...listeners } : {})}
     >
       {children}
+      {editing && hoverHandle && !isDragging && (
+        // The dotted grip is the app's reorder sign (sections use the vertical
+        // one). It sits on its own frosted chip so it reads the same on a lit
+        // tile's bright palette as on a plain one.
+        <span
+          aria-hidden
+          className="pointer-events-none absolute top-0.5 left-1/2 flex h-3.5 -translate-x-1/2 items-center rounded-full bg-background/75 px-1.5 text-muted-foreground opacity-0 shadow-sm ring-1 ring-foreground/10 backdrop-blur-sm transition-opacity duration-150 group-hover/sortable:opacity-100"
+        >
+          <GripHorizontal className="size-3" />
+        </span>
+      )}
     </div>
   );
 };

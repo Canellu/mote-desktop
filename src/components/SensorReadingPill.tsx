@@ -1,61 +1,12 @@
 import { cn } from "@/lib/utils";
 import type { HueAccessoryService } from "@/types/hue";
-
-/** Friendlier labels for the v2 service resource types shown on sensor pills. */
-const SENSOR_READING_LABELS: Record<string, string> = {
-  temperature: "Temperature",
-  light_level: "Light level",
-  contact: "Contact",
-  tamper: "Tamper",
-  button: "Button",
-  relative_rotary: "Dial",
-  zigbee_connectivity: "Zigbee",
-};
-
-const humanize = (value: string) =>
-  value
-    .split("_")
-    .filter(Boolean)
-    .map((part) => `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`)
-    .join(" ");
-
-const buttonLabel = ({
-  controlId,
-  productName,
-}: HueAccessoryService): string => {
-  if (controlId === null) return "Button";
-
-  if (productName?.toLowerCase().includes("dimmer switch")) {
-    const dimmerLabels: Record<number, string> = {
-      1: "Top button",
-      2: "Brighten button",
-      3: "Dim button",
-      4: "Bottom button",
-    };
-    return dimmerLabels[controlId] ?? `Button ${controlId}`;
-  }
-
-  return `Button ${controlId}`;
-};
-
-const buttonEventLabel = (value: string | null): string => {
-  switch (value?.toLowerCase().replace(/_/g, " ")) {
-    case "initial press":
-      return "Pressed";
-    case "repeat":
-      return "Holding";
-    case "short release":
-      return "Tapped";
-    case "long release":
-      return "Hold released";
-    case "double short release":
-      return "Double-tapped";
-    case "long press":
-      return "Long-pressed";
-    default:
-      return value ?? "No event";
-  }
-};
+import {
+  buttonEventLabel,
+  buttonLabel,
+  formatReadingTime,
+  readingLabel,
+  readingValue,
+} from "./sensor-readings";
 
 const chipClass = (reachable: boolean, extra?: string) =>
   cn(
@@ -63,30 +14,6 @@ const chipClass = (reachable: boolean, extra?: string) =>
     reachable ? "bg-muted/60" : "bg-destructive/10 text-(--destructive-text)",
     extra,
   );
-
-/** "Today, 22:15" / "Yesterday, 08:04" / "Mar 3, 14:20" — null when unknown. */
-const formatReadingTime = (iso: string | null): string | null => {
-  if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-
-  const now = new Date();
-  const time = date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  const startOfDay = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const dayDiff = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
-
-  if (dayDiff === 0) return `Today, ${time}`;
-  if (dayDiff === 1) return `Yesterday, ${time}`;
-  return `${date.toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-  })}, ${time}`;
-};
 
 /** Phone-style battery: a bordered cell filled to `pct` with the number inside.
  * Fill runs green when fresh, amber as it drops, red when low. */
@@ -180,7 +107,11 @@ export const SensorReadingPill = ({
   if (resourceType === "motion" || resourceType === "camera_motion") {
     const active = value?.toLowerCase().includes("detected") ?? false;
     const when = formatReadingTime(updated);
-    const label = active ? "Motion detected" : when ? "Last detected" : "No motion";
+    const label = active
+      ? "Motion detected"
+      : when
+        ? "Last detected"
+        : "No motion";
     return (
       <span
         className={chipClass(reachable, active ? "bg-primary/10" : undefined)}
@@ -224,13 +155,13 @@ export const SensorReadingPill = ({
     );
   }
 
-  const label = SENSOR_READING_LABELS[resourceType] ?? humanize(resourceType);
+  const label = readingLabel(resourceType);
 
   // Everything else keeps the label + value form (not redundant for these).
   return (
     <span className={chipClass(reachable)}>
       <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
+      <span className="font-medium">{readingValue(service)}</span>
     </span>
   );
 };

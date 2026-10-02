@@ -16,6 +16,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import "./App.css";
 import { initializeShortcuts } from "./features/shortcuts/store";
 import { initializeUiDensity } from "./stores/UiDensityStore";
+import { initializeFormatPreferences } from "./stores/FormatPreferencesStore";
 import { initializeUiScale } from "./stores/UiScaleStore";
 
 const searchParams = new URLSearchParams(window.location.search);
@@ -43,6 +44,8 @@ if (!isWidgetWindow) {
   initializeUiScale();
   initializeUiDensity();
 }
+// Widgets show times and readings too, so every window fills in defaults.
+void initializeFormatPreferences();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Gauge, Sparkles, Sun } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,12 +12,25 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   gallerySceneBubbleCss,
-  HUE_SCENE_GALLERY_COUNT,
   HUE_SCENE_GALLERY_SECTIONS,
   type HueGalleryScenePreset,
 } from "@/features/space-screen/data/hueSceneGallery";
 import { activeTileTheme } from "@/lib/tile-theme";
-import { hueDynamicSpeedValueToStep } from "@/lib/hue-speed";
+import { cn } from "@/lib/utils";
+import {
+  HUE_DYNAMIC_SPEED_MAX_STEP,
+  hueDynamicSpeedValueToStep,
+} from "@/lib/hue-speed";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { HueRoomZone } from "@/types/hue";
 import { SceneTile } from "./SceneTile";
 
 export const SceneGalleryDialog: React.FC<{
@@ -28,6 +41,15 @@ export const SceneGalleryDialog: React.FC<{
   onScenePreview: (preset: HueGalleryScenePreset) => void;
   onSceneApplyOnce: (preset: HueGalleryScenePreset) => void;
   onSceneCreate: (preset: HueGalleryScenePreset) => Promise<void>;
+  /**
+   * Lets the gallery choose where the scene goes, for callers outside a
+   * space. Switching space re-runs the live preview there.
+   */
+  spacePicker?: {
+    spaces: HueRoomZone[];
+    value: string | null;
+    onChange: (id: string) => void;
+  };
 }> = ({
   open,
   roomZoneName,
@@ -36,6 +58,7 @@ export const SceneGalleryDialog: React.FC<{
   onScenePreview,
   onSceneApplyOnce,
   onSceneCreate,
+  spacePicker,
 }) => {
   const [previewedPreset, setPreviewedPreset] =
     useState<HueGalleryScenePreset | null>(null);
@@ -46,6 +69,14 @@ export const SceneGalleryDialog: React.FC<{
     if (!open) setPreviewedPreset(null);
   }, [open]);
 
+  // A new space restores the old one's lights; preview the pick on the new one.
+  const pickedSpaceId = spacePicker?.value ?? null;
+  useEffect(() => {
+    if (previewedPreset && pickedSpaceId) onScenePreview(previewedPreset);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickedSpaceId]);
+
+  const noSpace = spacePicker != null && pickedSpaceId == null;
   const adding = pendingSceneId != null;
   const handlePreview = (preset: HueGalleryScenePreset) => {
     setPreviewedPreset(preset);
@@ -70,18 +101,85 @@ export const SceneGalleryDialog: React.FC<{
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[calc(100vh-2rem)] gap-4 sm:max-w-3xl">
+      <DialogContent className="flex flex-col gap-4 sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>
-            Hue scene gallery{" "}
-            <span className="text-muted-foreground">
-              {HUE_SCENE_GALLERY_COUNT}
-            </span>
+            Hue scene gallery
           </DialogTitle>
         </DialogHeader>
+        {/* Where it goes and what's previewing, read together before picking. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          {spacePicker && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              Add to
+              <Select
+                value={spacePicker.value ?? ""}
+                onValueChange={(id) => id && spacePicker.onChange(id)}
+              >
+                <SelectTrigger
+                  className="min-w-44"
+                  aria-label="Room or zone to add the scene to"
+                >
+                  <SelectValue placeholder="Choose room or zone">
+                    {
+                      spacePicker.spaces.find(
+                        (space) => space.id === spacePicker.value,
+                      )?.name
+                    }
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {(["room", "zone"] as const).map((kind) => {
+                    const items = spacePicker.spaces.filter(
+                      (space) => space.resourceType === kind,
+                    );
+                    if (items.length === 0) return null;
+                    return (
+                      <SelectGroup key={kind}>
+                        <SelectLabel>
+                          {kind === "room" ? "Rooms" : "Zones"}
+                        </SelectLabel>
+                        {items.map((space) => (
+                          <SelectItem key={space.id} value={space.id}>
+                            {space.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div
+            className={cn(
+              "flex flex-col gap-0.5",
+              // Right-aligned beside the picker; on its own it reads from the left.
+              spacePicker && "items-end text-right",
+            )}
+          >
+            <p className="text-sm text-muted-foreground">
+              {previewedPreset
+                ? `Previewing ${previewedPreset.name}`
+                : "Tap a preset to preview it live."}
+            </p>
+            {/* A key for the numbers under each preset's name. */}
+            <p className="flex items-center gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <Sun className="size-3" />
+                Brightness
+              </span>
+              <span className="flex items-center gap-1">
+                <Gauge className="size-3" />
+                Animation speed (1–{HUE_DYNAMIC_SPEED_MAX_STEP})
+              </span>
+            </p>
+          </div>
+        </div>
         <ScrollArea
           fade
-          className="h-[min(44rem,calc(100vh-11rem))]"
+          // Fixed height that gives way first when the window is short.
+          className="h-176 min-h-0 shrink"
           viewportClassName="pr-3"
         >
           <div className="space-y-12">
@@ -89,10 +187,7 @@ export const SceneGalleryDialog: React.FC<{
               <section key={section.id} className="space-y-4">
                 <div className="min-w-0 space-y-0.5">
                   <h3 className="truncate text-base font-semibold">
-                    {section.title}{" "}
-                    <span className="text-muted-foreground">
-                      {section.scenes.length}
-                    </span>
+                    {section.title}
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     {section.description}
@@ -114,25 +209,20 @@ export const SceneGalleryDialog: React.FC<{
             ))}
           </div>
         </ScrollArea>
-        <DialogFooter className="sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            {previewedPreset
-              ? `Previewing ${previewedPreset.name}`
-              : "Tap a preset to preview it live."}
-          </p>
+        <DialogFooter className="sm:items-center sm:justify-end">
           <div className="flex gap-2">
             <Button
               variant="outline"
-              disabled={!previewedPreset || adding}
+              disabled={!previewedPreset || adding || noSpace}
               onClick={handleSetOnce}
             >
               Set once
             </Button>
             <Button
-              disabled={!previewedPreset || adding}
+              disabled={!previewedPreset || adding || noSpace}
               onClick={() => void handleSave()}
             >
-              Save to {roomZoneName}
+              {spacePicker ? "Save" : `Save to ${roomZoneName}`}
             </Button>
           </div>
         </DialogFooter>
@@ -154,18 +244,38 @@ const GalleryPresetCard: React.FC<{
       name={preset.name}
       ariaPressed={previewed}
       activeBackground={activeBackground}
-      cornerLabel={`${Math.round(preset.brightness)}%`}
-      cornerLabelLeft={
-        preset.dynamic ? hueDynamicSpeedValueToStep(preset.speed) : undefined
+      // Under the name rather than in the corners, where they crowd the circle.
+      // Icons say which number is which; the tooltips spell it out.
+      meta={
+        <>
+          <span
+            className="flex items-center gap-0.5"
+            title={`Brightness ${Math.round(preset.brightness)}%`}
+          >
+            <Sun className="size-3" />
+            {Math.round(preset.brightness)}%
+          </span>
+          {preset.dynamic && (
+            <span
+              className="flex items-center gap-0.5"
+              title={`Animation speed ${hueDynamicSpeedValueToStep(preset.speed)} of ${HUE_DYNAMIC_SPEED_MAX_STEP}`}
+            >
+              <Gauge className="size-3" />
+              {hueDynamicSpeedValueToStep(preset.speed)}
+            </span>
+          )}
+        </>
       }
-      className={
+      className={cn(
+        // Taller than a rail tile, to fit the line under a two-line name.
+        "h-42",
         activeBackground
           ? "text-foreground"
           : // A hairline edge 0.04 lighter/darker than the `--tile` surface
             // (light 0.99 → 0.95, dark 0.26 → 0.30) so the card reads as a
             // distinct chip without a hard border.
-            "border border-[oklch(0.95_0_0)] dark:border-[oklch(0.30_0_0)]"
-      }
+            "border border-[oklch(0.95_0_0)] dark:border-[oklch(0.30_0_0)]",
+      )}
       style={
         activeBackground && bubble
           ? activeTileTheme(bubble, preset.colors[0]?.hex ?? bubble)

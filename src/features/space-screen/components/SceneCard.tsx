@@ -21,6 +21,8 @@ export const SceneCard: React.FC<{
   editing?: boolean;
   disabled?: boolean;
   playDisabled?: boolean;
+  /** Show the corner details button; off where tapping the card opens it. */
+  showInspect?: boolean;
   onApply: (scene: HueScene) => void;
   /** Open the scene in the side pane without applying it. */
   onInspect: (scene: HueScene) => void;
@@ -32,6 +34,7 @@ export const SceneCard: React.FC<{
   editing = false,
   disabled = false,
   playDisabled = false,
+  showInspect = true,
   onApply,
   onInspect,
   onTogglePlay,
@@ -74,7 +77,7 @@ export const SceneCard: React.FC<{
       // without applying the scene. Hidden while editing — there the tap is a
       // multiselect toggle and the card body is a reorder handle.
       topRightAction={
-        editing ? undefined : (
+        editing || !showInspect ? undefined : (
           <Button
             variant="ghost"
             size="icon-sm"

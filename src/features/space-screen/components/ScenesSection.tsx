@@ -32,8 +32,10 @@ import {
   INSPECTOR_TRANSITION,
   useInspectorSettleWidth,
 } from "@/features/space-screen/utils/inspector-layout";
+import { SCENE_GALLERY_TILE_ID } from "@/features/space-screen/utils/item-order";
 import type { HueScene } from "@/types/hue";
 import { SceneCard } from "./SceneCard";
+import { SelectableTileFrame } from "./SelectableTileFrame";
 import { SceneGalleryCard } from "./SceneGalleryCard";
 import { SceneGalleryDialog } from "./SceneGalleryDialog";
 import { SectionGrip } from "./SectionDragHandle";
@@ -46,7 +48,7 @@ const SCENE_GAP = 12;
 // The rail never grows past two rows — beyond that it pages, so the Scenes
 // section can't push the Lights below it off-screen.
 const MAX_ROWS = 2;
-const GALLERY_TILE_ID = "scene-gallery";
+const GALLERY_TILE_ID = SCENE_GALLERY_TILE_ID;
 const DRAG_SCROLL_EDGE = 48;
 const DRAG_SCROLL_INTERVAL = 450;
 
@@ -112,6 +114,11 @@ interface ScenesSectionProps {
   editing: boolean;
   /** Enables drag-and-drop ordering. False while selecting in Manage mode. */
   reordering: boolean;
+  /**
+   * Scene ids ticked in Manage mode; given only while selecting, it turns on
+   * the shared checkbox and wiggle (see SelectableTileFrame).
+   */
+  selectedIds?: ReadonlySet<string>;
   /** Optional header control (e.g. the Manage-mode "Select all" toggle). */
   headerAction?: React.ReactNode;
   /** Saved order including the gallery tile sentinel. */
@@ -135,6 +142,7 @@ export const ScenesSection: React.FC<ScenesSectionProps> = ({
   activeSceneId,
   editing,
   reordering,
+  selectedIds,
   headerAction,
   orderedIds,
   onReorder,
@@ -350,7 +358,10 @@ export const ScenesSection: React.FC<ScenesSectionProps> = ({
   };
 
   return (
-    <div ref={containerRef} className="flex min-w-0 flex-col gap-(--section-header-gap)">
+    <div
+      ref={containerRef}
+      className="flex min-w-0 flex-col gap-(--section-header-gap)"
+    >
       {/* Remount the carousel when the row count flips so Embla re-measures the
           new slide structure (1-tile vs 2-tile columns) from scratch. */}
       <Carousel
@@ -423,6 +434,7 @@ export const ScenesSection: React.FC<ScenesSectionProps> = ({
                           key={tile.id}
                           id={tile.id}
                           editing={reordering}
+                          hoverHandle
                           transitionDisabled={carouselMoving}
                         >
                           {tile.id === GALLERY_TILE_ID ? (
@@ -432,18 +444,25 @@ export const ScenesSection: React.FC<ScenesSectionProps> = ({
                               onOpen={() => setSceneGalleryOpen(true)}
                             />
                           ) : (
-                            <SceneCard
-                              scene={tile.scene!}
-                              active={tile.id === activeSceneId}
-                              editing={editing}
-                              disabled={
-                                fullSync || (partialSync && tile.scene!.smart)
-                              }
-                              playDisabled={syncedLightCount > 0}
-                              onApply={onSceneApply}
-                              onInspect={onSceneInspect}
-                              onTogglePlay={onSceneTogglePlay}
-                            />
+                            <SelectableTileFrame
+                              selecting={selectedIds != null}
+                              selected={selectedIds?.has(tile.id) ?? false}
+                              index={tileIds.indexOf(tile.id)}
+                              label={tile.scene!.name}
+                            >
+                              <SceneCard
+                                scene={tile.scene!}
+                                active={tile.id === activeSceneId}
+                                editing={editing}
+                                disabled={
+                                  fullSync || (partialSync && tile.scene!.smart)
+                                }
+                                playDisabled={syncedLightCount > 0}
+                                onApply={onSceneApply}
+                                onInspect={onSceneInspect}
+                                onTogglePlay={onSceneTogglePlay}
+                              />
+                            </SelectableTileFrame>
                           )}
                         </SortableItem>
                       ))}

@@ -101,7 +101,7 @@ export function AutomationScenePicker({
   );
 }
 
-function SceneOptionTile({
+export function SceneOptionTile({
   scene,
   selected,
   onSelect,

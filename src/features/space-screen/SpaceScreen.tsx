@@ -52,6 +52,7 @@ import { useEntertainmentStore } from "@/stores/EntertainmentStore";
 import { SPACE_ARCHETYPES } from "@/features/settings-screen/constants";
 import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-icons";
 import type {
+  HueAccessory,
   HueAccessoryService,
   HueLight,
   HueRoomZone,
@@ -59,6 +60,8 @@ import type {
 } from "@/types/hue";
 import type { HueGalleryScenePreset } from "./data/hueSceneGallery";
 import { AccessorySection } from "./components/AccessorySection";
+import { DetailsSheet } from "@/features/settings-screen/components/DetailsSheet";
+import { DeviceSettingsPanel } from "@/features/settings-screen/components/DeviceSettingsPanel";
 import { GroupControls } from "./components/GroupControls";
 import { LightsSection } from "./components/LightsSection";
 import { ScenesSection } from "./components/ScenesSection";
@@ -77,10 +80,16 @@ import {
   useInspectorSettle,
 } from "./utils/inspector-layout";
 import { isSceneDynamicActive } from "./utils/scene-status";
+import {
+  applyItemOrder,
+  itemOrderKey,
+  readItemOrder,
+  type EditCategory,
+} from "./utils/item-order";
 
 type ControlCommitPhase = "live" | "final";
-// Selectable (multiselect) sections. "group" is reorderable but not selectable.
-type EditCategory = "scenes" | "lights" | "switches" | "sensors";
+// Selectable (multiselect) sections are the item EditCategory ones; "group" is
+// reorderable but not selectable.
 type SectionId = "group" | EditCategory;
 
 const DEFAULT_SECTION_ORDER: SectionId[] = [
@@ -106,47 +115,12 @@ const readSectionOrder = (key: string): SectionId[] => {
 // Only the item sections carry a per-item order; "group" has no sub-items.
 type ItemOrder = Record<EditCategory, string[]>;
 
-const itemOrderKey = (roomId: string, section: EditCategory) =>
-  `hue-space-item-order:${roomId}:${section}`;
-
-const readItemOrder = (key: string): string[] => {
-  try {
-    const stored = JSON.parse(localStorage.getItem(key) ?? "[]");
-    return Array.isArray(stored)
-      ? stored.filter((id): id is string => typeof id === "string")
-      : [];
-  } catch {
-    return [];
-  }
-};
-
 const readAllItemOrders = (roomId: string): ItemOrder => ({
   scenes: readItemOrder(itemOrderKey(roomId, "scenes")),
   lights: readItemOrder(itemOrderKey(roomId, "lights")),
   switches: readItemOrder(itemOrderKey(roomId, "switches")),
   sensors: readItemOrder(itemOrderKey(roomId, "sensors")),
 });
-
-/**
- * Sorts `items` by the saved id order. Ids missing from `order` (newly added
- * since the last reorder) keep their original relative position at the end, so
- * a saved order never hides a new light/scene. A stable sort preserves that.
- */
-function applyItemOrder<T extends { id: string }>(
-  items: T[],
-  order: string[],
-): T[] {
-  if (order.length === 0) return items;
-  const rank = new Map(order.map((id, index) => [id, index] as const));
-  return items
-    .map((item, index) => ({
-      item,
-      index,
-      rank: rank.get(item.id) ?? Number.POSITIVE_INFINITY,
-    }))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
-    .map((entry) => entry.item);
-}
 
 const EmptyEditSection: React.FC<{ title: string }> = ({ title }) => (
   <div className="flex flex-col gap-(--section-header-gap)">
@@ -309,6 +283,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
   ).length;
   const [editing, setEditing] = useState(false);
   const [managing, setManaging] = useState(false);
+  const [openAccessoryId, setOpenAccessoryId] = useState<string | null>(null);
   const [creatingScene, setCreatingScene] = useState(false);
   const [selection, setSelection] = useState<{
     category: EditCategory;
@@ -459,6 +434,17 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
   const orderedLights = applyItemOrder(lights, itemOrder.lights);
   const orderedSwitches = applyItemOrder(switches, itemOrder.switches);
   const orderedSensors = applyItemOrder(sensors, itemOrder.sensors);
+  const openAccessory = roomZone.accessories.find(
+    (accessory) => accessory.id === openAccessoryId,
+  );
+  // Kept while the sheet slides away, so it doesn't empty as it closes.
+  const lastOpenAccessory = useRef<HueAccessory | undefined>(undefined);
+  if (openAccessory) lastOpenAccessory.current = openAccessory;
+  const shownAccessory = openAccessory ?? lastOpenAccessory.current;
+  const onOpenAccessory =
+    editing || managing
+      ? undefined
+      : (accessory: HueAccessory) => setOpenAccessoryId(accessory.id);
 
   const showScenes = scenes.length > 0 || lights.length > 0;
   const playingScene = scenes.find(isSceneDynamicActive) ?? null;
@@ -592,6 +578,13 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
         activeSceneId={activeSceneId}
         editing={editing || managing}
         reordering={editing}
+        selectedIds={
+          managing
+            ? selection?.category === "scenes"
+              ? selection.ids
+              : new Set<string>()
+            : undefined
+        }
         orderedIds={itemOrder.scenes}
         headerAction={selectAllControl(
           "scenes",
@@ -642,6 +635,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
             orderedSwitches.map((accessory) => accessory.id),
           )}
           onReorder={persistItemOrder("switches")}
+          onOpen={onOpenAccessory}
         />
       ) : editing ? (
         <EmptyEditSection title="Switches" />
@@ -659,6 +653,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
             orderedSensors.map((accessory) => accessory.id),
           )}
           onReorder={persistItemOrder("sensors")}
+          onOpen={onOpenAccessory}
         />
       ) : editing ? (
         <EmptyEditSection title="Sensors" />
@@ -865,6 +860,29 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
         </AnimatePresence>,
         document.body,
       )}
+      <DetailsSheet
+        open={Boolean(openAccessory)}
+        onClose={() => setOpenAccessoryId(null)}
+      >
+        {shownAccessory && (
+          <DeviceSettingsPanel
+            key={shownAccessory.id}
+            device={shownAccessory}
+            services={readingsByDevice.get(shownAccessory.id) ?? []}
+            roomZones={roomZones}
+            icon={shownAccessory.kind === "switch" ? ToggleLeft : Radar}
+            eyebrow={[
+              shownAccessory.productName ??
+                (shownAccessory.kind === "switch" ? "Switch" : "Sensor"),
+              shownAccessory.reachable ? null : "Unreachable",
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            onClose={() => setOpenAccessoryId(null)}
+            onRefresh={onRefresh}
+          />
+        )}
+      </DetailsSheet>
       <CreateSceneDialog
         key={roomZone.id}
         open={creatingScene}

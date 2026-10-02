@@ -277,7 +277,7 @@ export function OnAirLookFields({
       <FieldRow
         label={sceneMode ? "Scene" : "Lights"}
         labelId="automation-lights-look"
-        action={<FoldAllButton state={folding} />}
+        action={<FoldAllButton state={folding} flush />}
         below
       >
         {sceneMode ? (
@@ -393,7 +393,7 @@ export function PcLockActionFields({
       <FieldRow
         label={value.action === "scene" ? "Scene" : "Lights"}
         labelId="pc-lock-lights-action"
-        action={<FoldAllButton state={folding} />}
+        action={<FoldAllButton state={folding} flush />}
         below
       >
         {value.action === "scene" ? (

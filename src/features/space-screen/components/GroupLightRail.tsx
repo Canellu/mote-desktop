@@ -24,6 +24,8 @@ interface GroupLightRailProps {
   onSelectAll: () => void;
   onClear: () => void;
   onFocusedIdChange: (id: string | null) => void;
+  /** Extra tile classes, e.g. a stronger fill on a surface the default blends into. */
+  tileClassName?: string;
 }
 
 export const GroupLightRail: React.FC<GroupLightRailProps> = ({
@@ -34,6 +36,7 @@ export const GroupLightRail: React.FC<GroupLightRailProps> = ({
   onSelectAll,
   onClear,
   onFocusedIdChange,
+  tileClassName,
 }) => {
   const [api, setApi] = useState<CarouselApi>();
   const selectedCount = lights.filter((light) =>
@@ -91,6 +94,7 @@ export const GroupLightRail: React.FC<GroupLightRailProps> = ({
           "relative flex h-36 w-full flex-col items-center justify-center gap-3 rounded-xl bg-muted/30 px-3 py-4 text-center outline-none transition-[border-color,background-color,transform] focus-visible:ring-2 focus-visible:ring-ring",
           selectableVariants(),
           focused && "scale-[1.02]",
+          tileClassName,
         )}
       >
         <span

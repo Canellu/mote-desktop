@@ -8,6 +8,7 @@ import { openFirewallSettings } from "@/lib/firewall";
 import { selectableVariants } from "@/lib/selection-styles";
 import { cn } from "@/lib/utils";
 import { type UiDensity, useUiDensityStore } from "@/stores/UiDensityStore";
+import { useFormatPreferences } from "@/stores/FormatPreferencesStore";
 import {
   DEFAULT_UI_SCALE,
   UI_SCALE_STEPS,
@@ -231,6 +232,14 @@ export const GeneralTab = ({
   const [feedbackPreferences, updateFeedbackPreferences] =
     useFeedbackPreferences();
   const density = useUiDensityStore((state) => state.density);
+  const {
+    timeFormat,
+    measurementSystem,
+    temperatureUnit,
+    setTimeFormat,
+    setMeasurementSystem,
+    setTemperatureUnit,
+  } = useFormatPreferences();
   const setDensity = useUiDensityStore((state) => state.setDensity);
 
   return (
@@ -276,6 +285,54 @@ export const GeneralTab = ({
               ariaLabel="Feedback button display"
               options={feedbackButtonOptions}
               layoutId="feedback-button-mode-pill"
+            />
+          </SettingsRow>
+        </SettingsSection>
+
+        <SettingsSection title="Units and formats">
+          <SettingsRow
+            title="Time"
+            description="How times are written across the app, such as a switch's time-of-day scenes."
+          >
+            <SegmentedControl
+              value={timeFormat}
+              onValueChange={setTimeFormat}
+              ariaLabel="Time format"
+              options={[
+                { value: "24h", label: "24-hour" },
+                { value: "12h", label: "12-hour" },
+              ]}
+              layoutId="app-time-format-pill"
+            />
+          </SettingsRow>
+          <SettingsRow
+            title="Measurements"
+            description="Lengths on the home map: metres and centimetres, or feet and inches."
+          >
+            <SegmentedControl
+              value={measurementSystem}
+              onValueChange={setMeasurementSystem}
+              ariaLabel="Measurement system"
+              options={[
+                { value: "metric", label: "Metric" },
+                { value: "imperial", label: "Imperial" },
+              ]}
+              layoutId="app-measurement-pill"
+            />
+          </SettingsRow>
+          <SettingsRow
+            title="Temperature"
+            description="Readings from motion sensors."
+          >
+            <SegmentedControl
+              value={temperatureUnit}
+              onValueChange={setTemperatureUnit}
+              ariaLabel="Temperature unit"
+              options={[
+                { value: "celsius", label: "°C" },
+                { value: "fahrenheit", label: "°F" },
+              ]}
+              layoutId="app-temperature-pill"
             />
           </SettingsRow>
         </SettingsSection>

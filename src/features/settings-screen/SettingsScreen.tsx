@@ -53,6 +53,9 @@ interface SettingsScreenProps {
   onThemeModeChange: (themeMode: ThemeMode) => void;
 }
 
+/** The bridge summary from the last visit, kept for the session. */
+let lastSummary: HueSettingsSummary | null = null;
+
 export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   themeMode,
   onThemeModeChange,
@@ -73,8 +76,17 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   const roomZones = useHueResourcesStore((state) => state.roomZones);
   const scenes = useHueResourcesStore((state) => state.scenes);
   const loadAll = useHueResourcesStore((state) => state.loadAll);
-  const [summary, setSummary] = useState<HueSettingsSummary | null>(null);
-  const [isLoadingSummary, setIsLoadingSummary] = useState(true);
+  // The last summary shows at once on return; a fresh one replaces it.
+  const [summary, setSummaryState] = useState<HueSettingsSummary | null>(
+    lastSummary,
+  );
+  const setSummary = (next: HueSettingsSummary | null) => {
+    lastSummary = next;
+    setSummaryState(next);
+  };
+  const [isLoadingSummary, setIsLoadingSummary] = useState(
+    lastSummary == null,
+  );
   const syncBoxSession = useSyncBoxStore((store) => store.session);
   const isLoadingSyncBox = useSyncBoxStore((store) => store.sessionLoading);
   const loadSyncBoxSession = useSyncBoxStore((store) => store.loadSession);
@@ -228,7 +240,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
   ) => {
     await invoke("set-switch-input-configuration", { id, body });
     await refreshSettings();
-    toast.success("Switch input configuration updated");
+    toast.success("Switch type updated");
   };
 
   const updateCloseButtonBehavior = async (behavior: CloseButtonBehavior) => {
@@ -453,8 +465,6 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                 <ScenesTab
                   roomZones={roomZones}
                   scenes={scenes}
-                  onRename={renameResource}
-                  onDelete={deleteResource}
                   onCreate={() => void navigate({ to: "/settings/scenes/new" })}
                 />
               </TabsContent>

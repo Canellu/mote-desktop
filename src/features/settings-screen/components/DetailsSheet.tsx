@@ -89,6 +89,7 @@ export const DetailsFrame = ({
   title,
   back,
   footer,
+  removal,
   guard,
   children,
 }: {
@@ -98,7 +99,13 @@ export const DetailsFrame = ({
   /** What the panel shows, for assistive technology; the body shows it too. */
   title: string;
   back?: { label: string; onClick: () => void };
+  /** Cancel and Save, pinned to the bottom. */
   footer?: React.ReactNode;
+  /**
+   * Taking the thing away (Delete, Ungroup), pinned to the bottom with the
+   * footer so it's always in reach, above Cancel and Save.
+   */
+  removal?: React.ReactNode;
   /** Closing or going back with unsaved edits asks first, as side panes do. */
   guard?: DetailsGuard;
   children: React.ReactNode;
@@ -163,9 +170,10 @@ export const DetailsFrame = ({
         <div className="flex flex-1 flex-col gap-6 pt-2">{children}</div>
       </ScrollArea>
 
-      {footer && (
-        <div className="flex gap-2 border-t border-border p-6 pt-4">
-          {footer}
+      {(removal || footer) && (
+        <div className="grid gap-4 border-t border-border p-6 pt-4">
+          {removal}
+          {footer && <div className="flex gap-2">{footer}</div>}
         </div>
       )}
 
@@ -233,9 +241,3 @@ export const DetailsSection = ({
     {children}
   </section>
 );
-
-/**
- * Pushes what follows it (a remove or ungroup row) to the bottom of the panel
- * body, as the side panes do, so it sits just above the footer.
- */
-export const DetailsSpacer = () => <div className="flex-1" />;

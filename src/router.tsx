@@ -25,6 +25,8 @@ import { SettingsRoute } from "./routes/SettingsRoute";
 import { CreateSceneRoute } from "./routes/CreateSceneRoute";
 import { SpaceRoute } from "./routes/SpaceRoute";
 import { SyncHubRoute } from "./routes/SyncHubRoute";
+import { SwitchEditorRoute } from "./routes/SwitchEditorRoute";
+import { MotionEditorRoute } from "./routes/MotionEditorRoute";
 import { WidgetWizardRoute } from "./routes/WidgetWizardRoute";
 import { AutomationWizardRoute } from "./routes/AutomationWizardRoute";
 
@@ -153,6 +155,18 @@ const entertainmentPlacementRoute = createRoute({
   component: EntertainmentPlacementRoute,
 });
 
+const switchEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/switch/$deviceId",
+  component: SwitchEditorRoute,
+});
+
+const motionEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings/motion/$deviceId",
+  component: MotionEditorRoute,
+});
+
 const syncHubRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/sync",
@@ -192,6 +206,8 @@ const routeTree = rootRoute.addChildren([
   createSceneRoute,
   entertainmentAreaWizardRoute,
   entertainmentPlacementRoute,
+  switchEditorRoute,
+  motionEditorRoute,
   syncHubRoute,
   entertainmentAreaSyncRoute,
   focusRoute,

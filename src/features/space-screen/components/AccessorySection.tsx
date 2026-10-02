@@ -20,6 +20,7 @@ import {
   SensorReadingPill,
 } from "@/components/SensorReadingPill";
 import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import {
   INSPECTOR_TRANSITION,
   useInspectorSettle,
@@ -40,6 +41,8 @@ export const AccessorySection: React.FC<{
   headerAction?: React.ReactNode;
   /** Persist the new accessory order (full list of ids) after a reorder drag. */
   onReorder?: (orderedIds: string[]) => void;
+  /** Opens a card's settings. Left out while editing or selecting. */
+  onOpen?: (accessory: HueAccessory) => void;
 }> = ({
   title,
   icon: Icon,
@@ -48,6 +51,7 @@ export const AccessorySection: React.FC<{
   reordering = false,
   headerAction,
   onReorder,
+  onOpen,
 }) => {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -96,7 +100,24 @@ export const AccessorySection: React.FC<{
     return (
       <Card
         data-edit-id={accessory.id}
-        className="gap-3 rounded-(--tile-radius) bg-tile px-4 py-3"
+        role={onOpen ? "button" : undefined}
+        tabIndex={onOpen ? 0 : undefined}
+        aria-label={onOpen ? `${accessory.name} settings` : undefined}
+        onClick={onOpen ? () => onOpen(accessory) : undefined}
+        onKeyDown={
+          onOpen
+            ? (event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                onOpen(accessory);
+              }
+            : undefined
+        }
+        className={cn(
+          "gap-3 rounded-(--tile-radius) bg-tile px-4 py-3",
+          onOpen &&
+            "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        )}
       >
         <div className="flex items-center justify-between gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">

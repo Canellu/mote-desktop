@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -104,8 +105,15 @@ export function PickerGroups({
 /** Folds every room of a picker at once, from its section's title row. */
 export function FoldAllButton({
   state,
+  flush = false,
 }: {
   state: ReturnType<typeof usePickerFolding>;
+  /**
+   * Its row shares the picker's own box (a field inside the panel) rather
+   * than sitting above a bordered panel, so only the list's border and the
+   * room's padding lie between it and the rooms' chevrons.
+   */
+  flush?: boolean;
 }) {
   if (!state.foldable) return null;
   const label = state.allClosed ? "Open every room" : "Fold every room";
@@ -115,11 +123,14 @@ export function FoldAllButton({
       variant="ghost"
       aria-label={label}
       title={label}
-      /* Its chevron lands in the rooms' chevron column. That column sits a
-         panel border, the panel's row padding, the list's border and the
-         room's own 12px in from the section edge, plus half a 16px chevron:
-         24px (28px once the panel pads by 5), less half this 28px box. */
-      className="mr-6 size-7 shrink-0 text-muted-foreground hover:text-foreground @3xl:mr-7"
+      /* Its chevron lands in the rooms' chevron column: the list's 1px border,
+         the room's 12px and half a 16px chevron (21px) in from the list's
+         edge, less half this 28px box (7px). Above a bordered panel the
+         panel's border and padding add 17px (21px once it pads by 5). */
+      className={cn(
+        "size-7 shrink-0 text-muted-foreground hover:text-foreground",
+        flush ? "mr-[7px]" : "mr-6 @3xl:mr-7",
+      )}
       onClick={state.toggleAll}
     >
       {state.allClosed ? (

@@ -28,7 +28,7 @@ export const WhatsNew = () => {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
-      <DialogContent className="grid max-h-[min(calc(100vh-6rem),40rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-5 sm:max-w-lg">
+      <DialogContent className="grid max-h-[min(var(--overlay-max-height),40rem)] grid-rows-[auto_minmax(0,1fr)_auto] gap-5 sm:max-w-lg">
         <DialogHeader>
           <span className="mb-1 flex size-10 items-center justify-center rounded-xl bg-primary/12 text-primary ring-1 ring-primary/20">
             <Sparkles size={20} />

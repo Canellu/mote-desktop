@@ -9,6 +9,18 @@
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: "Geist Variable", sans-serif;
+  /* Selection-mode wiggle for tiles that can still be ticked (Settings ›
+     Scenes). Small and slow so a full grid reads as "pickable", not alarmed. */
+  --animate-wiggle: wiggle 0.55s ease-in-out infinite;
+  @keyframes wiggle {
+    0%,
+    100% {
+      transform: rotate(-1deg);
+    }
+    50% {
+      transform: rotate(1deg);
+    }
+  }
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -70,6 +82,17 @@
      pads below it and anything anchored to the window edge, like a sheet,
      starts below it too. */
   --title-bar-height: 2.5rem;
+  /* Tallest a centred dialog may grow: the window below the title bar, less a
+     1rem margin above and below so it never slides under the bar. */
+  --overlay-max-height: calc(100dvh - var(--title-bar-height) - 2rem);
+
+  /* Mote brand glow, sampled from the app icon: the "h" runs from violet at
+     the top through rose into the bulb's orange and amber. Same in both themes,
+     like the icon itself. */
+  --brand-violet: #6e1b99;
+  --brand-rose: #c63671;
+  --brand-orange: #fd8545;
+  --brand-amber: #fea83a;
 
   /* Surface elevation ladder: each step up the stack (background → card → tile
      → popover) is equal or lighter in both themes, so elevation reads
@@ -607,8 +630,8 @@
    not need a second, parallel selected-state API. */
 [data-edit-selected] {
   border-color: transparent;
-  outline: 3px solid var(--selection-ring);
-  outline-offset: -3px;
+  outline: 2px solid var(--selection-ring);
+  outline-offset: -2px;
 }
 
 /* Overlay selection for tiles whose own fill must stay visible (lit light cards,
@@ -617,4 +640,10 @@
   border-color: transparent;
   outline: 3px solid var(--selection-ring);
   outline-offset: -3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-wiggle {
+    animation: none;
+  }
 }

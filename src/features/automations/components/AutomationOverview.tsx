@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { CalendarClock, Lock, Mic, Plus, Radar } from "lucide-react";
+import { CalendarClock, Lock, Mic, Radar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type {
   CalendarSettings,
@@ -168,15 +168,14 @@ export function AutomationOverview({
             <h3 className="text-base font-semibold">
               Make your lights respond automatically.
             </h3>
+            {/* The page header's Add automation is the one way in, so the
+                empty state points to it rather than repeating the button. */}
             <p className="max-w-prose text-sm leading-5 text-muted-foreground">
               Choose what happens during calls, when you lock your PC, when you
-              leave home, or around calendar events.
+              leave home, or around calendar events. Start with Add automation
+              at the top.
             </p>
           </div>
-          <Button onClick={onAdd}>
-            <Plus aria-hidden />
-            Add automation
-          </Button>
         </section>
       ) : (
         <section className="grid min-w-0 gap-3">

@@ -12,6 +12,7 @@ pub mod home_map;
 pub mod host_sync;
 pub mod lights;
 pub mod presence;
+pub mod regional;
 pub mod rooms;
 pub mod scenes;
 pub mod settings;

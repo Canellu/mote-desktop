@@ -1,3 +1,4 @@
+import { formatTimeOfDay } from "@/stores/FormatPreferencesStore";
 import { Button } from "@/components/ui/button";
 import { SettingsRow } from "@/features/settings-screen/components/SettingsList";
 import { cn } from "@/lib/utils";
@@ -10,10 +11,7 @@ const MIN_CHECKING_MS = 600;
 
 const formatCheckedAt = (checkedAt: number) => {
   const when = new Date(checkedAt);
-  const time = when.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  const time = formatTimeOfDay(when);
   if (when.toDateString() === new Date().toDateString()) return `at ${time}`;
   const date = when.toLocaleDateString(undefined, {
     day: "numeric",
@@ -97,10 +95,7 @@ export const StoreUpdateRow = () => {
   return (
     <SettingsRow title="Updates" description={description}>
       {status.available || phase !== "idle" ? (
-        <Button
-          disabled={busy}
-          onClick={() => void restart()}
-        >
+        <Button disabled={busy} onClick={() => void restart()}>
           <StableLabel
             busy={busy}
             idle={phase === "ready" ? "Restart to update" : "Update"}

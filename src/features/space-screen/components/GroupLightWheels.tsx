@@ -34,6 +34,7 @@ const WheelBox = ({
   </>
 );
 
+
 export const GroupLightWheels = ({
   lights,
   onColorPickMany,
@@ -41,6 +42,9 @@ export const GroupLightWheels = ({
   compact = false,
   wheelFooter,
   tabsEnd,
+  initialTab = "color",
+  flush = false,
+  railTileClassName,
 }: {
   lights: HueLight[];
   compact?: boolean;
@@ -48,6 +52,12 @@ export const GroupLightWheels = ({
   wheelFooter?: ReactNode;
   /** Right end of the tab row, in the compact layout. */
   tabsEnd?: ReactNode;
+  /** Drop the roomy inset, to sit in a padded form with the tabs flush. */
+  flush?: boolean;
+  /** Passed to each light tile in the rail (see GroupLightRail). */
+  railTileClassName?: string;
+  /** The tab shown first, such as White for a scene of whites. */
+  initialTab?: Tab;
   onColorPickMany: (
     picks: { light: HueLight; xy: [number, number]; vividHex: string }[],
   ) => void;
@@ -67,7 +77,7 @@ export const GroupLightWheels = ({
     if (ctLights.length > 0) tabs.push("kelvin");
     return tabs;
   }, [colorLights.length, ctLights.length]);
-  const [tab, setTab] = useState<Tab>("color");
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [focusedId, setFocusedId] = useState<string | null>(null);
 
@@ -87,6 +97,7 @@ export const GroupLightWheels = ({
     <div className={cn(compact && "min-w-0")}>
       <GroupLightRail
         lights={members}
+        tileClassName={railTileClassName}
         selectedIds={selectedIds}
         focusedId={focusedId}
         onToggle={(id) =>
@@ -139,7 +150,11 @@ export const GroupLightWheels = ({
           value="color"
           className={cn(
             "w-full gap-4",
-            compact ? "flex flex-col gap-6 pt-2" : "flex flex-col p-8",
+            compact
+              ? "flex flex-col gap-6 pt-2"
+              : flush
+                ? "flex flex-col gap-4 pt-4"
+                : "flex flex-col p-8",
           )}
         >
           <WheelBox compact={compact} footer={wheelFooter}>
@@ -159,7 +174,11 @@ export const GroupLightWheels = ({
           value="kelvin"
           className={cn(
             "w-full gap-4",
-            compact ? "flex flex-col gap-6 pt-2" : "flex flex-col p-8",
+            compact
+              ? "flex flex-col gap-6 pt-2"
+              : flush
+                ? "flex flex-col gap-4 pt-4"
+                : "flex flex-col p-8",
           )}
         >
           <WheelBox compact={compact} footer={wheelFooter}>

@@ -1,3 +1,4 @@
+import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useRef, useState } from "react";
 import { useBlocker } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -14,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { sameValue } from "@/features/automations/editor-model";
 import {
+  defaultPresenceSettings,
   savePresence,
   usePresenceStore,
   type PresenceSettings,
@@ -177,6 +179,20 @@ export function PresenceAutomationEditPage({
       canSave={dirty && !blocked}
       onSave={() => void save()}
       onCancel={onDone}
+      secondaryAction={
+        <DeleteAutomationButton
+          name="Presence"
+          disabled={pending}
+          onConfirm={async () => {
+            const saved = await savePresence(() => defaultPresenceSettings());
+            if (saved) {
+              allowExit.current = true;
+              onDone();
+            }
+            return saved;
+          }}
+        />
+      }
     >
       <PresenceEditor
         settings={draft}

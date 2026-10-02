@@ -1,3 +1,4 @@
+import { useFormatPreferences } from "@/stores/FormatPreferencesStore";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Combine, Loader2, MousePointer2, PenLine, Trash2 } from "lucide-react";
 import {
@@ -110,7 +111,9 @@ export function CreateMapWizard({
   const [step, setStep] = useState<Step>("outline");
   const [name, setName] = useState("My home");
   const [floorName, setFloorName] = useState("Ground floor");
-  const [units, setUnits] = useState<Units>("metric");
+  const [units, setUnits] = useState<Units>(
+    () => useFormatPreferences.getState().measurementSystem,
+  );
   const [drawnRing, setDrawnRing] = useState<MapPoint[] | null>(null);
   const [zoomControls, setZoomControls] = useState<MapViewportControls | null>(
     null,

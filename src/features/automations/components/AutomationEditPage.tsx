@@ -1,3 +1,4 @@
+import { DeleteAutomationButton } from "./DeleteAutomationButton";
 import { useRef, useState } from "react";
 import { useBlocker } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -237,6 +238,32 @@ export function AutomationEditPage({
       canSave={dirty && issues.length === 0}
       onSave={() => void save()}
       onCancel={onDone}
+      secondaryAction={
+        <DeleteAutomationButton
+          name={kind === "onAir" ? "On-air light" : "When this PC locks"}
+          disabled={pending}
+          onConfirm={async () => {
+            // Blank the record: no lights, scene or bridge, and switched off,
+            // which is what takes it off the list (see isOnAirConfigured).
+            const saved = await saveAutomationSettings((current) => ({
+              ...current,
+              [kind]: {
+                ...current[kind],
+                enabled: false,
+                bridgeId: null,
+                target: null,
+                targets: [],
+                scene: null,
+              },
+            }));
+            if (saved) {
+              allowExit.current = true;
+              onDone();
+            }
+            return saved;
+          }}
+        />
+      }
     >
       {kind === "onAir" ? (
         <>

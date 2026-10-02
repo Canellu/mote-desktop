@@ -35,6 +35,11 @@ interface SidePaneProps {
   /** Pinned footer shown below the read-only view (hidden while editing). */
   viewFooter?: React.ReactNode;
   onClose: () => void;
+  /**
+   * Open straight into the editing body with no read-only view to go back to:
+   * leaving edit closes the pane.
+   */
+  editOnly?: boolean;
   /** Accessible label for the pencil/edit toggle. */
   editLabel?: string;
   /**
@@ -62,18 +67,19 @@ export const SidePane: React.FC<SidePaneProps> = ({
   onClose,
   editLabel = "Edit",
   renderEdit,
+  editOnly = false,
 }) => {
   // Edit mode slides the editing pane in from the right and swaps the header's
   // action button for a back arrow, rather than opening a separate modal.
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(editOnly);
   const [pendingTransition, setPendingTransition] = useState<
     (() => void) | null
   >(null);
   const guardRef = useRef<SidePaneEditGuard | null>(null);
 
-  // Reset back to the read-only view whenever a different resource is selected.
+  // Reset to the starting view whenever a different resource is selected.
   useEffect(() => {
-    setEditing(false);
+    setEditing(editOnly);
   }, [resetKey]);
 
   useLayoutEffect(() => {
@@ -96,7 +102,7 @@ export const SidePane: React.FC<SidePaneProps> = ({
       // Clean edits: let a mouse Back unwind edit mode before it closes the
       // whole pane, so Back steps out one level at a time. Programmatic closes
       // (the X button) and in-place content swaps still collapse edit directly.
-      return action === "BACK" || action === "GO";
+      return !editOnly && (action === "BACK" || action === "GO");
     },
     enableBeforeUnload: editing && Boolean(guardRef.current?.dirty),
     withResolver: true,
@@ -107,13 +113,13 @@ export const SidePane: React.FC<SidePaneProps> = ({
   // closes the pane itself.
   useEffect(() => {
     if (routeBlocker.status !== "blocked" || guardRef.current?.dirty) return;
-    setEditing(false);
+    setEditing(editOnly);
     routeBlocker.reset();
   }, [routeBlocker]);
 
   const finishTransition = (proceed: () => void) => {
     setPendingTransition(null);
-    setEditing(false);
+    setEditing(editOnly);
     proceed();
   };
 
@@ -123,7 +129,7 @@ export const SidePane: React.FC<SidePaneProps> = ({
     if (pendingTransition) {
       finishTransition(pendingTransition);
     } else if (routeBlocker.status === "blocked") {
-      setEditing(false);
+      setEditing(editOnly);
       routeBlocker.proceed();
     }
   };
@@ -135,7 +141,7 @@ export const SidePane: React.FC<SidePaneProps> = ({
     if (pendingTransition) {
       finishTransition(pendingTransition);
     } else if (routeBlocker.status === "blocked") {
-      setEditing(false);
+      setEditing(editOnly);
       routeBlocker.proceed();
     }
   };
@@ -154,8 +160,10 @@ export const SidePane: React.FC<SidePaneProps> = ({
       event.preventDefault();
       // Escape unwinds one level, like Back: step out of edit mode first
       // (guarding dirty edits), otherwise close the pane.
-      if (editing) {
-        requestInspectorTransition(() => setEditing(false));
+      if (editing && editOnly) {
+        requestInspectorTransition(onClose);
+      } else if (editing) {
+        requestInspectorTransition(() => setEditing(editOnly));
       } else {
         onClose();
       }
@@ -163,7 +171,7 @@ export const SidePane: React.FC<SidePaneProps> = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [editing, pendingTransition, routeBlocker.status, onClose]);
+  }, [editing, editOnly, pendingTransition, routeBlocker.status, onClose]);
 
   return (
     <div className="flex h-full flex-col">
@@ -171,7 +179,7 @@ export const SidePane: React.FC<SidePaneProps> = ({
         <div className="flex min-w-0 items-center">
           {/* Back arrow animates in alongside the eyebrow in edit mode. */}
           <AnimatePresence initial={false}>
-            {editing && (
+            {editing && !editOnly && (
               <motion.button
                 key="back"
                 type="button"
@@ -182,7 +190,7 @@ export const SidePane: React.FC<SidePaneProps> = ({
                 className="-ml-1 flex h-8 shrink-0 items-center justify-center overflow-hidden rounded-md text-muted-foreground hover:bg-muted"
                 aria-label="Back"
                 onClick={() =>
-                  requestInspectorTransition(() => setEditing(false))
+                  requestInspectorTransition(() => setEditing(editOnly))
                 }
               >
                 <ArrowLeft size={18} />
@@ -242,7 +250,7 @@ export const SidePane: React.FC<SidePaneProps> = ({
           <div className="flex h-full w-1/2 shrink-0 flex-col" inert={!editing}>
             {renderEdit?.({
               active: editing,
-              exitEdit: () => setEditing(false),
+              exitEdit: editOnly ? onClose : () => setEditing(false),
               guardRef,
             })}
           </div>

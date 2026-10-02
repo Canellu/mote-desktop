@@ -15,6 +15,7 @@ import {
   stopBehaviors,
 } from "@/features/host-sync/constants";
 import { useHostSync } from "@/features/host-sync/useHostSync";
+import { useLinkButtonProvision } from "@/features/host-sync/useLinkButtonProvision";
 import { selectableVariants } from "@/lib/selection-styles";
 import { cn } from "@/lib/utils";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
@@ -42,8 +43,10 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
     actionError,
     refresh,
     savePreferences,
-    provisionCredentials,
   } = useHostSync();
+  // Pairing needs the bridge's link button: wait for it rather than failing
+  // straight away with Hue error 101.
+  const pairing = useLinkButtonProvision(refresh);
   const scenes = useHueResourcesStore((store) => store.scenes);
 
   if (isLoading) {
@@ -121,13 +124,13 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
         )}
       </div>
 
-      {(actionError || overview.areasError) && (
+      {(pairing.error || actionError || overview.areasError) && (
         <div
           role="alert"
           className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-(--destructive-text)"
         >
           <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
-          <p>{actionError ?? overview.areasError}</p>
+          <p>{pairing.error ?? actionError ?? overview.areasError}</p>
         </div>
       )}
 
@@ -155,22 +158,47 @@ export const PcSyncTab = ({ onOpenSync }: { onOpenSync: () => void }) => {
               <p className="text-sm text-muted-foreground">
                 {overview.credentials.hasClientKey
                   ? "Streaming to the bridge is set up. Re-pair only if sync fails with a credential error."
-                  : "Press the round link button on your Hue Bridge, then enable PC Sync within 30 seconds. Your existing connection is not affected."}
+                  : "Enable PC Sync, then press the round link button on your Hue Bridge when asked. Your existing connection is not affected."}
               </p>
             </div>
-            <Button
-              variant={
-                overview.credentials.hasClientKey ? "outline" : "default"
-              }
-              className="gap-2 self-end"
-              disabled={isUpdating || !overview.bridgeConfigured}
-              onClick={() => void provisionCredentials()}
-            >
-              {isUpdating && <Loader2 className="animate-spin" />}
-              {overview.credentials.hasClientKey
-                ? "Re-pair credential"
-                : "Enable PC Sync"}
-            </Button>
+            {pairing.waiting ? (
+              <div
+                role="status"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-(--settings-raised) p-4"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <Loader2
+                    aria-hidden
+                    className="size-4 shrink-0 animate-spin text-muted-foreground"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">
+                      Press the round link button on your Hue Bridge
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Waiting for it… this finishes by itself once it's
+                      pressed.
+                    </p>
+                  </div>
+                </div>
+                <Button variant="ghost" onClick={pairing.cancel}>
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant={
+                  overview.credentials.hasClientKey ? "outline" : "default"
+                }
+                className="gap-2 self-end"
+                disabled={isUpdating || !overview.bridgeConfigured}
+                onClick={pairing.start}
+              >
+                {overview.credentials.hasClientKey
+                  ? "Re-pair credential"
+                  : "Enable PC Sync"}
+              </Button>
+            )}
           </div>
         </div>
       </Panel>

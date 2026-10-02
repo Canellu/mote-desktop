@@ -1,3 +1,5 @@
+import { TimeField } from "@/components/TimeField";
+import { useFormatPreferences } from "@/stores/FormatPreferencesStore";
 import {
   Accordion,
   AccordionContent,
@@ -275,6 +277,25 @@ const GallerySection = ({
     {children}
   </section>
 );
+
+/** The time field in both formats, sharing one value. */
+const TimeFieldDemo = () => {
+  const [time, setTime] = useState("17:30");
+  const format = useFormatPreferences((state) => state.timeFormat);
+  const setFormat = useFormatPreferences((state) => state.setTimeFormat);
+  return (
+    <div className="flex items-center gap-4">
+      <TimeField ariaLabel="Starts at" value={time} onChange={setTime} />
+      <Button
+        variant="outline"
+        onClick={() => setFormat(format === "24h" ? "12h" : "24h")}
+      >
+        Switch to {format === "24h" ? "12-hour" : "24-hour"}
+      </Button>
+      <span className="text-sm text-muted-foreground tabular-nums">{time}</span>
+    </div>
+  );
+};
 
 /** A labelled cluster of examples within a section. */
 const Group = ({
@@ -635,6 +656,14 @@ export const ComponentGallery = () => {
             near-white); light — a pale wash of the token with deep same-hue
             text and a full-color icon — for low-emphasis inline feedback.
           </p>
+        </GallerySection>
+
+        <GallerySection
+          title="Time field"
+          description="Times in the app's 12- or 24-hour format, from Settings › General."
+          className="bg-background"
+        >
+          <TimeFieldDemo />
         </GallerySection>
 
         <GallerySection

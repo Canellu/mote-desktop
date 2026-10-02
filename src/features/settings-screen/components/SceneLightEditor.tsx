@@ -57,12 +57,15 @@ export const SceneLightEditor = ({
 
   return (
     <section
-      className="flex w-full min-w-0 flex-1 flex-col gap-6 rounded-2xl bg-(--settings-surface) p-5"
+      className="flex w-full min-w-0 flex-1 flex-col gap-6 rounded-2xl bg-(--settings-surface) p-5 dark:bg-card"
       inert={disabled}
       aria-label={`${space.name} scene lighting`}
     >
       <GroupLightWheels
         compact
+        // Lift the tiles a step off the panel in both themes; the rail's own
+        // faint fill matches the panel and disappears.
+        railTileClassName="bg-(--settings-surface-hover)"
         tabsEnd={headerEnd}
         wheelFooter={
           // Labels share row 1 and controls share row 2, so both line up.

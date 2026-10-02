@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useFormatPreferences } from "@/stores/FormatPreferencesStore";
 import { Button } from "@/components/ui/button";
 import { MapPopover } from "./components/MapPopover";
 import { MeasurementDisplayMenu } from "./components/MeasurementDisplayMenu";
@@ -165,19 +166,21 @@ export function HomeMapScreen({
   const [selectedWallId, setSelectedWallId] = useState<string | null>(null);
   const [wallError, setWallError] = useState<string | null>(null);
   const [snap, setSnap] = useState<SnapSettings>(() => readSnapSettings());
+  // Lengths follow the app's measurement setting, not the map's own field.
+  const units = useFormatPreferences((state) => state.measurementSystem);
   const [measurementDisplay, setMeasurementDisplay] = useState(() =>
     readMeasurementDisplay(),
   );
   useEffect(() => {
     // Snapping in metres on a foot map would offer no round increments.
     setSnap((current) => {
-      const increment = nearestIncrement(current.incrementMeters, map.units);
+      const increment = nearestIncrement(current.incrementMeters, units);
       if (increment === current.incrementMeters) return current;
       const next = { ...current, incrementMeters: increment };
       writeSnapSettings(next);
       return next;
     });
-  }, [map.units]);
+  }, [units]);
   const [tool, setTool] = useState<EditorTool>("move");
   const [selectedVertexId, setSelectedVertexId] = useState<string | null>(null);
   const [zoomControls, setZoomControls] = useState<MapViewportControls | null>(
@@ -502,7 +505,7 @@ export function HomeMapScreen({
     <PointEditor
       floor={floor}
       vertexId={selectedVertexId}
-      units={map.units}
+      units={units}
       busy={busy}
       onRemove={(id) => {
         if (applyEdit(removeCorner(floor, id))) setSelectedVertexId(null);
@@ -810,7 +813,7 @@ export function HomeMapScreen({
               );
             setPlacingFixtureId(null);
           }}
-          units={map.units}
+          units={units}
           snap={snap}
           measurementDisplay={measurementDisplay}
           selectedAreaId={editing ? (selected?.id ?? null) : null}
@@ -877,7 +880,7 @@ export function HomeMapScreen({
             tool={tool}
             snap={snap}
             measurements={measurementDisplay}
-            units={map.units}
+            units={units}
             canUndo={canUndo}
             busy={busy}
             onToolChange={(next) => {

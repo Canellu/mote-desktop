@@ -33,7 +33,12 @@ import {
   useEntertainmentStore,
 } from "@/stores/EntertainmentStore";
 import { boxesForBridge, useSyncBoxStore } from "@/stores/SyncBoxStore";
-import { Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  Outlet,
+  useNavigate,
+  useRouter,
+  useRouterState,
+} from "@tanstack/react-router";
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import {
@@ -343,6 +348,7 @@ const ShellHeader: React.FC = () => {
       showGroupingMode("custom");
   }, [proLapsed, groupingMode]);
   const navigate = useNavigate();
+  const router = useRouter();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const homeSearch = useRouterState({
     select: (s) => s.location.search as HomeViewSearch,
@@ -402,6 +408,19 @@ const ShellHeader: React.FC = () => {
   const placementArea = placementAreaId
     ? entertainmentAreas.find((area) => area.id === placementAreaId)
     : null;
+  const onMotionEditor = pathname.startsWith("/settings/motion/");
+  const switchDeviceId = pathname.startsWith("/settings/switch/")
+    ? decodeURIComponent(pathname.slice("/settings/switch/".length))
+    : onMotionEditor
+      ? decodeURIComponent(pathname.slice("/settings/motion/".length))
+      : null;
+  const switchDeviceName = useHueResourcesStore((state) =>
+    switchDeviceId
+      ? state.accessoryServices.find(
+          (service) => service.deviceId === switchDeviceId,
+        )?.deviceName
+      : undefined,
+  );
   const activeSyncAreaId = pathname.startsWith("/sync/")
     ? decodeURIComponent(pathname.slice("/sync/".length))
     : null;
@@ -424,17 +443,21 @@ const ShellHeader: React.FC = () => {
                 ? "Create entertainment area"
                 : placementAreaId
                   ? "Light placement"
-                  : activeSyncArea
-                    ? activeSyncArea.name
-                    : onSync
-                      ? "Sync"
-                      : onFocus
-                        ? "Focus"
-                        : onAutomations
-                          ? automationsHeader.title
-                          : pathname === "/settings"
-                            ? "Settings"
-                            : activeSpace?.name;
+                  : switchDeviceId
+                    ? onMotionEditor
+                      ? "Motion sensor setup"
+                      : "Switch setup"
+                    : activeSyncArea
+                      ? activeSyncArea.name
+                      : onSync
+                        ? "Sync"
+                        : onFocus
+                          ? "Focus"
+                          : onAutomations
+                            ? automationsHeader.title
+                            : pathname === "/settings"
+                              ? "Settings"
+                              : activeSpace?.name;
   const description = onDeviceDiscovery
     ? "Discover and place Hue devices"
     : onWidgetWizard
@@ -451,73 +474,88 @@ const ShellHeader: React.FC = () => {
                 ? "Choose compatible lights and place them"
                 : placementAreaId
                   ? (placementArea?.name ?? "Place your lights around the room")
-                  : activeSyncArea
-                    ? "Choose what drives this entertainment area"
-                    : onSync
-                      ? "Light sync from this PC or the HDMI Sync Box"
-                      : onFocus
-                        ? "Timed sessions your lights keep time for"
-                        : onAutomations
-                          ? automationsHeader.description
-                          : pathname === "/settings"
-                            ? "Bridge & app preferences"
-                            : undefined;
+                  : switchDeviceId
+                    ? (switchDeviceName ??
+                      (onMotionEditor
+                        ? "What motion turns on"
+                        : "What each button does"))
+                    : activeSyncArea
+                      ? "Choose what drives this entertainment area"
+                      : onSync
+                        ? "Light sync from this PC or the HDMI Sync Box"
+                        : onFocus
+                          ? "Timed sessions your lights keep time for"
+                          : onAutomations
+                            ? automationsHeader.description
+                            : pathname === "/settings"
+                              ? "Bridge & app preferences"
+                              : undefined;
   return (
     <AppHeader
       onBack={
         onHome
           ? undefined
-          : onAutomations && automationsHeader.pageOpen
-            ? automationsHeader.closePage
-            : () =>
-                void (onDeviceDiscovery
-                  ? navigate({ to: "/settings", search: { tab: "devices" } })
-                  : placementAreaId
-                    ? navigate(
-                        placementFrom === "sync"
-                          ? {
-                              to: "/sync/$areaId",
-                              params: { areaId: placementAreaId },
-                            }
-                          : {
-                              to: "/settings",
-                              search: { tab: "entertainment" },
-                            },
-                      )
-                    : activeSyncArea
-                      ? navigate({ to: "/sync", search: { source: undefined } })
-                      : onWidgetWizard
+          : switchDeviceId
+            ? () => window.history.back()
+            : onAutomations && automationsHeader.pageOpen
+              ? automationsHeader.closePage
+              : // Top-level pages open from Home or Settings, so return to
+                // whichever one opened them.
+                (onAutomations || onFocus || onSync) &&
+                  router.history.canGoBack()
+                ? () => router.history.back()
+                : () =>
+                  void (onDeviceDiscovery
+                    ? navigate({ to: "/settings", search: { tab: "devices" } })
+                    : placementAreaId
+                      ? navigate(
+                          placementFrom === "sync"
+                            ? {
+                                to: "/sync/$areaId",
+                                params: { areaId: placementAreaId },
+                              }
+                            : {
+                                to: "/settings",
+                                search: { tab: "entertainment" },
+                              },
+                        )
+                      : activeSyncArea
                         ? navigate({
-                            to: "/settings",
-                            search: { tab: "widget" },
+                            to: "/sync",
+                            search: { source: undefined },
                           })
-                        : onAutomationWizard
-                          ? navigate({ to: "/automations" })
-                          : onFocusWizard
-                            ? navigate({ to: "/focus" })
-                            : onSpacesWizard
-                              ? navigate({
-                                  to: "/settings",
-                                  search: { tab: "spaces" },
-                                })
-                              : onCreateScene
+                        : onWidgetWizard
+                          ? navigate({
+                              to: "/settings",
+                              search: { tab: "widget" },
+                            })
+                          : onAutomationWizard
+                            ? navigate({ to: "/automations" })
+                            : onFocusWizard
+                              ? navigate({ to: "/focus" })
+                              : onSpacesWizard
                                 ? navigate({
                                     to: "/settings",
-                                    search: { tab: "scenes" },
+                                    search: { tab: "spaces" },
                                   })
-                                : onEntertainmentWizard
-                                  ? navigate(
-                                      entertainmentWizardFrom === "sync"
-                                        ? {
-                                            to: "/sync",
-                                            search: { source: undefined },
-                                          }
-                                        : {
-                                            to: "/settings",
-                                            search: { tab: "entertainment" },
-                                          },
-                                    )
-                                  : navigate({ to: "/" }))
+                                : onCreateScene
+                                  ? navigate({
+                                      to: "/settings",
+                                      search: { tab: "scenes" },
+                                    })
+                                  : onEntertainmentWizard
+                                    ? navigate(
+                                        entertainmentWizardFrom === "sync"
+                                          ? {
+                                              to: "/sync",
+                                              search: { source: undefined },
+                                            }
+                                          : {
+                                              to: "/settings",
+                                              search: { tab: "entertainment" },
+                                            },
+                                      )
+                                    : navigate({ to: "/" }))
       }
       title={title}
       description={description}
@@ -625,7 +663,10 @@ export const RootLayout: React.FC = () => {
     pathname === "/focus/new" ||
     (pathname.startsWith("/settings/") &&
       (pathname.endsWith("-wizard") ||
-        pathname.startsWith("/settings/entertainment-placement/")));
+        pathname.startsWith("/settings/entertainment-placement/") ||
+        pathname.startsWith("/settings/switch/") ||
+        pathname.startsWith("/settings/motion/") ||
+        pathname.startsWith("/settings/motion/")));
   // Focus centers its clock in the space under the header, so the content
   // stretches to the viewport's height instead of hugging the route.
   const routeFillsHeight =
@@ -634,6 +675,7 @@ export const RootLayout: React.FC = () => {
   // canvas or scrollbar can reach the viewport edge.
   const routeIsFullBleed =
     pathname.startsWith("/settings/entertainment-placement/") ||
+    pathname.startsWith("/settings/switch/") ||
     pathname === "/focus/new" ||
     pathname === "/settings/scenes/new" ||
     pathname === "/";

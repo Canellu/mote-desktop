@@ -1182,7 +1182,11 @@ impl HueClient {
         resource_type: &str,
         id: Option<&str>,
     ) -> Result<Vec<Value>, String> {
-        ensure_supported_resource_type(resource_type)?;
+        // Behaviors (what a switch's buttons or a sensor's motion do) can be
+        // read and updated, but not created or deleted.
+        if !matches!(resource_type, "behavior_instance" | "behavior_script") {
+            ensure_supported_resource_type(resource_type)?;
+        }
         if let Some(id) = id {
             ensure_resource_id(id)?;
         }
@@ -1211,7 +1215,9 @@ impl HueClient {
         id: &str,
         body: Value,
     ) -> Result<(), String> {
-        ensure_supported_resource_type(resource_type)?;
+        if resource_type != "behavior_instance" {
+            ensure_supported_resource_type(resource_type)?;
+        }
         self.put_v2(ip, application_key, resource_type, id, body)
             .await
     }

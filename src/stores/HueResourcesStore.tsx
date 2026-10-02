@@ -27,6 +27,7 @@ import type {
   HueRoom,
   HueRoomZone,
   HueScene,
+  SceneColor,
   HueZone,
 } from "@/types/hue";
 
@@ -185,6 +186,15 @@ export interface HueResourcesState extends LayoutState {
   ) => void;
   setSceneSpeed: (scene: HueScene, speed: number) => Promise<void>;
   setSceneAutoplay: (scene: HueScene, autoDynamic: boolean) => Promise<void>;
+  /**
+   * Rewrites the color of each listed light in a scene: an `xy` color or a
+   * `mirek` white, replacing whichever it had. A dynamic scene's palette is
+   * rebuilt from the new colors so the animation cycles what was picked.
+   */
+  setSceneColors: (
+    scene: HueScene,
+    colors: Record<string, SceneColor>,
+  ) => Promise<void>;
   deleteScene: (scene: HueScene) => Promise<void>;
 }
 
@@ -1740,6 +1750,72 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
     }
   },
 
+  setSceneColors: async (scene, colors) => {
+    if (Object.keys(colors).length === 0) return;
+    try {
+      // Read the raw scene so every other action field (dimming, effects,
+      // gradients) is written back untouched.
+      const [raw] = await invoke<Record<string, unknown>[]>(
+        "get-hue-resource",
+        { resourceType: scene.resourceType, id: scene.id },
+      );
+      if (!raw) throw new Error(`Scene "${scene.name}" no longer exists.`);
+      type RawAction = {
+        target: { rid: string };
+        action: Record<string, unknown>;
+      };
+      const actions = ((raw.actions as RawAction[] | undefined) ?? []).map(
+        (entry) => {
+          const color = colors[entry.target.rid];
+          if (!color) return entry;
+          const action = { ...entry.action };
+          delete action.color;
+          delete action.color_temperature;
+          delete action.gradient;
+          if (color.xy) action.color = { xy: { x: color.xy[0], y: color.xy[1] } };
+          else if (color.mirek != null)
+            action.color_temperature = { mirek: color.mirek };
+          return { ...entry, action };
+        },
+      );
+      const body: Record<string, unknown> = { actions };
+      const palette = raw.palette as
+        | { color?: { dimming?: unknown }[] }
+        | undefined;
+      if (scene.dynamic && palette?.color && palette.color.length >= 2) {
+        // The palette is what a dynamic scene animates through; keep it in
+        // step with the picked colors (the bridge accepts 2–9 entries).
+        const seen = new Set<string>();
+        const xys = actions.flatMap((entry) => {
+          const xy = (entry.action.color as { xy?: { x: number; y: number } })
+            ?.xy;
+          if (!xy) return [];
+          const key = `${xy.x.toFixed(4)},${xy.y.toFixed(4)}`;
+          if (seen.has(key)) return [];
+          seen.add(key);
+          return [xy];
+        });
+        if (xys.length >= 2) {
+          const dimming = palette.color[0]?.dimming;
+          body.palette = {
+            ...palette,
+            color: xys.slice(0, 9).map((xy) => ({
+              color: { xy },
+              ...(dimming ? { dimming } : {}),
+            })),
+          };
+        }
+      }
+      await invoke("update-hue-resource", {
+        resourceType: scene.resourceType,
+        id: scene.id,
+        body,
+      });
+    } catch (e) {
+      set({ error: String(e) || "Unable to set scene colors." });
+      throw e;
+    }
+  },
   deleteScene: async (scene) => {
     set((state) => ({
       scenes: state.scenes.filter(

@@ -17,9 +17,10 @@ import {
 import { activeTileTheme } from "@/lib/tile-theme";
 import { cn } from "@/lib/utils";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
-import type { HueScene } from "@/types/hue";
+import type { HueLight, HueScene, SceneColor } from "@/types/hue";
 import { Loader2, Palette, Pencil, Sparkles } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { GroupLightWheels } from "./GroupLightWheels";
 import { RemoveResourceSection } from "./RemoveResourceSection";
 import { SidePane } from "./SidePane";
 
@@ -29,9 +30,15 @@ const MAX_NAME_LENGTH = 32;
 interface ScenePaneProps {
   scene: HueScene;
   onClose: () => void;
+  /** Open straight into editing; leaving the editor closes the pane. */
+  editOnly?: boolean;
 }
 
-export const ScenePane: React.FC<ScenePaneProps> = ({ scene, onClose }) => {
+export const ScenePane: React.FC<ScenePaneProps> = ({
+  scene,
+  onClose,
+  editOnly = false,
+}) => {
   const roomZones = useHueResourcesStore((state) => state.roomZones);
 
   const roomZone = scene.group
@@ -107,6 +114,7 @@ export const ScenePane: React.FC<ScenePaneProps> = ({ scene, onClose }) => {
         scene.smart ? "Smart scene" : scene.dynamic ? "Dynamic scene" : "Scene"
       }
       editLabel={`Edit ${scene.name}`}
+      editOnly={editOnly}
       resetKey={scene.id}
       onClose={onClose}
       view={view}
@@ -156,9 +164,36 @@ const SceneEditPane: React.FC<{
     setSceneBrightness,
     setDynamicSpeedLive,
     setSceneAutoplay,
+    setSceneColors,
     deleteScene,
     loadScenes,
   } = useHueResourcesStore();
+  const allLights = useHueResourcesStore((state) => state.lights);
+  // Unsaved per-light colors, keyed by light id; only lights the user moved.
+  const [colors, setColors] = useState<Record<string, SceneColor>>({});
+  // The scene's lights as the wheels read them: each real light carrying the
+  // color the scene stores for it (or the unsaved pick), not its live state.
+  const sceneLights = useMemo<HueLight[]>(() => {
+    const byId = new Map(allLights.map((light) => [light.id, light]));
+    return scene.actions.flatMap((action) => {
+      const light = byId.get(action.targetId);
+      if (!light) return [];
+      const color = colors[light.id] ?? {
+        xy: action.xy,
+        mirek: action.mirek,
+      };
+      return [
+        {
+          ...light,
+          isOn: action.on ?? true,
+          brightness: action.brightness ?? light.brightness,
+          xy: color.xy,
+          ct: color.mirek,
+          colorMode: color.xy ? "xy" : color.mirek != null ? "ct" : null,
+        },
+      ];
+    });
+  }, [allLights, scene.actions, colors]);
   const [name, setName] = useState(scene.name);
   const [brightness, setBrightness] = useState(() =>
     Math.round(sceneBrightness(scene)),
@@ -193,6 +228,7 @@ const SceneEditPane: React.FC<{
     setBrightness(Math.round(sceneBrightness(scene)));
     setSpeed(hueDynamicSpeedValueToStep(scene.speed));
     setAutoDynamic(scene.autoDynamic);
+    setColors({});
     originalSpeed.current = hueDynamicSpeedValueToStep(scene.speed);
     setRenaming(false);
     setError(null);
@@ -214,6 +250,11 @@ const SceneEditPane: React.FC<{
     setError(null);
     try {
       await renameScene(scene, trimmed);
+      // Colors first: both writes rewrite the scene's actions, and the
+      // brightness write reads them back, so it must see the new colors.
+      if (Object.keys(colors).length > 0) {
+        await setSceneColors(scene, colors);
+      }
       if (brightness !== Math.round(sceneBrightness(scene))) {
         setSceneBrightness(scene, brightness);
       }
@@ -225,6 +266,9 @@ const SceneEditPane: React.FC<{
         await setSceneAutoplay(scene, autoDynamic);
       }
       await loadScenes();
+      setColors({});
+      // Saved: leaving now has nothing to guard (state catches up next render).
+      if (guardRef.current) guardRef.current.dirty = false;
       onExitEdit();
       return true;
     } catch (saveError) {
@@ -235,21 +279,26 @@ const SceneEditPane: React.FC<{
     }
   };
 
-  // Leaving edit without saving restores the speed that was playing before this
-  // session, since each preview wrote live to the bridge.
+  // Cancel leaves untouched; Discard (once something changed) throws the edits
+  // away, restoring the speed that was playing, since each speed preview wrote
+  // live to the bridge. The guard is cleared first so leaving doesn't ask.
   const cancel = () => {
-    if (scene.dynamic && speed !== originalSpeed.current) {
-      setDynamicSpeedLive(scene, originalSpeed.current);
+    if (guardRef.current?.dirty) {
+      guardRef.current.discard();
+      guardRef.current.dirty = false;
     }
     onExitEdit();
   };
 
+  const dirty =
+    name !== scene.name ||
+    brightness !== Math.round(sceneBrightness(scene)) ||
+    speed !== originalSpeed.current ||
+    autoDynamic !== scene.autoDynamic ||
+    Object.keys(colors).length > 0;
+
   guardRef.current = {
-    dirty:
-      name !== scene.name ||
-      brightness !== Math.round(sceneBrightness(scene)) ||
-      speed !== originalSpeed.current ||
-      autoDynamic !== scene.autoDynamic,
+    dirty,
     discard: () => {
       if (scene.dynamic && speed !== originalSpeed.current) {
         setDynamicSpeedLive(scene, originalSpeed.current);
@@ -258,6 +307,7 @@ const SceneEditPane: React.FC<{
       setBrightness(Math.round(sceneBrightness(scene)));
       setSpeed(originalSpeed.current);
       setAutoDynamic(scene.autoDynamic);
+      setColors({});
     },
     save,
   };
@@ -269,6 +319,8 @@ const SceneEditPane: React.FC<{
   const spaceLabel = roomZoneName ?? "this space";
   const removeScene = async () => {
     await deleteScene(scene);
+    // The scene is gone, so there is nothing left to save; close without asking.
+    if (guardRef.current) guardRef.current.dirty = false;
     onClosePane();
   };
 
@@ -409,6 +461,37 @@ const SceneEditPane: React.FC<{
               </>
             )}
 
+            {sceneLights.length > 0 && (
+              <div className="flex flex-col">
+                <GroupLightWheels
+                  lights={sceneLights}
+                  flush
+                  initialTab={
+                    sceneLights.every((light) => light.xy == null) &&
+                    sceneLights.some((light) => light.ct != null)
+                      ? "kelvin"
+                      : "color"
+                  }
+                  onColorPickMany={(picks) =>
+                    setColors((current) => {
+                      const next = { ...current };
+                      for (const { light, xy } of picks)
+                        next[light.id] = { xy, mirek: null };
+                      return next;
+                    })
+                  }
+                  onTemperaturePickMany={(picks) =>
+                    setColors((current) => {
+                      const next = { ...current };
+                      for (const { light, value } of picks)
+                        next[light.id] = { xy: null, mirek: value };
+                      return next;
+                    })
+                  }
+                />
+              </div>
+            )}
+
             {error && <p className="text-sm text-(--destructive-text)">{error}</p>}
           </div>
 
@@ -454,12 +537,12 @@ const SceneEditPane: React.FC<{
           disabled={isSaving}
           onClick={cancel}
         >
-          Cancel
+          {dirty ? "Discard" : "Cancel"}
         </Button>
         <Button
           type="button"
           className="flex-1"
-          disabled={isSaving}
+          disabled={isSaving || !dirty}
           onClick={() => void save()}
         >
           {isSaving ? <Loader2 className="animate-spin" /> : null}
