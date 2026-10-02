@@ -1,5 +1,13 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-10-02: the unsigned 0.10.0.0 MSIX builds from
+`85ffb50` and is 10,723,049 bytes (SHA-256
+`DF261AB40A6B8CA7778FB7B3AA8C1C06E5135EF7EB63AA92B4F7D0F7586C8E34`, tag
+`v0.10.0`). It adds switch and motion sensor setup, units and formats
+defaulting from the Windows region, fixtures, the side-panel Devices list,
+and recovery from a revoked bridge key. The package was tested before upload
+and submitted for certification as Submission 19 the same day.
+
 Release preparation on 2026-09-29: the unsigned 0.9.0.0 MSIX builds from
 `fc9551f` and is 10,696,322 bytes (SHA-256
 `A6F35D34E62B9A13936CC941D7CE3B0F443F26A8C26C4E784FCF66428CEB221C`, tag
