@@ -651,7 +651,10 @@ mod tests {
 
         assert_eq!(runtime.snapshot().pro, EntitlementState::Inactive);
         assert_eq!(
-            runtime.authorize(Capability::GlobalShortcuts).unwrap_err().code,
+            runtime
+                .authorize(Capability::GlobalShortcuts)
+                .unwrap_err()
+                .code,
             AuthorizationErrorCode::ProRequired
         );
     }

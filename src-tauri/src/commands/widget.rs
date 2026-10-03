@@ -1976,7 +1976,10 @@ mod free_limit_tests {
         .unwrap();
 
         assert!(matches!(widget.corner_mode, WidgetCornerMode::Rounded));
-        assert!(matches!(widget.background_mode, WidgetBackgroundMode::Solid));
+        assert!(matches!(
+            widget.background_mode,
+            WidgetBackgroundMode::Solid
+        ));
         assert_eq!(widget.tile_opacity, default_tile_opacity());
     }
 
@@ -1995,7 +1998,8 @@ mod free_limit_tests {
 
     #[test]
     fn an_unknown_background_reads_as_solid() {
-        let mode: WidgetBackgroundMode = serde_json::from_value(serde_json::json!("frosted")).unwrap();
+        let mode: WidgetBackgroundMode =
+            serde_json::from_value(serde_json::json!("frosted")).unwrap();
         assert!(matches!(mode, WidgetBackgroundMode::Solid));
     }
 

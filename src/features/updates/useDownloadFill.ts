@@ -11,7 +11,10 @@ const ESTIMATE_CEILING = 90;
  * package is in, so between reports the fill eases toward a ceiling on its
  * own, and any real report further along takes over.
  */
-export const useDownloadFill = (downloading: boolean, percent: number | null) => {
+export const useDownloadFill = (
+  downloading: boolean,
+  percent: number | null,
+) => {
   const [estimate, setEstimate] = useState(0);
 
   useEffect(() => {

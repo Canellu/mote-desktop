@@ -972,7 +972,10 @@ mod tests {
         let now = Utc::now();
         let found = occurrences(&text, now, now + Duration::days(120), &system_zone);
         for occurrence in &found {
-            println!("{} {} {}", occurrence.start, occurrence.all_day, occurrence.title);
+            println!(
+                "{} {} {}",
+                occurrence.start, occurrence.all_day, occurrence.title
+            );
         }
         assert!(!found.is_empty());
     }
