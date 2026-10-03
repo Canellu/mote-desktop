@@ -5,6 +5,8 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.10.1] - 2026-10-03
+
 ### Improvements
 
 - What's new opens on its own the first time Mote starts after an update.
@@ -15,6 +17,16 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 - Settings > About & Support says when Mote couldn't reach the Microsoft
   Store to check for updates, instead of saying you have the latest version.
+
+### Terms and privacy
+
+- The Terms of use and Privacy policy changed on 3 October 2026. The terms
+  now say that Mote only sends your Hue hardware the standard commands any Hue
+  app sends and never updates firmware or resets devices, and they limit the
+  publisher's liability for damage to devices, to the extent the law allows,
+  to what you paid for Mote Pro. The privacy policy now says that Mote asks
+  the Microsoft Store whether you own Mote Pro and whether an update is
+  waiting. Both are at motedesktop.com/terms and motedesktop.com/privacy.
 
 ## [0.10.0] - 2026-10-02
 
