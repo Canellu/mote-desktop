@@ -1,5 +1,13 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-10-03: the unsigned 0.10.1.0 MSIX builds from
+`d70c757` and is 10,722,148 bytes (SHA-256
+`BBF06CF00B3929706B6D03E44BCDEEEBB07FAE1E2B5B7CE99A653C017A44DA48`, tag
+`v0.10.1`). It opens What's new on the first launch after an update, says
+when a Store update check fails, right-aligns wrapped settings controls, and
+calls out the 3 October terms and privacy changes. No package flights were
+live when it was prepared. The owner uploads it by drag and drop.
+
 What changed on 2026-10-03: 0.10.0.0 (Submission 19) is live, but the owner's
 0.9.0.0 install never saw it. The package flight "0.9.0 upgrade test" (Mote
 internal testers, rank 2, created 2026-09-29) still served 0.9.0.0, and a
