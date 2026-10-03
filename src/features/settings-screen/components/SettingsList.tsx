@@ -72,6 +72,8 @@ export const SettingsRow = ({
       className={cn(
         "flex min-w-0 max-w-full items-center",
         keepControlInline && "shrink-0 justify-end",
+        // A wrapped control would otherwise start its own line at the left.
+        !keepControlInline && "ml-auto",
         alignControlWithDescription && "self-end",
       )}
     >
