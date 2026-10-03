@@ -88,9 +88,11 @@ export const StoreUpdateRow = () => {
           ? "Mote is closing to install the update and opens again when it is done."
           : status.available
             ? "A newer version is ready. Mote closes to install it and opens again."
-            : checkedAt
-              ? `You have the latest version. Last checked ${formatCheckedAt(checkedAt)}.`
-              : "The Microsoft Store also installs updates on its own.";
+            : status.failed
+              ? "Couldn't reach the Microsoft Store to check for updates. Mote tries again every hour."
+              : checkedAt
+                ? `You have the latest version. Last checked ${formatCheckedAt(checkedAt)}.`
+                : "The Microsoft Store also installs updates on its own.";
 
   return (
     <SettingsRow title="Updates" description={description}>

@@ -72,6 +72,15 @@ export const StoreUpdateProvider = ({ children }: { children: ReactNode }) => {
     try {
       const next = await checkStoreUpdate();
       if (phaseRef.current !== "idle") return;
+      // A failed check keeps the last known update rather than hiding it.
+      if (next.failed) {
+        setStatus((previous) => ({
+          ...previous,
+          supported: true,
+          failed: true,
+        }));
+        return;
+      }
       setStatus(next);
       setCheckedAt(Date.now());
     } catch {

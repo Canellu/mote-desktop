@@ -6,6 +6,8 @@ export interface StoreUpdateStatus {
   available: boolean;
   /** Set per submission in Partner Center. */
   mandatory: boolean;
+  /** The Store could not be asked; `available` is then always false. */
+  failed: boolean;
 }
 
 export type StoreUpdateOutcome =

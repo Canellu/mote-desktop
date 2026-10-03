@@ -5,6 +5,7 @@ export const NO_STORE_UPDATE: StoreUpdateStatus = {
   supported: false,
   available: false,
   mandatory: false,
+  failed: false,
 };
 
 /**

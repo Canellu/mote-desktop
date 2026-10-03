@@ -380,6 +380,9 @@ pub struct StoreUpdateStatus {
     available: bool,
     /// Set per submission in Partner Center ("Make this update mandatory").
     mandatory: bool,
+    /// The Store could not be asked. `available` stays false, so a failed check
+    /// never offers an update that is not there.
+    failed: bool,
 }
 
 #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
@@ -389,14 +392,16 @@ impl StoreUpdateStatus {
             supported: false,
             available: false,
             mandatory: false,
+            failed: false,
         }
     }
 
-    const fn nothing_available() -> Self {
+    const fn check_failed() -> Self {
         Self {
             supported: true,
             available: false,
             mandatory: false,
+            failed: true,
         }
     }
 }
@@ -450,27 +455,34 @@ async fn check_store_update_for_platform() -> StoreUpdateStatus {
         return StoreUpdateStatus::unsupported();
     }
 
-    // A failed check reads as "nothing available": a missing prompt is harmless,
-    // and a prompt for an update that is not there is not.
-    let Ok(context) = StoreContext::GetDefault() else {
-        return StoreUpdateStatus::nothing_available();
+    // A failed check never offers an update: a missing prompt is harmless, and
+    // a prompt for an update that is not there is not.
+    let updates = match StoreContext::GetDefault()
+        .and_then(|context| context.GetAppAndOptionalStorePackageUpdatesAsync())
+    {
+        Ok(operation) => operation.await,
+        Err(error) => Err(error),
     };
-    let Ok(operation) = context.GetAppAndOptionalStorePackageUpdatesAsync() else {
-        return StoreUpdateStatus::nothing_available();
-    };
-    let Ok(updates) = operation.await else {
-        return StoreUpdateStatus::nothing_available();
+    let Ok(updates) = updates else {
+        crate::services::diagnostics::record("store_update_check", "failed").save();
+        return StoreUpdateStatus::check_failed();
     };
 
     let available = updates.Size().unwrap_or(0) > 0;
     let mandatory = (&updates)
         .into_iter()
         .any(|update| update.Mandatory().unwrap_or(false));
+    crate::services::diagnostics::record(
+        "store_update_check",
+        if available { "available" } else { "none" },
+    )
+    .save();
 
     StoreUpdateStatus {
         supported: true,
         available,
         mandatory,
+        failed: false,
     }
 }
 
@@ -1222,10 +1234,16 @@ mod tests {
             supported: true,
             available: true,
             mandatory: false,
+            failed: false,
         };
         assert_eq!(
             serde_json::to_value(status).unwrap(),
-            serde_json::json!({ "supported": true, "available": true, "mandatory": false })
+            serde_json::json!({
+                "supported": true,
+                "available": true,
+                "mandatory": false,
+                "failed": false
+            })
         );
         assert_eq!(
             serde_json::to_value(StoreUpdateOutcome::UpToDate).unwrap(),
