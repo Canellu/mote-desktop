@@ -5,6 +5,17 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Improvements
+
+- What's new opens on its own the first time Mote starts after an update.
+- A setting whose options don't fit beside its name now shows them on the
+  right, below the name.
+
+### Fixes
+
+- Settings > About & Support says when Mote couldn't reach the Microsoft
+  Store to check for updates, instead of saying you have the latest version.
+
 ## [0.10.0] - 2026-10-02
 
 ### Highlights
