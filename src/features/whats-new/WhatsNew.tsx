@@ -14,8 +14,8 @@ import { useEffect } from "react";
 import { detectUpdate, useWhatsNewStore } from "./store";
 
 /**
- * The changelog dialog. It opens only on request, from the title-bar entry
- * shown after an update or from Settings.
+ * The changelog dialog. It opens on its own on the first launch after an
+ * update, and on request from the title-bar entry or from Settings.
  */
 export const WhatsNew = () => {
   const { notes, open, close } = useWhatsNewStore();

@@ -42,7 +42,9 @@ export const detectUpdate = async (configured: boolean) => {
   const updated = previous === null ? configured : previous !== current;
   if (!updated) return;
   const notes = releaseNotesFor(current);
-  if (notes) useWhatsNewStore.setState({ justUpdated: notes });
+  // Opens once on its own; the title-bar entry reopens it for the rest of the launch.
+  if (notes)
+    useWhatsNewStore.setState({ justUpdated: notes, notes, open: true });
 };
 
 /** Opens this version's notes, from Settings. Resolves false when there are none. */
