@@ -63,6 +63,10 @@ items.
    `git tag -a v1.2.3 -m "Release 1.2.3"`.
 7. Verify the tag, manifests, release notes, update manifest, and installer path
    all use the same version before submitting or publishing.
+8. In Partner Center, open Manage package flights on the app overview and
+   delete or update every live flight. A flight ranks above the non-flighted
+   submission, so its testers keep the flight's older package and never see
+   the release.
 
 Never move or replace a published release tag. Correct a published release with
 a new patch version.

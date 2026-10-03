@@ -1,5 +1,13 @@
 # Windows Store packaging and commerce spike
 
+What changed on 2026-10-03: 0.10.0.0 (Submission 19) is live, but the owner's
+0.9.0.0 install never saw it. The package flight "0.9.0 upgrade test" (Mote
+internal testers, rank 2, created 2026-09-29) still served 0.9.0.0, and a
+flight outranks the non-flighted submission. The flight was deleted, a fresh
+launch then found 0.10.0.0, and `docs/releasing.md` now checks flights before
+every release. A Mote window opened before the delete kept reporting no update
+until it was restarted.
+
 Release preparation on 2026-10-02: the unsigned 0.10.0.0 MSIX builds from
 `85ffb50` and is 10,723,049 bytes (SHA-256
 `DF261AB40A6B8CA7778FB7B3AA8C1C06E5135EF7EB63AA92B4F7D0F7586C8E34`, tag
