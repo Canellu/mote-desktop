@@ -1,7 +1,11 @@
 # Plan: Monetization and Backend Stack
 
-Status: **product direction decided; implementation not started**. Last policy
-review: **2026-08-14**.
+Status: **Windows commerce shipped; accounts and backend not started**. Mote
+Pro has been a live Microsoft Store durable add-on since 2026-09-13, read
+through the provider-neutral entitlement service (see the
+[feature matrix](./free-pro-feature-matrix.md)). Identity, the stateful
+backend, Apple commerce, cross-platform ownership, and Household remain
+undecided or future. Last policy review: **2026-08-14**.
 
 This plan owns identity-provider, backend, commerce, licensing, and entitlement
 decisions. It does not redefine the domain model in

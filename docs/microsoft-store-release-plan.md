@@ -1,9 +1,9 @@
 # Plan: Microsoft Store Release
 
-Status: **0.6.0.0 is live in the Store** (confirmed installed by the owner
-on 2026-09-24). Package-level history lives in the
+Status: **0.10.0.0 is live in the Store** (Submission 19, published
+2026-10-02). Package-level history lives in the
 [Store packaging and commerce spike](./windows-store-commerce-spike.md).
-Last reviewed: **2026-09-24**. The phase checklists below predate the first
+Last reviewed: **2026-10-03**. The phase checklists below predate the first
 publication and have not been re-ticked item by item.
 
 ## Goal
@@ -489,32 +489,20 @@ The first Store submission is ready only when all of these are true:
 
 ## Immediate next actions
 
-1. Treat the updated
-   [Free/Pro/Household feature matrix](./free-pro-feature-matrix.md) as the v1
-   product boundary. Free includes one standard single-target widget; Pro owns
-   PC Sync, advanced/additional widgets, custom dashboard layout, and multiple
-   saved bridges.
-2. Continue the selected MSIX packaging/commerce path: use the completed Partner
-   Center conversion to prove package identity plus Microsoft
-   durable-add-on discovery, purchase, restore, and cached offline licensing.
-   Follow the restartable checklist in
-   [windows-store-commerce-spike.md](./windows-store-commerce-spike.md).
-3. After those validation gates pass, complete the production enforcement phase
-   in the feature matrix: connect the provider-neutral Rust entitlement
-   foundation to managed state and the Store adapter, enforce every paid command,
-   and only then add purchase, restore, and locked-state UI.
-4. Done. The Domeneshop order for `motedesktop.com` and its email service was
-   paid for and activated (quoted at NOK 568/year including VAT).
-5. Largely done. The separate `mote-website` repository exists, the public site
-   and its legal and support routes are built and deployed through Cloudflare
-   Pages, and the Domeneshop email DNS records are preserved.
-   `support@motedesktop.com` is live; `privacy@motedesktop.com` is still to be
-   created.
-6. Complete preliminary trademark/marketplace clearance and choose the final
-   signing identity. The application identifier is now fixed as
-   `com.motedesktop.mote`.
-7. Implement the legal/support minimum. The current v1 decision remains no
-   analytics, automatic crash uploads, or in-app feedback uploader.
+Reviewed 2026-10-03. Done since the list was written: the Free/Pro boundary,
+the MSIX path, the Mote Pro add-on, entitlement enforcement with purchase,
+restore, and the trial, the domain and website, and the legal and support
+minimum, with in-app feedback added on 2026-09-12. The Store signs the
+package, so there is no separate signing identity to choose. Still open:
+
+1. Verify purchase, restore, offline licensing, the trial surviving a
+   reinstall, and the startup task on a Store-installed build, and run the
+   hardware acceptance pass (see the
+   [commerce spike](./windows-store-commerce-spike.md)).
+2. Create `privacy@motedesktop.com`.
+3. Complete preliminary trademark and marketplace clearance for the Mote name.
+4. Before each release, follow [releasing.md](./releasing.md), including the
+   package-flight check added after 0.10.0.
 
 ## Official references
 

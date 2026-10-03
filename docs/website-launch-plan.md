@@ -1,8 +1,12 @@
 # Plan: Mote Desktop website launch
 
-Status: **implementation in progress; domain purchase deferred**.
+Status: **live at motedesktop.com**. The domain and Domeneshop email were
+bought, and the site, legal pages, and support route deploy from
+`mote-website` through Cloudflare Pages. `support@motedesktop.com` is live;
+`privacy@motedesktop.com` is still to be created. The phases below are the
+original plan.
 
-Last reviewed: **2026-09-02**.
+Last reviewed: **2026-10-03**.
 
 ## Goal
 

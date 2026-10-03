@@ -1,6 +1,6 @@
 # Interface density plan
 
-Status: **Implemented; not yet released.** Proposed 2026-09-27, built
+Status: **Shipped in 0.9.0** (2026-09-29). Proposed 2026-09-27, built
 2026-09-28.
 
 ## Why

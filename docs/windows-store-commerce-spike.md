@@ -82,11 +82,11 @@ On 2026-09-24 the owner confirmed 0.6.0.0 is live in the Store and installed
 it from there, so the 10.6 MB package was accepted despite the 10 MB
 threshold noted below. The hardware acceptance pass above is still owed.
 
-Status: **0.6.0.0 is live in the Store, and the Mote Pro add-on is live at NOK
+Status: **0.10.0.0 is live in the Store, and the Mote Pro add-on is live at NOK
 149. Purchase, restore, offline licensing, the trial surviving a reinstall,
 and the startup task are still unverified on a Store-installed build.**
 
-Last reviewed: **2026-09-24**.
+Last reviewed: **2026-10-03**.
 
 Later on 2026-09-18: Submission 10's certification was cancelled while it was
 still in the certification step, its 0.4.1.0 package was replaced with

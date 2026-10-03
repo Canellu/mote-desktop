@@ -1,8 +1,11 @@
 # Mote Desktop v1 feature inventory
 
-Status: **product surface frozen; Free/Pro enforcement pending commerce spike**.
+Status: **historical record of the first Store release scope**. v1 shipped,
+and Free/Pro enforcement is live (see the
+[feature matrix](./free-pro-feature-matrix.md)). Later additions are recorded
+in `CHANGELOG.md`, not here.
 
-Last reviewed: **2026-08-14**.
+Last reviewed: **2026-10-03**.
 
 This document defines the user-visible scope of the first Microsoft Store
 release. Inclusion here means the feature is allowed in the v1 release

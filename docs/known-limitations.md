@@ -2,7 +2,7 @@
 
 Status: **release-candidate draft; update from acceptance testing**.
 
-Last reviewed: **2026-09-24**.
+Last reviewed: **2026-10-03**.
 
 - The first release supports Windows 10 and Windows 11 on x64 PCs only.
 - Hue control is local-network-first. The PC and Hue Bridge must normally be on
@@ -22,10 +22,11 @@ Last reviewed: **2026-09-24**.
 - Free includes one desktop widget with one room, zone, or light. More widgets,
   multiple controls/targets, and widget theme, size, corners, placement,
   pinning, and always-on-top require Pro.
-- Mote Pro is a one-time Microsoft Store purchase. PC Sync, global keyboard
-  shortcuts, automations, more than one widget or control, custom dashboard
-  layouts, and multiple saved Hue Bridges require Pro. All of these are
-  enforced as of 2026-09-11, automations from 2026-09-15.
+- Mote Pro is a one-time Microsoft Store purchase. Global keyboard shortcuts,
+  automations, more than one widget or control, custom dashboard layouts, and
+  multiple saved Hue Bridges require Pro. All of these are enforced as of
+  2026-09-11, automations from 2026-09-15. PC Sync has been free since
+  2026-09-26.
 - Automations run only while Mote is running, including in the tray. The
   on-air light follows Windows' own record of microphone and camera use, so an
   app that keeps the microphone open outside calls has to be ignored in the
@@ -51,3 +52,4 @@ Last reviewed: **2026-09-24**.
 - Mote does not include automatic analytics or automatic crash uploads.
   Feedback is sent only when the user submits it, through the in-app form to
   motedesktop.com, after local redaction; the contact email is optional.
+  Diagnostics are sent only when the user chooses Send diagnostics.
