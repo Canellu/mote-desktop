@@ -6,7 +6,9 @@ Release preparation on 2026-10-03: the unsigned 0.10.1.0 MSIX builds from
 `v0.10.1`). It opens What's new on the first launch after an update, says
 when a Store update check fails, right-aligns wrapped settings controls, and
 calls out the 3 October terms and privacy changes. No package flights were
-live when it was prepared. The owner uploads it by drag and drop.
+live when it was prepared. The owner uploaded it by drag and drop, and it went
+to certification as Submission 20 the same day, set to publish as soon as it
+passes.
 
 What changed on 2026-10-03: 0.10.0.0 (Submission 19) is live, but the owner's
 0.9.0.0 install never saw it. The package flight "0.9.0 upgrade test" (Mote
