@@ -52,7 +52,7 @@ const StableLabel = ({
 /**
  * Settings entry point, so an update is still one click away when the title
  * bar is out of mind. Hidden outside a Microsoft Store install, where there is
- * nothing to check.
+ * nothing to check, except for a note in development builds.
  */
 export const StoreUpdateRow = () => {
   const { status, checkedAt, phase, percent, restart, recheck } =
@@ -64,7 +64,18 @@ export const StoreUpdateRow = () => {
     void recheck();
   }, [recheck]);
 
-  if (!status.supported) return null;
+  if (!status.supported) {
+    // Says why there is no check button, so a dev window isn't taken for the
+    // Store install.
+    return import.meta.env.DEV ? (
+      <SettingsRow
+        title="Updates"
+        description="Development build. Updates come through the Microsoft Store install."
+      >
+        {null}
+      </SettingsRow>
+    ) : null;
+  }
 
   const checkNow = async () => {
     setChecking(true);
