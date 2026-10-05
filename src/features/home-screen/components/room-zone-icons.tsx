@@ -9,6 +9,7 @@ import {
   DoorOpen,
   Dumbbell,
   Gamepad2,
+  House,
   Lightbulb,
   Music,
   Sofa,
@@ -55,6 +56,7 @@ const ICON_BY_ARCHETYPE: Record<string, LucideIcon> = {
   front_door: DoorOpen,
   staircase: DoorOpen,
   laundry_room: WashingMachine,
+  home: House,
 };
 
 export const getRoomZoneIcon = (archetype: string): LucideIcon =>

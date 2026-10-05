@@ -323,7 +323,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           >
             {titleIcon && (
               <motion.div layout="position" transition={crossfade}>
-                {titleEditing ? (
+                {titleEditing && onTitleIconClick ? (
                   <Button
                     variant="outline"
                     size="icon-xl"
@@ -347,7 +347,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                 className="min-w-0"
               >
                 <div className="flex h-8 items-center">
-                  {titleEditing && renamingTitle ? (
+                  {titleEditing && onTitleRename && renamingTitle ? (
                     <Input
                       autoFocus
                       value={draftTitle}
@@ -366,7 +366,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                       aria-label={`Rename ${title}`}
                       className="h-8 w-auto min-w-0 max-w-full rounded-md bg-[color-mix(in_oklch,var(--background),var(--foreground)_4%)] px-3 py-5 font-heading text-2xl font-semibold field-sizing-content md:text-2xl dark:border-foreground/25 dark:bg-input/30"
                     />
-                  ) : titleEditing ? (
+                  ) : titleEditing && onTitleRename ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -489,13 +489,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                       <Palette />
                       Customize
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={onTitleManage}
-                      className="text-base [&_svg:not([class*='size-'])]:size-5"
-                    >
-                      <ListChecks />
-                      Manage items
-                    </DropdownMenuItem>
+                    {onTitleManage && (
+                      <DropdownMenuItem
+                        onClick={onTitleManage}
+                        className="text-base [&_svg:not([class*='size-'])]:size-5"
+                      >
+                        <ListChecks />
+                        Manage items
+                      </DropdownMenuItem>
+                    )}
                     {onTitleCreateScene && (
                       <DropdownMenuItem
                         onClick={onTitleCreateScene}

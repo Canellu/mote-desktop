@@ -6,8 +6,11 @@ import { activeTileTheme } from "@/lib/tile-theme";
 import { cn } from "@/lib/utils";
 import type { LightColorChange } from "@/stores/HueResourcesStore";
 import type { HueLight, HueRoomZone } from "@/types/hue";
+import { ChevronRight } from "lucide-react";
+import { GroupColorWheels } from "./GroupColorWheels";
 import { GroupLightWheels } from "./GroupLightWheels";
 import { SidePane } from "./SidePane";
+import { isAllLightsSpace, isFixtureGroup } from "../utils/light-groups";
 
 type ControlCommitPhase = "live" | "final";
 
@@ -24,6 +27,13 @@ interface GroupPaneProps {
     phase: ControlCommitPhase,
   ) => void;
   onLightColor: (light: HueLight, change: LightColorChange) => void;
+  /** One thumb for the whole group instead of one per light. */
+  onGroupColor?: (
+    change: Pick<LightColorChange, "xy" | "ct" | "vividHex">,
+  ) => void;
+  /** Rooms listed under the wheel, to tune their lights one by one. */
+  rooms?: HueRoomZone[];
+  onOpenRoom?: (id: string) => void;
 }
 
 /**
@@ -40,6 +50,9 @@ export const GroupPane: React.FC<GroupPaneProps> = ({
   onToggle,
   onBrightness,
   onLightColor,
+  onGroupColor,
+  rooms,
+  onOpenRoom,
 }) => {
   const onLights = lights.filter((light) => light.isOn);
   const anyOn = onLights.length > 0;
@@ -84,7 +97,7 @@ export const GroupPane: React.FC<GroupPaneProps> = ({
         </span>
         <Switch
           checked={anyOn}
-          disabled={!roomZone.groupedLightId}
+          disabled={lights.length === 0}
           aria-label={`Toggle ${roomZone.name}`}
           onCheckedChange={(checked) => onToggle(roomZone, checked)}
         />
@@ -102,7 +115,7 @@ export const GroupPane: React.FC<GroupPaneProps> = ({
         <PacedSlider
           value={anyOn ? Math.max(1, brightnessPct) : 1}
           min={1}
-          disabled={!roomZone.groupedLightId}
+          disabled={lights.length === 0}
           ariaLabel={`${roomZone.name} brightness`}
           isGroup
           animateKey={hueEventRevision}
@@ -110,25 +123,76 @@ export const GroupPane: React.FC<GroupPaneProps> = ({
         />
       </div>
 
-      <GroupLightWheels
-        lights={lights}
-        onColorPickMany={(picks) =>
-          picks.forEach(({ light, xy, vividHex }) =>
-            onLightColor(light, { xy, vividHex }),
-          )
-        }
-        onTemperaturePickMany={(picks) =>
-          picks.forEach(({ light, value }) =>
-            onLightColor(light, { ct: value }),
-          )
-        }
-      />
+      {onGroupColor ? (
+        <GroupColorWheels lights={lights} onPick={onGroupColor} />
+      ) : (
+        <GroupLightWheels
+          lights={lights}
+          onColorPickMany={(picks) =>
+            picks.forEach(({ light, xy, vividHex }) =>
+              onLightColor(light, { xy, vividHex }),
+            )
+          }
+          onTemperaturePickMany={(picks) =>
+            picks.forEach(({ light, value }) =>
+              onLightColor(light, { ct: value }),
+            )
+          }
+        />
+      )}
+
+      {rooms && rooms.length > 0 && onOpenRoom && (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium text-muted-foreground">
+            Tune a room
+          </p>
+          <div className="flex flex-col gap-1">
+            {rooms.map((room) => {
+              const RoomIcon = getRoomZoneIcon(room.class);
+              const onCount = lights.filter(
+                (light) => light.isOn && room.lightIds.includes(light.id),
+              ).length;
+              return (
+                <button
+                  key={room.id}
+                  type="button"
+                  onClick={() => onOpenRoom(room.id)}
+                  className="flex items-center gap-3 rounded-xl px-2 py-2 text-left transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                >
+                  <RoomIcon
+                    size={20}
+                    className="shrink-0 text-muted-foreground"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                    {room.name}
+                  </span>
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {onCount} of {room.lightIds.length} on
+                  </span>
+                  <ChevronRight
+                    size={16}
+                    className="shrink-0 text-muted-foreground"
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 
   return (
     <SidePane
-      eyebrow={roomZone.resourceType === "zone" ? "Zone" : "Room"}
+      eyebrow={
+        isAllLightsSpace(roomZone)
+          ? "Home"
+          : isFixtureGroup(roomZone)
+            ? "Fixture"
+            : roomZone.resourceType === "zone"
+              ? "Zone"
+              : "Room"
+      }
       resetKey={roomZone.id}
       onClose={onClose}
       view={view}

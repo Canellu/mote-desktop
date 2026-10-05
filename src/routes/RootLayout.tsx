@@ -18,6 +18,11 @@ import { LightPane } from "@/features/space-screen/components/LightPane";
 import { ScenePane } from "@/features/space-screen/components/ScenePane";
 import { useInspector } from "@/features/space-screen/hooks/useInspector";
 import {
+  isAllLightsSpace,
+  resolveFixtureGroup,
+  resolveSpace,
+} from "@/features/space-screen/utils/light-groups";
+import {
   INSPECTOR_TRANSITION,
   InspectorSettleContext,
   type InspectorSettle,
@@ -32,6 +37,7 @@ import {
   EntertainmentStoreEffects,
   useEntertainmentStore,
 } from "@/stores/EntertainmentStore";
+import { useFixtureGroups } from "@/stores/FixtureGroupsStore";
 import { boxesForBridge, useSyncBoxStore } from "@/stores/SyncBoxStore";
 import {
   Outlet,
@@ -61,6 +67,30 @@ type InspectorContent =
   | { kind: "light"; id: string; light: HueLight }
   | { kind: "scene"; id: string; scene: HueScene }
   | { kind: "group"; id: string; roomZone: HueRoomZone; lights: HueLight[] };
+
+/** The room/zone (or All lights page) on screen, from the `/space/$spaceId` path. */
+const useActiveSpace = (): HueRoomZone | null => {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { roomZones, lights, homeGroupedLightId } = useHueResourcesStore(
+    useShallow((state) => ({
+      roomZones: state.roomZones,
+      lights: state.lights,
+      homeGroupedLightId: state.homeGroupedLightId,
+    })),
+  );
+  return useMemo(
+    () =>
+      resolveSpace(
+        pathname.startsWith("/space/")
+          ? decodeURIComponent(pathname.slice("/space/".length))
+          : null,
+        roomZones,
+        lights,
+        homeGroupedLightId,
+      ),
+    [pathname, roomZones, lights, homeGroupedLightId],
+  );
+};
 
 const getInspectorPaneWidth = () => {
   const rootFontSize = Number.parseFloat(
@@ -151,6 +181,7 @@ const LightInspector: React.FC<{
     hueEventRevision,
     setLightState,
     setLightColor,
+    setGroupColor,
     setRoomZoneState,
   } = useHueResourcesStore(
     useShallow((state) => ({
@@ -160,6 +191,7 @@ const LightInspector: React.FC<{
       hueEventRevision: state.hueEventRevision,
       setLightState: state.setLightState,
       setLightColor: state.setLightColor,
+      setGroupColor: state.setGroupColor,
       setRoomZoneState: state.setRoomZoneState,
     })),
   );
@@ -174,12 +206,10 @@ const LightInspector: React.FC<{
 
   // The inspector only opens from inside a space, so resolve which room/zone is
   // on screen — the light pane removes a light from *this* space specifically.
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const activeSpace = useMemo<HueRoomZone | null>(() => {
-    if (!pathname.startsWith("/space/")) return null;
-    const id = decodeURIComponent(pathname.slice("/space/".length));
-    return roomZones.find((roomZone) => roomZone.id === id) ?? null;
-  }, [pathname, roomZones]);
+  const activeSpace = useActiveSpace();
+  const { bridgeId } = useHue();
+  const navigate = useNavigate();
+  const fixtureGroups = useFixtureGroups(bridgeId);
 
   // Light and scene selection are mutually exclusive; resolve whichever is set
   // to a single content descriptor the panel renders.
@@ -189,7 +219,10 @@ const LightInspector: React.FC<{
       return light ? { kind: "light", id: light.id, light } : null;
     }
     if (selectedGroupId) {
-      const roomZone = roomZones.find((r) => r.id === selectedGroupId);
+      const roomZone =
+        roomZones.find((r) => r.id === selectedGroupId) ??
+        (isAllLightsSpace(activeSpace) ? activeSpace : null) ??
+        resolveFixtureGroup(selectedGroupId, lights, fixtureGroups);
       if (!roomZone) return null;
       const ids = new Set(roomZone.lightIds);
       const syncedIds = new Set(syncedLightIds);
@@ -210,6 +243,8 @@ const LightInspector: React.FC<{
     lights,
     scenes,
     roomZones,
+    activeSpace,
+    fixtureGroups,
     syncedLightIds,
   ]);
 
@@ -263,7 +298,7 @@ const LightInspector: React.FC<{
                   content.kind === "light" ? (
                     <LightPane
                       light={content.light}
-                      space={activeSpace}
+                      space={isAllLightsSpace(activeSpace) ? null : activeSpace}
                       hueEventRevision={hueEventRevision}
                       onClose={close}
                       onLightToggle={(l, on) => setLightState(l, on, null)}
@@ -283,6 +318,20 @@ const LightInspector: React.FC<{
                         setRoomZoneState(g, pct > 0, pct, phase)
                       }
                       onLightColor={(l, change) => setLightColor(l, change)}
+                      {...(isAllLightsSpace(content.roomZone)
+                        ? {
+                            onGroupColor: (change) =>
+                              setGroupColor(content.roomZone, change),
+                            rooms: roomZones.filter(
+                              (space) => space.resourceType === "room",
+                            ),
+                            onOpenRoom: (id) =>
+                              void navigate({
+                                to: "/space/$spaceId",
+                                params: { spaceId: id },
+                              }),
+                          }
+                        : {})}
                     />
                   ) : (
                     <ScenePane scene={content.scene} onClose={close} />
@@ -312,7 +361,6 @@ const ShellHeader: React.FC = () => {
     "customize" | "manage" | null
   >(null);
   const {
-    roomZones,
     homeName,
     isEditLayoutMode,
     groupingMode,
@@ -323,7 +371,6 @@ const ShellHeader: React.FC = () => {
     openCreateSection,
   } = useHueResourcesStore(
     useShallow((state) => ({
-      roomZones: state.roomZones,
       homeName: state.homeName,
       isEditLayoutMode: state.isEditLayoutMode,
       groupingMode: state.groupingMode,
@@ -370,12 +417,10 @@ const ShellHeader: React.FC = () => {
 
   // Layout editing and Settings are Home-only; Space/Settings use Back instead.
   const onHome = pathname === "/";
-  const activeSpaceId = pathname.startsWith("/space/")
-    ? decodeURIComponent(pathname.slice("/space/".length))
-    : null;
-  const activeSpace = activeSpaceId
-    ? roomZones.find((roomZone) => roomZone.id === activeSpaceId)
-    : null;
+  const activeSpace = useActiveSpace();
+  // The All lights page can be customized, but has no bridge metadata to
+  // rename, no items to manage and no scenes.
+  const editableSpace = isAllLightsSpace(activeSpace) ? null : activeSpace;
   const ActiveSpaceIcon = activeSpace
     ? getRoomZoneIcon(activeSpace.class)
     : null;
@@ -505,57 +550,62 @@ const ShellHeader: React.FC = () => {
                   router.history.canGoBack()
                 ? () => router.history.back()
                 : () =>
-                  void (onDeviceDiscovery
-                    ? navigate({ to: "/settings", search: { tab: "devices" } })
-                    : placementAreaId
-                      ? navigate(
-                          placementFrom === "sync"
-                            ? {
-                                to: "/sync/$areaId",
-                                params: { areaId: placementAreaId },
-                              }
-                            : {
-                                to: "/settings",
-                                search: { tab: "entertainment" },
-                              },
-                        )
-                      : activeSyncArea
-                        ? navigate({
-                            to: "/sync",
-                            search: { source: undefined },
-                          })
-                        : onWidgetWizard
+                    void (onDeviceDiscovery
+                      ? navigate({
+                          to: "/settings",
+                          search: { tab: "devices" },
+                        })
+                      : placementAreaId
+                        ? navigate(
+                            placementFrom === "sync"
+                              ? {
+                                  to: "/sync/$areaId",
+                                  params: { areaId: placementAreaId },
+                                }
+                              : {
+                                  to: "/settings",
+                                  search: { tab: "entertainment" },
+                                },
+                          )
+                        : activeSyncArea
                           ? navigate({
-                              to: "/settings",
-                              search: { tab: "widget" },
+                              to: "/sync",
+                              search: { source: undefined },
                             })
-                          : onAutomationWizard
-                            ? navigate({ to: "/automations" })
-                            : onFocusWizard
-                              ? navigate({ to: "/focus" })
-                              : onSpacesWizard
-                                ? navigate({
-                                    to: "/settings",
-                                    search: { tab: "spaces" },
-                                  })
-                                : onCreateScene
+                          : onWidgetWizard
+                            ? navigate({
+                                to: "/settings",
+                                search: { tab: "widget" },
+                              })
+                            : onAutomationWizard
+                              ? navigate({ to: "/automations" })
+                              : onFocusWizard
+                                ? navigate({ to: "/focus" })
+                                : onSpacesWizard
                                   ? navigate({
                                       to: "/settings",
-                                      search: { tab: "scenes" },
+                                      search: { tab: "spaces" },
                                     })
-                                  : onEntertainmentWizard
-                                    ? navigate(
-                                        entertainmentWizardFrom === "sync"
-                                          ? {
-                                              to: "/sync",
-                                              search: { source: undefined },
-                                            }
-                                          : {
-                                              to: "/settings",
-                                              search: { tab: "entertainment" },
-                                            },
-                                      )
-                                    : navigate({ to: "/" }))
+                                  : onCreateScene
+                                    ? navigate({
+                                        to: "/settings",
+                                        search: { tab: "scenes" },
+                                      })
+                                    : onEntertainmentWizard
+                                      ? navigate(
+                                          entertainmentWizardFrom === "sync"
+                                            ? {
+                                                to: "/sync",
+                                                search: { source: undefined },
+                                              }
+                                            : {
+                                                to: "/settings",
+                                                search: {
+                                                  tab: "entertainment",
+                                                },
+                                              },
+                                        )
+                                      : navigate({ to: "/" }))
       }
       title={title}
       description={description}
@@ -588,30 +638,43 @@ const ShellHeader: React.FC = () => {
           <ActiveSpaceIcon size={24} strokeWidth={2.25} />
         ) : undefined
       }
-      onTitleRename={(name) =>
-        window.dispatchEvent(
-          new CustomEvent("hue-space-rename", { detail: name }),
-        )
+      onTitleRename={
+        editableSpace
+          ? (name) =>
+              window.dispatchEvent(
+                new CustomEvent("hue-space-rename", { detail: name }),
+              )
+          : undefined
       }
-      onTitleIconClick={() =>
-        window.dispatchEvent(new CustomEvent("hue-space-edit-icon"))
+      onTitleIconClick={
+        editableSpace
+          ? () => window.dispatchEvent(new CustomEvent("hue-space-edit-icon"))
+          : undefined
       }
       titleActionLabel={
-        activeSpace
-          ? `Edit ${activeSpace.resourceType === "room" ? "room" : "zone"}`
-          : undefined
+        editableSpace
+          ? `Edit ${editableSpace.resourceType === "room" ? "room" : "zone"}`
+          : activeSpace
+            ? "Edit all lights"
+            : undefined
       }
       onTitleAction={() =>
         window.dispatchEvent(new CustomEvent("hue-space-edit-request"))
       }
-      onTitleManage={() =>
-        window.dispatchEvent(new CustomEvent("hue-space-manage-request"))
+      onTitleManage={
+        editableSpace
+          ? () =>
+              window.dispatchEvent(new CustomEvent("hue-space-manage-request"))
+          : undefined
       }
-      onTitleCreateScene={() =>
-        window.dispatchEvent(new CustomEvent("hue-space-create-scene"))
+      onTitleCreateScene={
+        editableSpace
+          ? () =>
+              window.dispatchEvent(new CustomEvent("hue-space-create-scene"))
+          : undefined
       }
       titleEditing={activeSpace != null && spaceEditMode === "customize"}
-      titleManaging={activeSpace != null && spaceEditMode === "manage"}
+      titleManaging={editableSpace != null && spaceEditMode === "manage"}
       onCancelTitleEdit={() =>
         window.dispatchEvent(new CustomEvent("hue-space-edit-cancel"))
       }
@@ -710,7 +773,6 @@ export const RootLayout: React.FC = () => {
       (state.location.search as { inspect?: string }).inspect != null,
   });
   const inspectorPane = useInspectorPane(inspectorPaneOpen);
-  const roomZones = useHueResourcesStore((state) => state.roomZones);
   const bridgeConnected = useHueResourcesStore(
     (state) => state.bridgeConnected,
   );
@@ -769,12 +831,7 @@ export const RootLayout: React.FC = () => {
           : (externalOwner ?? "another app"),
     };
   })();
-  const activeSpace = pathname.startsWith("/space/")
-    ? roomZones.find(
-        (roomZone) =>
-          roomZone.id === decodeURIComponent(pathname.slice("/space/".length)),
-      )
-    : null;
+  const activeSpace = useActiveSpace();
   const activeSpaceSyncedLightCount = activeSpace
     ? activeSpace.lightIds.filter((id) => activeSyncedLightIds.includes(id))
         .length

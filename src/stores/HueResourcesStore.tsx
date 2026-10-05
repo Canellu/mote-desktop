@@ -80,6 +80,8 @@ export interface HueResourcesState extends LayoutState {
    * decides the fallback in that case.
    */
   homeName: string | null;
+  /** bridge_home grouped_light id driving the All lights page; null if absent. */
+  homeGroupedLightId: string | null;
   isLoading: boolean;
   hasLoaded: boolean;
   error: string | null;
@@ -146,6 +148,14 @@ export interface HueResourcesState extends LayoutState {
     phase?: ControlCommitPhase,
   ) => void;
   setLightColor: (light: HueLight, change: LightColorChange) => void;
+  /**
+   * One color or white for every capable light in a room/zone, sent through
+   * its grouped_light when it has one, otherwise light by light.
+   */
+  setGroupColor: (
+    roomZone: HueRoomZone,
+    change: Pick<LightColorChange, "xy" | "ct" | "vividHex">,
+  ) => void;
   createGalleryScene: (
     roomZone: HueRoomZone,
     preset: HueGalleryScenePreset,
@@ -272,6 +282,38 @@ interface PendingLightColorWrite {
 // the newest unsent color for each light so stale drag positions are discarded.
 const LIGHT_COLOR_WRITE_GAP_MS = 100;
 const LIGHT_COLOR_CONFIRM_TIMEOUT_MS = 10000;
+// Group commands broadcast on ZigBee and Hue caps them near one per second, so
+// a dragged group color sends at most that often and always sends the last.
+const GROUP_COLOR_WRITE_GAP_MS = 1000;
+const groupColorWrites = new Map<
+  string,
+  {
+    lastSentAt: number;
+    timer: ReturnType<typeof setTimeout> | null;
+    send: (() => void) | null;
+  }
+>();
+const scheduleGroupColorWrite = (groupedLightId: string, send: () => void) => {
+  const entry = groupColorWrites.get(groupedLightId) ?? {
+    lastSentAt: 0,
+    timer: null,
+    send: null,
+  };
+  groupColorWrites.set(groupedLightId, entry);
+  entry.send = send;
+  if (entry.timer) return;
+  const flush = () => {
+    entry.timer = null;
+    const pending = entry.send;
+    entry.send = null;
+    if (!pending) return;
+    entry.lastSentAt = Date.now();
+    pending();
+  };
+  const wait = entry.lastSentAt + GROUP_COLOR_WRITE_GAP_MS - Date.now();
+  if (wait <= 0) flush();
+  else entry.timer = setTimeout(flush, wait);
+};
 const pendingLightColorWrites = new Map<string, PendingLightColorWrite>();
 const lightColorWriteVersions = new Map<string, number>();
 let drainingLightColorWrites = false;
@@ -644,6 +686,7 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
   scenes: [],
   accessoryServices: [],
   homeName: null,
+  homeGroupedLightId: null,
   isLoading: true,
   hasLoaded: false,
   error: null,
@@ -786,6 +829,10 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
         invoke<HueScene[]>("get-hue-scenes").catch(() => [] as HueScene[]),
         get().loadLights(),
         get().loadHomeName(),
+        // Best effort: without it the All lights page writes per light.
+        invoke<string>("get-hue-home-grouped-light")
+          .then((id) => set({ homeGroupedLightId: id }))
+          .catch(() => set({ homeGroupedLightId: null })),
         get().loadAccessoryServices(),
       ]);
       const roomZones = [...rooms, ...zones].sort((a, b) =>
@@ -1349,6 +1396,71 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
     });
   },
 
+  setGroupColor: (roomZone, change) => {
+    const syncedIds = activeSyncedLightIds();
+    const memberIds = new Set(roomZone.lightIds);
+    const targets = get().lights.filter(
+      (light) =>
+        memberIds.has(light.id) &&
+        !syncedIds.has(light.id) &&
+        (change.xy ? light.supportsColor : light.supportsCt),
+    );
+    if (targets.length === 0) return;
+    // A synced member must not be touched, so the group write is only safe
+    // when every member is free.
+    const groupedLightId = roomZone.lightIds.some((id) => syncedIds.has(id))
+      ? null
+      : roomZone.groupedLightId;
+    if (!groupedLightId) {
+      for (const light of targets) get().setLightColor(light, change);
+      return;
+    }
+
+    const targetIds = new Set(targets.map((light) => light.id));
+    for (const light of targets) {
+      if (change.xy && change.vividHex)
+        recordPickedColor(light.id, change.xy, change.vividHex);
+      clearGroupLocksForLight(light.id, get().roomZones);
+      // Each light clamps xy into its own gamut, so the echo rarely matches
+      // exactly; hold the optimistic value for a while instead.
+      lockResource(
+        light.id,
+        {
+          on: true,
+          ...(change.xy ? { colorMode: "xy" as const, xy: change.xy } : {}),
+          ...(change.ct ? { colorMode: "ct" as const, mirek: change.ct } : {}),
+        },
+        { durationMs: GROUP_TOGGLE_SETTLE_MS, releaseOnConfirm: false },
+      );
+    }
+    set((state) => ({
+      lights: state.lights.map((light) =>
+        targetIds.has(light.id)
+          ? {
+              ...light,
+              isOn: true,
+              xy: change.xy ?? light.xy,
+              ct: change.ct ?? light.ct,
+              colorMode: change.xy ? "xy" : "ct",
+            }
+          : light,
+      ),
+    }));
+
+    scheduleGroupColorWrite(groupedLightId, () => {
+      void invoke("set-grouped-light-color", {
+        id: groupedLightId,
+        xy: change.xy ?? null,
+        ct: change.ct ?? null,
+        transitionMs: COLOR_TRANSITION_MS,
+      }).catch((error) => {
+        clearResourceLocks([...targetIds]);
+        set({ error: String(error) || "Unable to update color." });
+        void get().loadLights();
+      });
+    });
+  },
+
   createGalleryScene: async (roomZone, preset) => {
     try {
       const scene = await invoke<HueScene>("create-hue-gallery-scene", {
@@ -1772,7 +1884,8 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
           delete action.color;
           delete action.color_temperature;
           delete action.gradient;
-          if (color.xy) action.color = { xy: { x: color.xy[0], y: color.xy[1] } };
+          if (color.xy)
+            action.color = { xy: { x: color.xy[0], y: color.xy[1] } };
           else if (color.mirek != null)
             action.color_temperature = { mirek: color.mirek };
           return { ...entry, action };

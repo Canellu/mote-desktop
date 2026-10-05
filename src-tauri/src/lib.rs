@@ -108,6 +108,8 @@ pub fn run() {
             commands::zones::create_hue_zone,
             commands::zones::update_zone_members,
             commands::grouped_lights::set_grouped_light_state,
+            commands::grouped_lights::get_hue_home_grouped_light,
+            commands::grouped_lights::set_grouped_light_color,
             commands::grouped_lights::set_all_lights_state,
             commands::scenes::get_hue_scenes,
             commands::scenes::get_hue_smart_scenes,

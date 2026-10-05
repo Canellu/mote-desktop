@@ -7,6 +7,7 @@ import {
   type InspectKind,
   type InspectSelection,
 } from "@/features/space-screen/hooks/useInspector";
+import { resolveSpace } from "@/features/space-screen/utils/light-groups";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 import type { HueAccessoryService } from "@/types/hue";
 
@@ -26,6 +27,7 @@ export const SpaceRoute: React.FC = () => {
     close: closeInspector,
   } = useInspector();
   const selectedLightId = selection?.kind === "light" ? selection.id : null;
+  const selectedGroupId = selection?.kind === "group" ? selection.id : null;
 
   // Customize/Manage take the tiles over for reordering and multi-select, so the
   // inspector pane closes on entry and stays closed until the mode exits — the
@@ -75,6 +77,7 @@ export const SpaceRoute: React.FC = () => {
     lights,
     scenes,
     accessoryServices,
+    homeGroupedLightId,
     error,
     hueEventRevision,
     setRoomZoneState,
@@ -91,6 +94,7 @@ export const SpaceRoute: React.FC = () => {
       lights: state.lights,
       scenes: state.scenes,
       accessoryServices: state.accessoryServices,
+      homeGroupedLightId: state.homeGroupedLightId,
       error: state.error,
       hueEventRevision: state.hueEventRevision,
       setRoomZoneState: state.setRoomZoneState,
@@ -119,8 +123,8 @@ export const SpaceRoute: React.FC = () => {
   }, [accessoryServices]);
 
   const roomZone = useMemo(
-    () => roomZones.find((g) => g.id === spaceId) ?? null,
-    [roomZones, spaceId],
+    () => resolveSpace(spaceId, roomZones, lights, homeGroupedLightId),
+    [roomZones, lights, spaceId, homeGroupedLightId],
   );
 
   const spaceLights = useMemo(() => {
@@ -168,6 +172,7 @@ export const SpaceRoute: React.FC = () => {
       readingsByDevice={readingsByDevice}
       activeSceneId={activeSceneId}
       selectedLightId={selectedLightId}
+      selectedGroupId={selectedGroupId}
       error={error}
       hueEventRevision={hueEventRevision}
       onRoomZoneToggle={(g, on) => setRoomZoneState(g, on, null)}

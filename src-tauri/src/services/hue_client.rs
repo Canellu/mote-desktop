@@ -2364,6 +2364,53 @@ impl HueClient {
         .await
     }
 
+    /// Sets one color or white for every light in a grouped_light. Like a
+    /// single light, setting a color also turns the group on.
+    pub async fn set_grouped_light_color(
+        &self,
+        ip: &str,
+        application_key: &str,
+        id: &str,
+        xy: Option<[f64; 2]>,
+        ct: Option<u16>,
+        transition_ms: Option<u32>,
+    ) -> Result<(), String> {
+        let mut body = Map::new();
+        body.insert("on".to_string(), json!({ "on": true }));
+        if let Some([x, y]) = xy {
+            body.insert("color".to_string(), json!({ "xy": { "x": x, "y": y } }));
+        }
+        if let Some(value) = ct {
+            body.insert("color_temperature".to_string(), json!({ "mirek": value }));
+        }
+        insert_v2_transition(&mut body, transition_ms);
+        self.put_v2(
+            ip,
+            application_key,
+            "grouped_light",
+            id,
+            Value::Object(body),
+        )
+        .await
+    }
+
+    /// The grouped_light service owned by the bridge_home resource, which
+    /// controls every light on the bridge at once.
+    pub async fn get_home_grouped_light_id(
+        &self,
+        ip: &str,
+        application_key: &str,
+    ) -> Result<String, String> {
+        let homes: Vec<HueBridgeHomeResource> =
+            self.get_v2(ip, application_key, "bridge_home").await?;
+        homes
+            .iter()
+            .flat_map(|home| home.services.iter())
+            .find(|service| service.rtype == "grouped_light")
+            .map(|service| service.rid.clone())
+            .ok_or_else(|| "The Hue bridge has no whole-home light control.".to_string())
+    }
+
     /// Controls the grouped_light service owned by the bridge_home resource.
     pub async fn set_all_lights_state(
         &self,
@@ -2372,19 +2419,12 @@ impl HueClient {
         on: bool,
         transition_ms: Option<u32>,
     ) -> Result<(), String> {
-        let homes: Vec<HueBridgeHomeResource> =
-            self.get_v2(ip, application_key, "bridge_home").await?;
-        let grouped_light_id = homes
-            .iter()
-            .flat_map(|home| home.services.iter())
-            .find(|service| service.rtype == "grouped_light")
-            .map(|service| service.rid.as_str())
-            .ok_or_else(|| "The Hue bridge has no whole-home light control.".to_string())?;
+        let grouped_light_id = self.get_home_grouped_light_id(ip, application_key).await?;
 
         self.set_grouped_light_state(
             ip,
             application_key,
-            grouped_light_id,
+            &grouped_light_id,
             Some(on),
             None,
             transition_ms,

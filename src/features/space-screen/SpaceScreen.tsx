@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { useBlocker } from "@tanstack/react-router";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
@@ -79,6 +79,7 @@ import {
   INSPECTOR_TRANSITION,
   useInspectorSettle,
 } from "./utils/inspector-layout";
+import { isAllLightsSpace } from "./utils/light-groups";
 import { isSceneDynamicActive } from "./utils/scene-status";
 import {
   applyItemOrder,
@@ -212,6 +213,8 @@ interface SpaceScreenProps {
   readingsByDevice: Map<string, HueAccessoryService[]>;
   activeSceneId: string | null;
   selectedLightId: string | null;
+  /** The group pane's selection (a room/zone or `fixture:<id>`). */
+  selectedGroupId: string | null;
   error: string | null;
   hueEventRevision: number;
   onRoomZoneToggle: (roomZone: HueRoomZone, nextOn: boolean) => void;
@@ -255,6 +258,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
   readingsByDevice,
   activeSceneId,
   selectedLightId,
+  selectedGroupId,
   error,
   hueEventRevision,
   onRoomZoneToggle,
@@ -446,7 +450,19 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
       ? undefined
       : (accessory: HueAccessory) => setOpenAccessoryId(accessory.id);
 
-  const showScenes = scenes.length > 0 || lights.length > 0;
+  // The All lights page groups its lights by room.
+  const allLightsPage = isAllLightsSpace(roomZone);
+  const roomSections = useMemo(
+    () =>
+      allLightsPage
+        ? roomZones
+            .filter((space) => space.resourceType === "room")
+            .map(({ id, name, lightIds }) => ({ id, name, lightIds }))
+        : undefined,
+    [allLightsPage, roomZones],
+  );
+  // Hue scenes belong to a room or zone, so the whole-home page has none.
+  const showScenes = !allLightsPage && (scenes.length > 0 || lights.length > 0);
   const playingScene = scenes.find(isSceneDynamicActive) ?? null;
 
   const selectFrom =
@@ -600,13 +616,15 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
         onGalleryScenePreviewEnd={onGalleryScenePreviewEnd}
       />
     ) : editing ? (
-      <EmptyEditSection title="Scenes" />
+      !allLightsPage && <EmptyEditSection title="Scenes" />
     ) : null,
     lights:
       lights.length > 0 || !editing ? (
         <LightsSection
           lights={orderedLights}
           selectedLightId={selectedLightId}
+          selectedGroupId={selectedGroupId}
+          roomSections={roomSections}
           hueEventRevision={hueEventRevision}
           editing={editing || managing}
           reordering={editing}
@@ -618,6 +636,9 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
           onSelectLight={onSelectLight}
           onLightToggle={onLightToggle}
           onLightBrightness={onLightBrightness}
+          onOpenFixture={onOpenGroup}
+          onFixtureToggle={onRoomZoneToggle}
+          onFixtureBrightness={onRoomZoneBrightness}
         />
       ) : (
         <EmptyEditSection title="Lights" />
@@ -638,7 +659,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
           onOpen={onOpenAccessory}
         />
       ) : editing ? (
-        <EmptyEditSection title="Switches" />
+        !allLightsPage && <EmptyEditSection title="Switches" />
       ) : null,
     sensors:
       sensors.length > 0 ? (
@@ -656,7 +677,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
           onOpen={onOpenAccessory}
         />
       ) : editing ? (
-        <EmptyEditSection title="Sensors" />
+        !allLightsPage && <EmptyEditSection title="Sensors" />
       ) : null,
   };
   const destructiveDialog =

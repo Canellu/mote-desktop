@@ -10,8 +10,10 @@ import {
   TILE_INTERACTION_TRANSITION_CLASS,
   TILE_POWER_SWITCH_CLASS,
 } from "@/lib/tile-theme";
+import { overlaySelectionClassName } from "@/lib/selection-styles";
 import { UI_EASE_MS } from "@/lib/transitions";
 import { cn } from "@/lib/utils";
+import type { LucideIcon } from "lucide-react";
 import type { HueLight, HueRoomZone } from "@/types/hue";
 import { useEntertainmentStore } from "@/stores/EntertainmentStore";
 import { getRoomZoneIcon } from "./room-zone-icons";
@@ -31,6 +33,12 @@ interface SpaceTileProps {
     pct: number,
     phase: ControlCommitPhase,
   ) => void;
+  /** Overrides the archetype icon, e.g. a fixture shows its light type. */
+  icon?: LucideIcon;
+  /** Second line under the name, e.g. a fixture's head count. */
+  subtitle?: string;
+  /** Highlights the tile while its group pane is open. */
+  selected?: boolean;
 }
 
 /**
@@ -45,6 +53,9 @@ export const SpaceTile: React.FC<SpaceTileProps> = ({
   onOpenSpace,
   onRoomZoneToggle,
   onRoomZoneBrightness,
+  icon,
+  subtitle,
+  selected = false,
 }) => {
   const syncedLightIds = useEntertainmentStore((store) => store.syncedLightIds);
   const syncedIds = new Set(syncedLightIds);
@@ -63,7 +74,7 @@ export const SpaceTile: React.FC<SpaceTileProps> = ({
       ? onMembers.reduce((sum, light) => sum + (light.brightness ?? 0), 0) /
         onMembers.length
       : 0;
-  const Icon = getRoomZoneIcon(roomZone.class);
+  const Icon = icon ?? getRoomZoneIcon(roomZone.class);
   const tile = fullSync
     ? { active: false, background: null, glow: null }
     : roomZoneTileColor(displayMembers);
@@ -75,6 +86,7 @@ export const SpaceTile: React.FC<SpaceTileProps> = ({
       role={editing ? undefined : "button"}
       tabIndex={editing ? -1 : 0}
       aria-disabled={editing || undefined}
+      aria-pressed={editing ? undefined : selected}
       onClick={editing ? undefined : () => onOpenSpace(roomZone.id)}
       onKeyDown={
         editing
@@ -91,6 +103,7 @@ export const SpaceTile: React.FC<SpaceTileProps> = ({
         TILE_INTERACTION_TRANSITION_CLASS,
         !editing && "cursor-pointer",
         tile.active && "ring-transparent",
+        selected && overlaySelectionClassName,
       )}
       style={
         {
@@ -126,6 +139,9 @@ export const SpaceTile: React.FC<SpaceTileProps> = ({
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate text-base font-medium">{roomZone.name}</p>
+          {subtitle && (
+            <p className="truncate text-sm text-muted-foreground">{subtitle}</p>
+          )}
         </div>
         {fullSync ? (
           <span aria-hidden="true" />

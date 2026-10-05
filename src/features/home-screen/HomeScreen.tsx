@@ -13,6 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
+import { ALL_LIGHTS_SPACE_ID } from "@/features/space-screen/utils/light-groups";
 import { useEntertainmentStore } from "@/stores/EntertainmentStore";
 import type { HomeLayout } from "@/types/app-layout";
 import type { HueLight, HueRoomZone } from "@/types/hue";
@@ -324,7 +326,25 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       {lights.length > 0 && (
         <Card
           size="sm"
-          className="border border-tile-border bg-card rounded-(--tile-radius) py-(--tile-summary-y) [--card-spacing:var(--tile-spacing)]!"
+          role={editing ? undefined : "button"}
+          tabIndex={editing ? -1 : 0}
+          aria-disabled={editing || undefined}
+          onClick={editing ? undefined : () => onOpenSpace(ALL_LIGHTS_SPACE_ID)}
+          onKeyDown={
+            editing
+              ? undefined
+              : (e) => {
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onOpenSpace(ALL_LIGHTS_SPACE_ID);
+                  }
+                }
+          }
+          className={cn(
+            "border border-tile-border bg-card rounded-(--tile-radius) py-(--tile-summary-y) [--card-spacing:var(--tile-spacing)]!",
+            !editing && "cursor-pointer",
+          )}
         >
           <div className="flex items-center gap-4 px-(--card-spacing)">
             <span className="flex size-(--tile-icon-box) shrink-0 items-center justify-center text-muted-foreground">
@@ -342,13 +362,15 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                   : `${lightsOn} of ${lights.length} on`}
               </p>
             </div>
-            <Switch
-              size="xl"
-              checked={anyLightOn}
-              disabled={editing || isLoading || syncActive}
-              aria-label="Toggle all lights"
-              onCheckedChange={onAllLightsToggle}
-            />
+            <div onClick={(e) => e.stopPropagation()}>
+              <Switch
+                size="xl"
+                checked={anyLightOn}
+                disabled={editing || isLoading || syncActive}
+                aria-label="Toggle all lights"
+                onCheckedChange={onAllLightsToggle}
+              />
+            </div>
           </div>
         </Card>
       )}
