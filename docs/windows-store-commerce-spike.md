@@ -6,8 +6,11 @@ Release preparation on 2026-10-11: the unsigned 0.11.0.0 MSIX builds from
 `v0.11.0`). It adds the All lights page and fixtures as one tile, keeps lights
 Hue reports as unreachable controllable, and fixes zone dimming showing off
 lights as on and room-off changes from other apps reaching only some lights.
-The package was not tested on hardware before upload. The owner uploads it by
-drag and drop.
+The package was not tested on hardware before upload. A first 0.11.0.0 build,
+made before the What's new notes dropped the dev-only Home map, was uploaded
+by mistake and clashed on its full name; it was removed before this one went
+in. It went to certification as Submission 21 on 2026-10-11, set to publish
+as soon as it passes. No package flights were live.
 
 On 2026-10-04 the owner reported 0.10.1 as live, with a screenshot of its
 What's new dialog. Submission 20 has therefore passed certification.
