@@ -1,5 +1,14 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-10-11: the unsigned 0.11.0.0 MSIX builds from
+`a01b72a` and is 10,741,162 bytes (SHA-256
+`2203068456156844C616152CEF5A20FA827A8112776C73467A7B1C7ACB6F1ADE`, tag
+`v0.11.0`). It adds the All lights page and fixtures as one tile, keeps lights
+Hue reports as unreachable controllable, and fixes zone dimming showing off
+lights as on and room-off changes from other apps reaching only some lights.
+The package was not tested on hardware before upload. The owner uploads it by
+drag and drop.
+
 On 2026-10-04 the owner reported 0.10.1 as live, with a screenshot of its
 What's new dialog. Submission 20 has therefore passed certification.
 
