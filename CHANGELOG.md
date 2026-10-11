@@ -18,8 +18,8 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 ### Improvements
 
 - A light Hue reports as unreachable can still be switched and dimmed, on its
-  card, in its panel and on the Home map. Hue sometimes reports a light that
-  still works as unreachable; hover the label to see what it means.
+  card and in its panel. Hue sometimes reports a light that still works as
+  unreachable; hover the label to see what it means.
 
 ### Fixes
 
