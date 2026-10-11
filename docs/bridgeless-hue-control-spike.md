@@ -89,11 +89,11 @@ actually matter to Mote.
 
 ## Finding 2 — Neither path has an API a third party may use
 
-| Path | Public specification | Vendor support for third-party apps |
-| ---- | -------------------- | ----------------------------------- |
-| Bridge CLIP v2 | Yes — the documentation set in [`docs/HUE/`](./HUE/README.md) | Yes. This is what Mote uses. |
-| Bluetooth LE | **None.** Signify has never published a BLE specification. | None. |
-| Matter over Thread | Yes — the Matter specification is public | Yes in principle, but the controller, not Hue, is the integration point. |
+| Path               | Public specification                                          | Vendor support for third-party apps                                      |
+| ------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Bridge CLIP v2     | Yes — the documentation set in [`docs/HUE/`](./HUE/README.md) | Yes. This is what Mote uses.                                             |
+| Bluetooth LE       | **None.** Signify has never published a BLE specification.    | None.                                                                    |
+| Matter over Thread | Yes — the Matter specification is public                      | Yes in principle, but the controller, not Hue, is the integration point. |
 
 The Bluetooth path exists in the wild entirely through reverse engineering.
 Working prior art does exist and is worth naming, because it proves feasibility
@@ -110,7 +110,7 @@ and simultaneously proves the cost:
   `932c32bd-0002-47a2-835a-a8d455b859dd`; brightness and colour live under
   further undocumented services (`9da2ddf1-…`, `b8843add-…`).
 
-Home Assistant's integration lists roughly ten *tested* models. Everything
+Home Assistant's integration lists roughly ten _tested_ models. Everything
 outside that list is a coin toss, and there is no vendor commitment that any of
 it keeps working after a firmware update.
 
@@ -164,18 +164,18 @@ rather than a software one.
 
 ## Finding 4 — what Mote would lose
 
-| Mote capability | Bridge | Hue BLE | Matter direct |
-| --------------- | ------ | ------- | ------------- |
-| On/off, brightness, colour, colour temperature | Yes | Yes, per light, ~4 at a time | Yes, via a controller stack |
-| Rooms, zones, grouped lights | Yes, bridge resources | No — Mote would have to invent and own grouping | Partial; Matter groups, not Hue rooms |
-| Scenes, dynamic scenes, gradients | Yes | No | No, per Philips' own comparison |
-| Real-time state (`/eventstream/clip/v2`) | Yes, one SSE connection | Per-light GATT notifications, bounded by the connection ceiling | Matter subscriptions |
-| **PC Sync** | Yes, Entertainment API over DTLS | **Impossible** — no streaming path exists over BLE | **Impossible** — Philips lists entertainment sync as lost |
-| Sync Box association | Yes | No | No |
-| Away-from-home / cloud control | Planned, via Hue OAuth | No, local only by definition | Via the hub's ecosystem, not Mote |
-| Stable v2 UUID identity | Yes | No — randomised MAC that changes on reset | Matter node/endpoint identity |
+| Mote capability                                | Bridge                           | Hue BLE                                                         | Matter direct                                             |
+| ---------------------------------------------- | -------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------- |
+| On/off, brightness, colour, colour temperature | Yes                              | Yes, per light, ~4 at a time                                    | Yes, via a controller stack                               |
+| Rooms, zones, grouped lights                   | Yes, bridge resources            | No — Mote would have to invent and own grouping                 | Partial; Matter groups, not Hue rooms                     |
+| Scenes, dynamic scenes, gradients              | Yes                              | No                                                              | No, per Philips' own comparison                           |
+| Real-time state (`/eventstream/clip/v2`)       | Yes, one SSE connection          | Per-light GATT notifications, bounded by the connection ceiling | Matter subscriptions                                      |
+| **PC Sync**                                    | Yes, Entertainment API over DTLS | **Impossible** — no streaming path exists over BLE              | **Impossible** — Philips lists entertainment sync as lost |
+| Sync Box association                           | Yes                              | No                                                              | No                                                        |
+| Away-from-home / cloud control                 | Planned, via Hue OAuth           | No, local only by definition                                    | Via the hub's ecosystem, not Mote                         |
+| Stable v2 UUID identity                        | Yes                              | No — randomised MAC that changes on reset                       | Matter node/endpoint identity                             |
 
-PC Sync is the line that ends the argument. It is a paid Pro feature, it is one
+PC Sync is the line that ends the argument. It has been free since 0.8.0, it is one
 of only two dedicated feature pages on the website, and it cannot exist without
 the Bridge's Entertainment streaming API. A bridgeless Mote is not a cheaper
 Mote — it is a different, much smaller product.
@@ -224,8 +224,11 @@ matter how fast or clean the protocol turns out to be.
 
 ## Website copy change
 
-The current claim — `mote-website/src/routes/index.tsx:122` and
-`mote-website/src/routes/guides.control-philips-hue-from-windows.tsx:53` — is
+Applied on the website on 2026-10-04: the home FAQ and both places in the setup guide now carry the replacement below.
+
+The current claim — the "Do I need a Hue Bridge?" answer in
+`mote-website/src/routes/index.tsx` and the "I only have Bluetooth lights" note
+in `mote-website/src/routes/guides.control-philips-hue-from-windows.tsx` — is
 factually correct about Mote. It is over-broad about Hue: a reader who knows
 their bulbs work in the Hue Bluetooth app, or who has commissioned them into
 Apple Home over Matter, will read "does not connect directly to Bluetooth-only

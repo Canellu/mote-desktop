@@ -1,5 +1,8 @@
 # Windows Store packaging and commerce spike
 
+On 2026-10-04 the owner reported 0.10.1 as live, with a screenshot of its
+What's new dialog. Submission 20 has therefore passed certification.
+
 Release preparation on 2026-10-03: the unsigned 0.10.1.0 MSIX builds from
 `d70c757` and is 10,722,148 bytes (SHA-256
 `BBF06CF00B3929706B6D03E44BCDEEEBB07FAE1E2B5B7CE99A653C017A44DA48`, tag
@@ -67,8 +70,7 @@ Release preparation on 2026-09-25: the unsigned 0.6.2.0 MSIX builds and is
 `v0.6.2`), a patch release that downloads Store updates on their own so the
 only click is the restart. It went to certification on 2026-09-26 as Submission
 13, set to publish as soon as it passes; the owner uploaded the package by drag
-and drop because it is over the automation's 10 MB limit. 0.6.1.0 (Submission
-12) is live.
+and drop because it is over the automation's 10 MB limit. 0.6.1.0 (Submission 12) is live.
 
 Release preparation on 2026-09-25: the unsigned 0.6.1.0 MSIX builds and is
 10,589,703 bytes (SHA-256
@@ -92,11 +94,10 @@ On 2026-09-24 the owner confirmed 0.6.0.0 is live in the Store and installed
 it from there, so the 10.6 MB package was accepted despite the 10 MB
 threshold noted below. The hardware acceptance pass above is still owed.
 
-Status: **0.10.0.0 is live in the Store, and the Mote Pro add-on is live at NOK
-149. Purchase, restore, offline licensing, the trial surviving a reinstall,
+Status: **0.10.1.0 is live in the Store, and the Mote Pro add-on is live at NOK 149. Purchase, restore, offline licensing, the trial surviving a reinstall,
 and the startup task are still unverified on a Store-installed build.**
 
-Last reviewed: **2026-10-03**.
+Last reviewed: **2026-10-04**.
 
 Later on 2026-09-18: Submission 10's certification was cancelled while it was
 still in the certification step, its 0.4.1.0 package was replaced with

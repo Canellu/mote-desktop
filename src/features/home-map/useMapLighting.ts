@@ -56,10 +56,7 @@ export function useMapLighting(bridgeId: string | null): HomeMapLighting {
     if (!target?.groupedLightId) return null;
     const synced = new Set(useEntertainmentStore.getState().syncedLightIds);
     return state.lights.some(
-      (light) =>
-        target.lightIds.includes(light.id) &&
-        light.reachable &&
-        !synced.has(light.id),
+      (light) => target.lightIds.includes(light.id) && !synced.has(light.id),
     )
       ? target
       : null;
@@ -86,11 +83,7 @@ export function useMapLighting(bridgeId: string | null): HomeMapLighting {
         return;
       const synced = new Set(useEntertainmentStore.getState().syncedLightIds);
       for (const light of state.lights) {
-        if (
-          lightIds.includes(light.id) &&
-          light.reachable &&
-          !synced.has(light.id)
-        )
+        if (lightIds.includes(light.id) && !synced.has(light.id))
           state.setLightState(light, on, brightness ?? null);
       }
     },

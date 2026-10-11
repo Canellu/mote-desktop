@@ -33,6 +33,8 @@ Availability within Free and Pro is defined separately in the
 - Switch the dashboard between its supported grouping modes.
 - Reorder and customize the locally persisted dashboard layout.
 - Control all lights and open individual room or zone views.
+- Open the All lights page: every light grouped by room or as one sorted
+  list, fixtures as one tile, and one color wheel for the whole home.
 - Open PC Sync and Sync Box entry points.
 
 ### Room and zone control

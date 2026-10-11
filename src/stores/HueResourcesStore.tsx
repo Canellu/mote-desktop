@@ -884,11 +884,48 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
       });
 
     set((state) => {
+      const groupChangeById = new Map<
+        string,
+        { on?: boolean | null; brightness?: number | null }
+      >();
+      for (const change of changes) {
+        if (change.type !== "grouped_light" || !change.id) continue;
+        groupChangeById.set(
+          change.id,
+          reconcileLock(change.id, {
+            on: change.on,
+            brightness: change.brightness,
+          }),
+        );
+      }
+      // A group switched off elsewhere (the Hue app, a switch) turns every
+      // member off, but the bridge does not always send each light's event.
+      const offByGroup = new Set<string>();
+      if (
+        state.homeGroupedLightId &&
+        groupChangeById.get(state.homeGroupedLightId)?.on === false
+      ) {
+        for (const light of state.lights) offByGroup.add(light.id);
+      }
+      for (const roomZone of state.roomZones) {
+        if (
+          roomZone.groupedLightId &&
+          groupChangeById.get(roomZone.groupedLightId)?.on === false
+        ) {
+          for (const id of roomZone.lightIds) offByGroup.add(id);
+        }
+      }
+
       const lights = state.lights.map((light) => {
         const change = changes.find(
           (u) => u.type === "light" && u.id === light.id,
         );
-        if (!change) return light;
+        if (!change) {
+          if (!light.isOn || !offByGroup.has(light.id)) return light;
+          const lock = optimisticLocks.get(light.id);
+          if (lock && Date.now() < lock.until) return light;
+          return { ...light, isOn: false };
+        }
         const { on, brightness, colorMode, xy, mirek, effect, effectV2 } =
           reconcileLock(light.id, {
             on: change.on,
@@ -916,15 +953,17 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
       // an external single-light change may only emit `light` events. Fall back
       // to deriving the tile's aggregate from its members so it still tracks.
       const lightById = new Map(lights.map((light) => [light.id, light]));
+      const changedLightIds = new Set(
+        lights
+          .filter((light, index) => light !== state.lights[index])
+          .map((light) => light.id),
+      );
       const roomZones = state.roomZones.map((roomZone) => {
-        const change = changes.find(
-          (u) => u.type === "grouped_light" && u.id === roomZone.groupedLightId,
-        );
+        const change = roomZone.groupedLightId
+          ? groupChangeById.get(roomZone.groupedLightId)
+          : undefined;
         if (change) {
-          const { on, brightness } = reconcileLock(roomZone.groupedLightId, {
-            on: change.on,
-            brightness: change.brightness,
-          });
+          const { on, brightness } = change;
           const nextAnyOn = on ?? roomZone.anyOn;
           return {
             ...roomZone,
@@ -945,7 +984,7 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
           : undefined;
         if (lock && Date.now() < lock.until) return roomZone;
         const memberChanged = roomZone.lightIds.some((id) =>
-          changes.some((u) => u.type === "light" && u.id === id),
+          changedLightIds.has(id),
         );
         if (!memberChanged) return roomZone;
         const members = roomZone.lightIds
@@ -1149,6 +1188,14 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
     // already-on group should carry dimming alone (fewer ZigBee messages, and
     // it won't re-trigger an on-transition mid-drag).
     const sendOn = !isToggle && controllableAnyOn === nextOn ? null : nextOn;
+    // Dimming alone leaves off members off, so only the lit ones change. A
+    // zone sharing lights with an off room must not show those lights on.
+    if (sendOn === null) {
+      for (const light of controllableMembers) {
+        if (!light.isOn) memberIds.delete(light.id);
+      }
+      if (memberIds.size === 0) return;
+    }
 
     // Optimistic brightness shown right away: on/drag uses the value we send;
     // off leaves the last useful level in place for the next restore.

@@ -5,6 +5,29 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.11.0] - 2026-10-11
+
+### Highlights
+
+- **All lights** on Home now opens a page with every light in your home. Show
+  them by room, or as one list in your own order or sorted by name or type,
+  and set the color of the whole home from a single wheel.
+- Fixtures show as one tile on every room, zone and All lights page, and
+  their lights are controlled together.
+
+### Improvements
+
+- A light Hue reports as unreachable can still be switched and dimmed, on its
+  card, in its panel and on the Home map. Hue sometimes reports a light that
+  still works as unreachable; hover the label to see what it means.
+
+### Fixes
+
+- Dimming a zone no longer shows its lights that are off as on, including in
+  other rooms and zones that share them.
+- Turning a room, a zone or the whole home off from the Hue app or a switch
+  now shows every light in it as off in Mote, not only some of them.
+
 ## [0.10.1] - 2026-10-03
 
 ### Improvements

@@ -71,7 +71,7 @@ export function getMapControlScope({
   const syncedCount = memberIds.filter((id) => syncedIds.has(id)).length;
   const offlineCount = members.filter((light) => !light.reachable).length;
   const controllableMembers = members.filter(
-    (light) => light.reachable && !syncedIds.has(light.id),
+    (light) => !syncedIds.has(light.id),
   );
   const onMembers = controllableMembers.filter((light) => light.isOn);
   const anyOn = onMembers.length > 0;
@@ -143,7 +143,7 @@ export function getMapControlScope({
               : controllableMembers.length === 0
                 ? syncedCount === memberIds.length
                   ? "All lights are syncing. Stop sync to control them."
-                  : "No reachable lights are available outside sync."
+                  : "No lights are available outside sync."
                 : null;
 
   return {

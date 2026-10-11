@@ -6,7 +6,29 @@ bought, and the site, legal pages, and support route deploy from
 `privacy@motedesktop.com` is still to be created. The phases below are the
 original plan.
 
-Last reviewed: **2026-10-03**.
+Last reviewed: **2026-10-04**.
+
+## Current state
+
+- Site copy matches [the feature matrix](./free-pro-feature-matrix.md) as of
+  0.10.1: PC Sync free, one Sync Box and one widget on Free, the 14-day trial,
+  the one-time Mote Pro purchase, all five automations on `/features`,
+  connecting by IP address in the setup guide, FAQ and support, and the Hue
+  Bridge answer from the [bridgeless spike](./bridgeless-hue-control-spike.md).
+  The legal pages carry the 3 October 2026 changes that 0.10.1 announces.
+- The sitemap was submitted in Google Search Console on 2026-10-04 and read
+  the same day (8 pages). Bing Webmaster Tools is not set up yet.
+- The feedback endpoint, with diagnostics since 0.9.0, runs as the separate
+  `mote-api` Worker on `motedesktop.com/api/*`; see the
+  [feedback and public roadmap delivery plan](./feedback-and-roadmap-delivery-plan.md).
+- Two technical-direction bullets below no longer hold: the site runs
+  cookieless Cloudflare Web Analytics, and the app submits feedback, both
+  disclosed in the privacy policy. The Mote Pro price is still not shown.
+- Open website work lives in `mote-website/docs/next-steps.md`: a real
+  automations capture, Bing Webmaster Tools, and the 11 October
+  discoverability review. One item is in this repository: the Automations row
+  in `src/features/pro/PlanOverview.tsx` still reads "on air and away" while
+  the site names all five. Keep that file and this section in step.
 
 ## Goal
 

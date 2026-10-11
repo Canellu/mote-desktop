@@ -3,6 +3,7 @@ import { ArrowUpRight, Check, Loader2, Palette } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { PacedSlider } from "@/components/PacedSlider";
+import { UnreachableHint } from "@/components/UnreachableHint";
 import { sceneBubbleCss } from "@/features/space-screen/utils/color-state";
 import { isSceneActive } from "@/features/space-screen/utils/scene-status";
 import { cn } from "@/lib/utils";
@@ -143,7 +144,7 @@ export function MapRoomControls({
             {scope.syncedCount > 0 &&
               `${scope.syncedCount} syncing; power and brightness leave those lights unchanged. `}
             {scope.offlineCount > 0 &&
-              `${scope.offlineCount} offline; they may not respond. `}
+              `${scope.offlineCount} unreachable; Hue may be out of date, so they still get commands. `}
             {scope.missingLightIds.length > 0 &&
               `${scope.missingLightIds.length} unavailable in Hue.`}
           </p>
@@ -237,15 +238,18 @@ export function MapRoomControls({
               className="flex items-start justify-between gap-3"
             >
               <span className="min-w-0 wrap-anywhere">{light.name}</span>
-              <span className="shrink-0 text-xs text-muted-foreground">
-                {lighting.syncedLightIds.includes(light.id)
-                  ? "Syncing"
-                  : !light.reachable
-                    ? "Unreachable"
+              {!lighting.syncedLightIds.includes(light.id) &&
+              !light.reachable ? (
+                <UnreachableHint className="shrink-0 text-xs" />
+              ) : (
+                <span className="shrink-0 text-xs text-muted-foreground">
+                  {lighting.syncedLightIds.includes(light.id)
+                    ? "Syncing"
                     : light.isOn
                       ? "On"
                       : "Off"}
-              </span>
+                </span>
+              )}
             </li>
           ))}
           {scope.missingLightIds.length > 0 && (

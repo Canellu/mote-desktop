@@ -78,7 +78,7 @@ export function getFloorControlScope({
   const syncedIds = new Set(syncedLightIds);
   const controllableLightIds = lightIds.filter((id) => {
     const light = lightById.get(id);
-    return Boolean(light?.reachable) && !syncedIds.has(id);
+    return light != null && !syncedIds.has(id);
   });
   const onCount = controllableLightIds.filter(
     (id) => lightById.get(id)?.isOn,
@@ -113,7 +113,7 @@ export function getFloorControlScope({
                 unplacedLightIds.length === 1 ? "is" : "are"
               } not placed yet, so this floor's lights cannot be identified.`
             : controllableLightIds.length === 0
-              ? "No reachable lights are available outside sync."
+              ? "No lights are available outside sync."
               : null;
 
   return {

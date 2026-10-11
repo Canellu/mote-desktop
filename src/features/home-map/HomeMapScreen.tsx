@@ -584,7 +584,7 @@ export function HomeMapScreen({
     const fixture = fixtures.byId.get(id);
     if (!fixture) return null;
     const available = fixture.lights.filter(
-      (light) => light.reachable && !lighting.syncedLightIds.includes(light.id),
+      (light) => !lighting.syncedLightIds.includes(light.id),
     );
     const disabled =
       !lighting.bridgeConnected ||
@@ -633,7 +633,7 @@ export function HomeMapScreen({
           />
           {disabled && (
             <p className="text-sm text-muted-foreground">
-              This fixture is offline or controlled by sync.
+              This fixture is controlled by sync.
             </p>
           )}
         </div>

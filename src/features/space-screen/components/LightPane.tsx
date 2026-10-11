@@ -1,4 +1,5 @@
 import { PacedSlider } from "@/components/PacedSlider";
+import { UnreachableHint } from "@/components/UnreachableHint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -194,18 +195,16 @@ export const LightPane: React.FC<LightPaneProps> = ({
       )}
 
       <div className="flex items-center justify-between">
-        <span className="text-sm text-muted-foreground">
-          {syncLocked
-            ? "Syncing"
-            : !light.reachable
-              ? "Unreachable"
-              : light.isOn
-                ? "On"
-                : "Off"}
-        </span>
+        {!syncLocked && !light.reachable ? (
+          <UnreachableHint />
+        ) : (
+          <span className="text-sm text-muted-foreground">
+            {syncLocked ? "Syncing" : light.isOn ? "On" : "Off"}
+          </span>
+        )}
         <Switch
           checked={light.isOn}
-          disabled={!light.reachable || syncLocked}
+          disabled={syncLocked}
           aria-label={`Toggle ${light.name}`}
           onCheckedChange={(checked) => onLightToggle(light, checked)}
         />
@@ -223,7 +222,7 @@ export const LightPane: React.FC<LightPaneProps> = ({
         <PacedSlider
           value={Math.max(1, brightnessPct)}
           min={1}
-          disabled={!light.reachable || syncLocked}
+          disabled={syncLocked}
           ariaLabel={`${light.name} brightness`}
           isGroup={false}
           animateKey={hueEventRevision}
