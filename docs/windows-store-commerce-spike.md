@@ -6,9 +6,14 @@ Release preparation on 2026-10-12: the unsigned 0.11.1.0 MSIX builds from
 `v0.11.1`). It reloads light state when the window comes back into view,
 after the PC wakes, and every five minutes while shown, and adds Refresh to
 Settings > Bridge. It answers feedback that light state was only correct after
-a restart. The package was not tested on hardware before upload. It can only
-be submitted once Submission 21 (0.11.0) leaves certification. The owner
-uploads it by drag and drop.
+a restart. The package was not tested on hardware before upload. By then
+Submission 21 had passed and 0.11.0 was live. The owner uploaded the package by
+drag and drop, and it went to certification as Submission 22
+(`1152921505702107467`) on 2026-10-12, set to publish as soon as it passes.
+The submission keeps 0.10.1.0 beside 0.11.1.0 and dropped 0.11.0.0, which
+0.11.1.0 supersedes. Its "What's new in this version" covers 0.11.1 and
+0.11.0, since the listing still held the 0.10.0 notes. No package flights were
+live.
 
 Release preparation on 2026-10-11: the unsigned 0.11.0.0 MSIX builds from
 `c80d5d4` and is 10,741,083 bytes (SHA-256
