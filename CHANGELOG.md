@@ -5,6 +5,8 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.11.1] - 2026-10-12
+
 ### Improvements
 
 - Mote checks your lights again when you switch back to it, after your PC
