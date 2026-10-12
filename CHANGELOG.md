@@ -5,6 +5,13 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Improvements
+
+- Mote checks your lights again when you switch back to it, after your PC
+  wakes from sleep, and every few minutes while it's open, so changes made
+  in the Hue app or with a switch show up even if one was missed. Refresh in
+  Settings > Bridge checks right away.
+
 ## [0.11.0] - 2026-10-11
 
 ### Highlights

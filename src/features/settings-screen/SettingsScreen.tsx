@@ -401,6 +401,8 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = ({
                   onSwitchBridge={switchBridge}
                   onRemoveBridge={removeBridge}
                   onRenameBridge={renameBridge}
+                  isRefreshing={isRefreshing}
+                  onRefresh={() => void refreshSettings()}
                 />
               </TabsContent>
 

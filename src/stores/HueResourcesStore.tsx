@@ -84,6 +84,8 @@ export interface HueResourcesState extends LayoutState {
   homeGroupedLightId: string | null;
   isLoading: boolean;
   hasLoaded: boolean;
+  /** When the last full load finished (ms since epoch); 0 before the first. */
+  lastLoadedAt: number;
   error: string | null;
   /**
    * Health of the bridge event stream, from the backend's `hue-connection`
@@ -689,6 +691,7 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
   homeGroupedLightId: null,
   isLoading: true,
   hasLoaded: false,
+  lastLoadedAt: 0,
   error: null,
   bridgeConnected: true,
   hueEventRevision: 0,
@@ -853,7 +856,7 @@ export const useHueResourcesStore = create<HueResourcesState>((set, get) => ({
     } finally {
       loadEventBuffers.delete(liveEvents);
       if (liveEvents.length > 0) get().applyHueEvents(liveEvents);
-      set({ isLoading: false, hasLoaded: true });
+      set({ isLoading: false, hasLoaded: true, lastLoadedAt: Date.now() });
     }
   },
 
@@ -2112,6 +2115,42 @@ export const HueResourcesStoreEffects: React.FC = () => {
       disposed = true;
       clearTimeout(refresh);
       void unlisten.then((dispose) => dispose());
+    };
+  }, []);
+
+  useEffect(() => {
+    // The event stream can miss changes without ever erroring (a connection
+    // left half-open by sleep, a dropped event), so resync from a snapshot when
+    // the window comes back into view and on a slow timer while it's shown.
+    const FOCUS_MIN_AGE_MS = 15_000;
+    const BACKGROUND_INTERVAL_MS = 60_000;
+    const BACKGROUND_MAX_AGE_MS = 5 * 60_000;
+    const reloadIfOlderThan = (maxAgeMs: number) => {
+      const state = useHueResourcesStore.getState();
+      if (!state.hasLoaded || state.isLoading) return;
+      if (Date.now() - state.lastLoadedAt < maxAgeMs) return;
+      void state.loadAll();
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        reloadIfOlderThan(FOCUS_MIN_AGE_MS);
+      }
+    };
+    let lastTick = Date.now();
+    const tick = window.setInterval(() => {
+      const now = Date.now();
+      // A tick far later than scheduled means the PC slept in between.
+      const resumed = now - lastTick > BACKGROUND_INTERVAL_MS * 2;
+      lastTick = now;
+      if (document.visibilityState !== "visible") return;
+      reloadIfOlderThan(resumed ? 0 : BACKGROUND_MAX_AGE_MS);
+    }, BACKGROUND_INTERVAL_MS);
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearInterval(tick);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 

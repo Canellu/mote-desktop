@@ -21,6 +21,7 @@ import {
   Loader2,
   Pencil,
   Power,
+  RefreshCw,
   Router,
   Trash2,
   X,
@@ -40,6 +41,8 @@ export const BridgeTab = ({
   onSwitchBridge,
   onRemoveBridge,
   onRenameBridge,
+  isRefreshing,
+  onRefresh,
 }: {
   bridge: HueSettingsBridge | undefined;
   connected: boolean;
@@ -50,12 +53,16 @@ export const BridgeTab = ({
   onSwitchBridge: (bridgeId: string) => void | Promise<void>;
   onRemoveBridge: (bridgeId: string) => void | Promise<void>;
   onRenameBridge: (name: string) => Promise<string>;
+  isRefreshing: boolean;
+  onRefresh: () => void;
 }) => (
   <div className="space-y-10">
     <BridgeHeader
       connected={connected}
       productName={bridge?.productName}
-      isLoading={isLoadingSummary}
+      isLoading={isLoadingSummary && !isRefreshing}
+      isRefreshing={isRefreshing}
+      onRefresh={onRefresh}
     />
 
     <Panel title="Bridges">
@@ -280,14 +287,22 @@ const BridgeRow = ({
   );
 };
 
+/**
+ * The bridge and its connection. Refresh is a fallback: Mote resyncs on its
+ * own, so it sits here rather than on Home.
+ */
 const BridgeHeader = ({
   connected,
   productName,
   isLoading,
+  isRefreshing,
+  onRefresh,
 }: {
   connected: boolean;
   productName: string | null | undefined;
   isLoading: boolean;
+  isRefreshing: boolean;
+  onRefresh: () => void;
 }) => (
   <div className="flex items-center gap-3">
     <span className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
@@ -308,5 +323,16 @@ const BridgeHeader = ({
     {isLoading && (
       <Loader2 size={18} className="animate-spin text-muted-foreground" />
     )}
+    <Button
+      variant="outline"
+      size="sm"
+      className="gap-1.5"
+      disabled={isRefreshing}
+      title="Reload every light, room and zone from the bridge"
+      onClick={onRefresh}
+    >
+      <RefreshCw size={15} className={cn(isRefreshing && "animate-spin")} />
+      Refresh
+    </Button>
   </div>
 );
