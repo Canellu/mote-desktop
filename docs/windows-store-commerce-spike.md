@@ -1,5 +1,15 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-10-12: the unsigned 0.11.1.0 MSIX builds from
+`4c65412` and is 10,737,371 bytes (SHA-256
+`46F37A028B264F60919DDC120EBF9F5AF9B88212563CA63191DC74BDEA5FAC1B`, tag
+`v0.11.1`). It reloads light state when the window comes back into view,
+after the PC wakes, and every five minutes while shown, and adds Refresh to
+Settings > Bridge. It answers feedback that light state was only correct after
+a restart. The package was not tested on hardware before upload. It can only
+be submitted once Submission 21 (0.11.0) leaves certification. The owner
+uploads it by drag and drop.
+
 Release preparation on 2026-10-11: the unsigned 0.11.0.0 MSIX builds from
 `c80d5d4` and is 10,741,083 bytes (SHA-256
 `8614EBC7C056EF604F0D792B4EE6B9E2EC8D8619543F0597830B71782731A08B`, tag
