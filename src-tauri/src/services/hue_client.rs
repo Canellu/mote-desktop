@@ -32,6 +32,9 @@ const DEVICE_TYPE: &str = "mote-desktop#desktop";
 const ENTERTAINMENT_DEVICE_TYPE: &str = "mote-desktop#pcsync";
 const REQUEST_TIMEOUT_SECS: u64 = 8;
 const PUBLIC_CONFIG_TIMEOUT_SECS: u64 = 3;
+/// Pairing tries HTTPS and then HTTP, so a silent bridge must fail each
+/// connection quickly or the user waits out two full request timeouts.
+const PAIRING_CONNECT_TIMEOUT_SECS: u64 = 3;
 
 /// The local Hue Bridge tolerates only a handful of simultaneous connections;
 /// fanning out every resource fetch at once makes it reset or return empty
@@ -76,14 +79,15 @@ fn shared_client(
     Ok(cell.get().expect("client just set").clone())
 }
 
-/// Client for the plain-HTTP pairing fallback. Redirects are not followed:
-/// following one would resend the POST as a GET without its body, so a
-/// redirect is reported as such instead of as a rejected pairing.
+/// Client for both pairing attempts. Redirects are not followed: following
+/// one would resend the POST as a GET without its body, so a redirect is
+/// reported as such instead of as a rejected pairing.
 fn pairing_client() -> Result<Client, String> {
     static CLIENT: OnceLock<Client> = OnceLock::new();
     shared_client(&CLIENT, |builder| {
         builder
             .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .connect_timeout(Duration::from_secs(PAIRING_CONNECT_TIMEOUT_SECS))
             .redirect(reqwest::redirect::Policy::none())
     })
     .map_err(|error| private_error("Failed to create the Hue client.", error))
@@ -1527,8 +1531,7 @@ impl HueClient {
         // HTTPS first: some bridges turn plain HTTP off and redirect it, and a
         // followed redirect turns this POST into a body-less GET the bridge
         // answers with an error. HTTP stays as a fallback for old firmware.
-        let over_https = self
-            .client
+        let over_https = pairing_client()?
             .post(format!("https://{host}/api"))
             .json(&payload)
             .send()
