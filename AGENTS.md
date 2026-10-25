@@ -84,7 +84,8 @@ Allowed non-v2 bridge communication includes:
 
 - mDNS `_hue._tcp.local.` discovery
 - `https://discovery.meethue.com/` fallback discovery
-- CLIP link-button pairing via `POST http://{ip}/api`
+- CLIP link-button pairing via `POST https://{ip}/api`, falling back to
+  `POST http://{ip}/api` (redirects not followed) when HTTPS can't connect
 - v1 light/sensor/device discovery fallbacks when a bridge lacks the v2
   discovery resource
 - legacy effects or bridge features that are missing, incomplete, or rejected in

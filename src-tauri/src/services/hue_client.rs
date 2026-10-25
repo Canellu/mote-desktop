@@ -76,6 +76,19 @@ fn shared_client(
     Ok(cell.get().expect("client just set").clone())
 }
 
+/// Client for the plain-HTTP pairing fallback. Redirects are not followed:
+/// following one would resend the POST as a GET without its body, so a
+/// redirect is reported as such instead of as a rejected pairing.
+fn pairing_client() -> Result<Client, String> {
+    static CLIENT: OnceLock<Client> = OnceLock::new();
+    shared_client(&CLIENT, |builder| {
+        builder
+            .timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+            .redirect(reqwest::redirect::Policy::none())
+    })
+    .map_err(|error| private_error("Failed to create the Hue client.", error))
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredBridge {
@@ -1329,11 +1342,15 @@ impl HueClient {
     }
 
     /// Resolves a bridge the user typed in by address, for networks where
-    /// discovery finds nothing. Only a literal IP is accepted so a typo can't
+    /// discovery finds nothing. A leading `http://` or `https://` is ignored,
+    /// but otherwise only a literal IP is accepted so a typo can't
     /// send the request to some other host, and the address must answer the
     /// public config with a bridge id to count as a Hue Bridge.
     pub async fn lookup_bridge(&self, ip: &str) -> Result<DiscoveredBridge, String> {
-        let trimmed = ip.trim().trim_start_matches('[').trim_end_matches(']');
+        let trimmed = strip_scheme(ip.trim())
+            .trim_end_matches('/')
+            .trim_start_matches('[')
+            .trim_end_matches(']');
         let address = trimmed.parse::<std::net::IpAddr>().map_err(|_| {
             diagnostics::record("manual_lookup", "invalid_address").save();
             "Enter an IP address like 192.168.1.20.".to_string()
@@ -1416,6 +1433,9 @@ impl HueClient {
                 Ok(response) => {
                     if let Ok(config) = response.json::<PublicBridgeConfig>().await {
                         if config.modelid.is_some() || config.bridgeid.is_some() {
+                            if let Some(model) = &config.modelid {
+                                diagnostics::note_bridge_model(model);
+                            }
                             return Some(config);
                         }
                     }
@@ -1501,20 +1521,52 @@ impl HueClient {
         ip: &str,
         device_type: &str,
     ) -> Result<(String, Option<String>), String> {
-        let url = format!("http://{}/api", format_host(ip));
+        let host = format_host(ip);
         let payload = json!({ "devicetype": device_type, "generateclientkey": true });
 
-        let response = self
+        // HTTPS first: some bridges turn plain HTTP off and redirect it, and a
+        // followed redirect turns this POST into a body-less GET the bridge
+        // answers with an error. HTTP stays as a fallback for old firmware.
+        let over_https = self
             .client
-            .post(&url)
+            .post(format!("https://{host}/api"))
             .json(&payload)
             .send()
-            .await
-            .map_err(|_| {
-                diagnostics::record("pairing", "unreachable").save();
-                "Failed to reach the Hue Bridge. Ensure it is on the same network and accessible."
-                    .to_string()
-            })?;
+            .await;
+        let response = match over_https {
+            Ok(response) => response,
+            Err(_) => {
+                let over_http = pairing_client()?
+                    .post(format!("http://{host}/api"))
+                    .json(&payload)
+                    .send()
+                    .await;
+                over_http.map_err(|_| {
+                    diagnostics::record("pairing", "unreachable").save();
+                    "Failed to reach the Hue Bridge. Ensure it is on the same network and accessible."
+                        .to_string()
+                })?
+            }
+        };
+
+        let status = response.status();
+        if status.is_redirection() {
+            diagnostics::record("pairing", "redirected")
+                .status(status.as_u16())
+                .save();
+            return Err(
+                "The bridge redirected the pairing request and could not be reached over HTTPS."
+                    .to_string(),
+            );
+        }
+        if !status.is_success() {
+            diagnostics::record("pairing", "http_error")
+                .status(status.as_u16())
+                .save();
+            return Err(format!(
+                "The bridge refused the pairing request (HTTP {status})."
+            ));
+        }
 
         let json = response.json::<Value>().await.map_err(|error| {
             diagnostics::record("pairing", "unexpected_response").save();
@@ -3554,7 +3606,7 @@ impl HueClient {
         body: Option<Value>,
     ) -> Result<(), String> {
         let url = format!(
-            "http://{}/api/{}/{}",
+            "https://{}/api/{}/{}",
             format_host(ip),
             application_key,
             collection
@@ -4646,7 +4698,16 @@ fn parse_event_block(block: &str) -> Option<Vec<HueEventUpdate>> {
 
 #[cfg(test)]
 mod bridge_store_tests {
-    use super::{format_host, BridgeStore, StoredBridgeInfo};
+    use super::{format_host, strip_scheme, BridgeStore, StoredBridgeInfo};
+
+    #[test]
+    fn strip_scheme_accepts_typed_urls() {
+        assert_eq!(strip_scheme("https://192.168.1.20"), "192.168.1.20");
+        assert_eq!(strip_scheme("HTTP://192.168.1.20/"), "192.168.1.20/");
+        assert_eq!(strip_scheme("192.168.1.20"), "192.168.1.20");
+        assert_eq!(strip_scheme("http:/"), "http:/");
+        assert_eq!(strip_scheme("ht€p://1"), "ht€p://1");
+    }
 
     #[test]
     fn format_host_brackets_ipv6_once() {
@@ -4845,6 +4906,19 @@ fn parse_hue_qr_install_code(qr_text: &str) -> Result<HueQrInstallCode, String> 
         mac_address,
         install_code,
     })
+}
+
+/// Drops a leading `http://` or `https://` (any case) from a typed address.
+fn strip_scheme(input: &str) -> &str {
+    for scheme in ["https://", "http://"] {
+        // `get` rather than slicing: a non-ASCII paste must not panic.
+        if let Some(prefix) = input.get(..scheme.len()) {
+            if prefix.eq_ignore_ascii_case(scheme) {
+                return &input[scheme.len()..];
+            }
+        }
+    }
+    input
 }
 
 fn normalize_hue_serial(serial: &str) -> Result<String, String> {
