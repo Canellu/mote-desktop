@@ -49,6 +49,9 @@ struct Trail {
     /// The last bridge address seen, kept only to work out `same_subnet`. It
     /// is never serialised.
     last_device_ip: Option<std::net::IpAddr>,
+    /// The bridge hardware family last seen, as a fixed code (see
+    /// [`bridge_model_code`]), so the raw model id never reaches a report.
+    bridge_model: Option<&'static str>,
 }
 
 fn trail() -> &'static Mutex<Trail> {
@@ -58,6 +61,7 @@ fn trail() -> &'static Mutex<Trail> {
             started: Instant::now(),
             steps: VecDeque::with_capacity(MAX_STEPS),
             last_device_ip: None,
+            bridge_model: None,
         })
     })
 }
@@ -135,6 +139,26 @@ pub fn note_device_ip(ip: &str) {
     }
 }
 
+/// Maps a bridge `modelid` to a fixed code. The endpoint accepts only
+/// lowercase letters and underscores, so digits are spelled out.
+fn bridge_model_code(model: &str) -> &'static str {
+    match model.trim().to_ascii_uppercase().as_str() {
+        "BSB001" => "bsb_one",
+        "BSB002" => "bsb_two",
+        "BSB003" => "bsb_three",
+        other if other.starts_with("BSB") => "bsb_other",
+        _ => "unknown",
+    }
+}
+
+/// Remembers which bridge hardware is in play, so a report can tell a
+/// firmware or model difference apart from a network problem.
+pub fn note_bridge_model(model: &str) {
+    if let Ok(mut trail) = trail().lock() {
+        trail.bridge_model = Some(bridge_model_code(model));
+    }
+}
+
 /// A short code for the most recent failure, e.g. `mdns_empty_cloud_busy`,
 /// shown on error screens and sent as the report's code.
 fn failure_code(steps: &[Step]) -> Option<String> {
@@ -179,18 +203,22 @@ pub fn current_code() -> Option<String> {
 /// Everything a report would include, gathered now. Slow system queries run
 /// here rather than on every step, so recording stays cheap.
 pub fn snapshot(packaged: bool) -> Diagnostics {
-    let (steps, bridge_ip) = trail()
+    let (steps, bridge_ip, bridge_model) = trail()
         .lock()
         .map(|trail| {
             (
                 trail.steps.iter().cloned().collect::<Vec<_>>(),
                 trail.last_device_ip,
+                trail.bridge_model,
             )
         })
         .unwrap_or_default();
 
     let mut facts = BTreeMap::new();
     facts.insert("packaged", Fact::Flag(packaged));
+    if let Some(model) = bridge_model {
+        facts.insert("bridge_model", Fact::Code(model));
+    }
     facts.insert("debug_build", Fact::Flag(cfg!(debug_assertions)));
     system::add_facts(&mut facts, bridge_ip);
 
@@ -624,6 +652,16 @@ mod tests {
         for line in describe(&snapshot) {
             println!("{line}");
         }
+    }
+
+    #[test]
+    fn bridge_model_codes_are_endpoint_safe() {
+        for model in ["BSB001", "bsb002", "BSB003", "BSB009", "", "929002"] {
+            let code = bridge_model_code(model);
+            assert!(code.chars().all(|c| c.is_ascii_lowercase() || c == '_'));
+        }
+        assert_eq!(bridge_model_code("bsb002"), "bsb_two");
+        assert_eq!(bridge_model_code("BSB009"), "bsb_other");
     }
 
     #[test]
