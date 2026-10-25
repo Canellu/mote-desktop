@@ -5,6 +5,15 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.11.2] - 2026-10-25
+
+### Fixes
+
+- Mote can pair with a Hue Bridge that redirects plain HTTP to HTTPS. It
+  pairs over HTTPS first, and failed with `PAIRING-REJECTED` on these
+  bridges before.
+- A bridge address typed with `http://` or `https://` in front is accepted.
+
 ## [0.11.1] - 2026-10-12
 
 ### Improvements
