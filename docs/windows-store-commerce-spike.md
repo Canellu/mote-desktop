@@ -10,7 +10,10 @@ feedback that a bridge redirecting HTTP to HTTPS failed with
 `code` spans; the first build from `fb226f5` was never uploaded. The package
 was not tested on hardware before upload. Submission 22 is live, no package
 flights exist, and Submission 23 carries the 0.11.2 What's new text. The owner
-uploads it by drag and drop.
+uploaded the package by drag and drop, and it went to certification as
+Submission 23 (`1152921505702227704`) on 2026-10-25, set to publish as soon
+as it passes. The submission keeps 0.10.1.0 beside 0.11.2.0 and dropped
+0.11.1.0, which 0.11.2.0 supersedes. No package flights were live.
 
 Release preparation on 2026-10-12: the unsigned 0.11.1.0 MSIX builds from
 `4c65412` and is 10,737,371 bytes (SHA-256
