@@ -1,5 +1,15 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-10-25: the unsigned 0.11.2.0 MSIX builds from
+`fb226f5` and is 10,746,759 bytes (SHA-256
+`EED05D029F61654AC93D8ECFF8551F29AB9D6733AAF9D4092113D29CC95A4332`, tag
+`v0.11.2`). It pairs over HTTPS first, falling back to HTTP without following
+redirects, and accepts a typed `http://` or `https://` address. It answers
+feedback that a bridge redirecting HTTP to HTTPS failed with
+`pairing_rejected`. The package was not tested on hardware before upload. It
+can only be submitted once Submission 22 (0.11.1) leaves certification. The
+owner uploads it by drag and drop.
+
 Release preparation on 2026-10-12: the unsigned 0.11.1.0 MSIX builds from
 `4c65412` and is 10,737,371 bytes (SHA-256
 `46F37A028B264F60919DDC120EBF9F5AF9B88212563CA63191DC74BDEA5FAC1B`, tag
