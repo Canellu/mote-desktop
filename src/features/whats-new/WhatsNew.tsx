@@ -13,6 +13,21 @@ import { Sparkles } from "lucide-react";
 import { useEffect } from "react";
 import { detectUpdate, useWhatsNewStore } from "./store";
 
+/** Renders `…` spans of a changelog item as code; odd parts are code. */
+const InlineCode = ({ text }: { text: string }) =>
+  text.split("`").map((part, index) =>
+    index % 2 === 1 ? (
+      <code
+        key={index}
+        className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]"
+      >
+        {part}
+      </code>
+    ) : (
+      part
+    ),
+  );
+
 /**
  * The changelog dialog. It opens on its own on the first launch after an
  * update, and on request from the title-bar entry or from Settings.
@@ -73,7 +88,7 @@ export const WhatsNew = () => {
                               {part}
                             </strong>
                           ) : (
-                            part
+                            <InlineCode key={index} text={part} />
                           ),
                         )}
                       </span>
