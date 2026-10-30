@@ -6,6 +6,7 @@ import type {
   WidgetBackgroundMode,
   WidgetCollapseMode,
   WidgetFoldAnimation,
+  WidgetMascotFacing,
   WidgetMascotStyle,
   WidgetCollapseCorner,
   WidgetCornerMode,
@@ -46,6 +47,7 @@ export const useWidgetControls = (widgetId: string) => {
   const [mascotStyle, setMascotStyle] =
     useState<WidgetMascotStyle>("celShaded");
   const [mascotAnimated, setMascotAnimated] = useState(true);
+  const [mascotFacing, setMascotFacing] = useState<WidgetMascotFacing>("right");
   const [scale, setScale] = useState<number>(WIDGET_SCALE.default);
   const [collapsedScale, setCollapsedScale] = useState<number>(
     WIDGET_SCALE.default,
@@ -77,6 +79,7 @@ export const useWidgetControls = (widgetId: string) => {
         setFoldAnimation(state.foldAnimation ?? "stack");
         setMascotStyle(state.mascotStyle ?? "celShaded");
         setMascotAnimated(state.mascotAnimated ?? true);
+        setMascotFacing(state.mascotFacing ?? "right");
         setScale(state.scale ?? WIDGET_SCALE.default);
         setCollapsedScale(
           state.collapsedScale ?? state.scale ?? WIDGET_SCALE.default,
@@ -117,6 +120,7 @@ export const useWidgetControls = (widgetId: string) => {
         setFoldAnimation(event.payload.foldAnimation ?? "stack");
         setMascotStyle(event.payload.mascotStyle ?? "celShaded");
         setMascotAnimated(event.payload.mascotAnimated ?? true);
+        setMascotFacing(event.payload.mascotFacing ?? "right");
         setScale(event.payload.scale ?? WIDGET_SCALE.default);
         setCollapsedScale(
           event.payload.collapsedScale ??
@@ -166,6 +170,7 @@ export const useWidgetControls = (widgetId: string) => {
     foldAnimation,
     mascotStyle,
     mascotAnimated,
+    mascotFacing,
     scale,
     collapsedScale,
     collapseCorner,

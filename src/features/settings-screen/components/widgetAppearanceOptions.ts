@@ -2,9 +2,12 @@ import type {
   WidgetBackgroundMode,
   WidgetCollapseMode,
   WidgetFoldAnimation,
+  WidgetMascotFacing,
   WidgetThemeMode,
 } from "@/features/widget-screen/types";
 import {
+  ArrowLeft,
+  ArrowRight,
   Blend,
   Circle,
   Layers,
@@ -55,6 +58,15 @@ export const WIDGET_FOLD_OPTIONS = [
   { value: "fade", label: "Fade", icon: Minimize2 },
 ] satisfies Array<{
   value: WidgetFoldAnimation;
+  label: string;
+  icon: SegmentIcon;
+}>;
+
+export const MASCOT_FACING_OPTIONS = [
+  { value: "left", label: "Left", icon: ArrowLeft },
+  { value: "right", label: "Right", icon: ArrowRight },
+] satisfies Array<{
+  value: WidgetMascotFacing;
   label: string;
   icon: SegmentIcon;
 }>;

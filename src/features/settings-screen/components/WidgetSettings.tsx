@@ -9,6 +9,7 @@ import type {
   WidgetCollapseMode,
   WidgetFoldAnimation,
   WidgetCornerMode,
+  WidgetMascotFacing,
   WidgetThemeMode,
 } from "@/features/widget-screen/types";
 import {
@@ -19,6 +20,7 @@ import {
   type WidgetConfigDraft,
   type WidgetSummary,
 } from "@/features/widget-screen/useWidgets";
+import { Separator } from "@/components/ui/separator";
 import { Pin, PinOff, RotateCcw } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
@@ -30,6 +32,7 @@ import { MascotStylePicker } from "./MascotStylePicker";
 import { SettingsReveal, SettingsRow, SettingsSection } from "./SettingsList";
 import { SegmentedControl } from "./SegmentedControl";
 import {
+  MASCOT_FACING_OPTIONS,
   WIDGET_BACKGROUND_OPTIONS,
   WIDGET_COLLAPSE_OPTIONS,
   WIDGET_FOLD_OPTIONS,
@@ -225,6 +228,7 @@ export const WidgetSettings = ({
     foldAnimation,
     mascotStyle,
     mascotAnimated,
+    mascotFacing,
     expandVertical,
     expandHorizontal,
     autoCollapseSeconds,
@@ -435,7 +439,12 @@ export const WidgetSettings = ({
               layoutId={`widget-collapse-mode-pill-${widgetId}`}
             />
           </SettingsRow>
-          <SettingsReveal open={collapseMode === "mascot"}>
+          {/* Spaced and divided like the section's own rows. */}
+          <SettingsReveal
+            open={collapseMode === "mascot"}
+            spacingClassName="grid gap-4 pt-4"
+          >
+            <Separator />
             <SettingsRow
               title="Mascot style"
               description="How the moth is drawn while the widget is collapsed."
@@ -445,6 +454,7 @@ export const WidgetSettings = ({
                 onValueChange={(value) => updateConfig({ mascotStyle: value })}
               />
             </SettingsRow>
+            <Separator />
             <SettingsRow
               title="Animate mascot"
               description="Let the moth idle, blink, glow and flutter. Off holds it still."
@@ -456,6 +466,21 @@ export const WidgetSettings = ({
                   updateConfig({ mascotAnimated: checked })
                 }
                 aria-label="Animate mascot"
+              />
+            </SettingsRow>
+            <Separator />
+            <SettingsRow
+              title="Mascot facing"
+              description="Which way the moth looks. Turn it toward the screen when it sits on the right."
+            >
+              <SegmentedControl
+                value={mascotFacing}
+                onValueChange={(value) =>
+                  updateConfig({ mascotFacing: value as WidgetMascotFacing })
+                }
+                ariaLabel="Mascot facing"
+                options={MASCOT_FACING_OPTIONS}
+                layoutId={`widget-mascot-facing-pill-${widgetId}`}
               />
             </SettingsRow>
           </SettingsReveal>
@@ -476,7 +501,7 @@ export const WidgetSettings = ({
         </SettingsRow>
         <SettingsRow
           title="Expand direction"
-          description="The corner the widget prefers to expand toward. If there isn't room that way, it expands the other way."
+          description="The corner the widget prefers to expand toward. If there isn't room that way, it expands the other way. The middle opens it evenly around the mascot."
         >
           <OpenDirectionRing
             vertical={expandVertical}

@@ -179,6 +179,7 @@ pub fn run() {
             commands::widget::set_widget_always_on_top,
             commands::widget::set_widget_collapsed,
             commands::widget::clear_widget_clip,
+            commands::widget::clip_widget_to_panel,
             commands::widget::set_widget_scale,
             commands::widget::get_widget_controls,
             commands::widget::set_widget_controls,

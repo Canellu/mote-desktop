@@ -21,9 +21,21 @@ const DIRECTIONS: Direction[] = [
   { vertical: "up", horizontal: "left", label: "Up and left", from: 180 },
 ];
 
+/** The middle: open evenly every way, centred over the mascot. Last, so the
+ * arrow keys reach it after going round the ring. */
+const MIDDLE = {
+  vertical: "center",
+  horizontal: "center",
+  label: "Evenly around the mascot",
+} as const;
+const CHOICES = [...DIRECTIONS, MIDDLE];
+
 const SIZE = 84;
 const CENTER = SIZE / 2;
 const OUTER = 38;
+/** The ring's hole, which the middle button sits in with a gap around it. */
+const INNER = 16;
+const MIDDLE_RADIUS = 11;
 /** How far each slice sits out from the centre, along its diagonal. Moving the
  * slices apart, rather than trimming their angles, keeps the gap between them
  * the same width all the way in (about 1.4x this). */
@@ -34,19 +46,22 @@ const point = (radius: number, degrees: number) => {
   return `${CENTER + radius * Math.cos(radians)} ${CENTER + radius * Math.sin(radians)}`;
 };
 
-/** One quarter of the circle, as a pie slice from the centre. */
+/** One quarter of the ring. */
 const quarterPath = (from: number) =>
   [
-    `M ${CENTER} ${CENTER}`,
+    `M ${point(INNER, from)}`,
     `L ${point(OUTER, from)}`,
     `A ${OUTER} ${OUTER} 0 0 1 ${point(OUTER, from + 90)}`,
+    `L ${point(INNER, from + 90)}`,
+    `A ${INNER} ${INNER} 0 0 0 ${point(INNER, from)}`,
     "Z",
   ].join(" ");
 
 /**
- * Picks which way a collapsed widget prefers to expand: a circle cut into four
- * slices, each pointing out at a corner. Choosing one sets both the vertical and the
- * horizontal preference. A radio group, so arrow keys move round the circle.
+ * Picks which way a collapsed widget prefers to expand: a ring cut into four
+ * slices, each pointing out at a corner, around a middle button that opens it
+ * evenly every way. Choosing one sets both the vertical and the horizontal
+ * preference. A radio group, so arrow keys move round the circle.
  */
 export const OpenDirectionRing = ({
   vertical,
@@ -60,19 +75,33 @@ export const OpenDirectionRing = ({
     horizontal: WidgetExpandHorizontal,
   ) => void;
 }) => {
-  const selectedIndex = DIRECTIONS.findIndex(
-    (direction) =>
-      direction.vertical === vertical && direction.horizontal === horizontal,
+  const selectedIndex = CHOICES.findIndex(
+    (choice) =>
+      choice.vertical === vertical && choice.horizontal === horizontal,
   );
 
   const quarterRefs = useRef<Array<SVGGElement | null>>([]);
   const select = (index: number, { moveFocus = false } = {}) => {
-    const wrapped = (index + DIRECTIONS.length) % DIRECTIONS.length;
-    const direction = DIRECTIONS[wrapped];
-    onChange(direction.vertical, direction.horizontal);
+    const wrapped = (index + CHOICES.length) % CHOICES.length;
+    const choice = CHOICES[wrapped];
+    onChange(choice.vertical, choice.horizontal);
     // Arrow keys carry focus with the selection, as in any radio group.
     if (moveFocus) quarterRefs.current[wrapped]?.focus();
   };
+  const onKey = (event: React.KeyboardEvent, index: number) => {
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      event.preventDefault();
+      select(index + 1, { moveFocus: true });
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      event.preventDefault();
+      select(index - 1, { moveFocus: true });
+    } else if (event.key === " " || event.key === "Enter") {
+      event.preventDefault();
+      select(index);
+    }
+  };
+  const middleIndex = CHOICES.length - 1;
+  const middleSelected = selectedIndex === middleIndex;
 
   return (
     <svg
@@ -86,7 +115,7 @@ export const OpenDirectionRing = ({
       {DIRECTIONS.map((direction, index) => {
         const selected = index === selectedIndex;
         const middle = direction.from + 45;
-        const [x, y] = point(OUTER * 0.55, middle).split(" ");
+        const [x, y] = point((INNER + OUTER) / 2, middle).split(" ");
         const radians = (middle * Math.PI) / 180;
         const nudge = `translate(${NUDGE * Math.cos(radians)} ${NUDGE * Math.sin(radians)})`;
         return (
@@ -104,18 +133,7 @@ export const OpenDirectionRing = ({
             className="group cursor-pointer outline-none"
             transform={nudge}
             onClick={() => select(index)}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-                event.preventDefault();
-                select(index + 1, { moveFocus: true });
-              } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-                event.preventDefault();
-                select(index - 1, { moveFocus: true });
-              } else if (event.key === " " || event.key === "Enter") {
-                event.preventDefault();
-                select(index);
-              }
-            }}
+            onKeyDown={(event) => onKey(event, index)}
           >
             <path
               d={quarterPath(direction.from)}
@@ -145,6 +163,43 @@ export const OpenDirectionRing = ({
           </g>
         );
       })}
+      <g
+        ref={(element) => {
+          quarterRefs.current[middleIndex] = element;
+        }}
+        role="radio"
+        aria-checked={middleSelected}
+        aria-label={MIDDLE.label}
+        tabIndex={middleSelected ? 0 : -1}
+        className="group cursor-pointer outline-none"
+        onClick={() => select(middleIndex)}
+        onKeyDown={(event) => onKey(event, middleIndex)}
+      >
+        <circle
+          cx={CENTER}
+          cy={CENTER}
+          r={MIDDLE_RADIUS}
+          className={cn(
+            "transition-colors",
+            middleSelected
+              ? "fill-primary"
+              : "fill-foreground/8 group-hover:fill-foreground/15",
+            "group-focus-visible:stroke-ring group-focus-visible:stroke-2",
+          )}
+        />
+        {/* A dot: it opens from right here, every way at once. */}
+        <circle
+          cx={CENTER}
+          cy={CENTER}
+          r={2.5}
+          className={cn(
+            "pointer-events-none transition-colors",
+            middleSelected
+              ? "fill-primary-foreground"
+              : "fill-muted-foreground group-hover:fill-foreground",
+          )}
+        />
+      </g>
     </svg>
   );
 };

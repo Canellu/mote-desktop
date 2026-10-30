@@ -115,17 +115,21 @@ export type WidgetMascotStyle =
   | "pixelArt"
   | "paperCutout"
   | "watercolor";
+/** Which way the mascot faces. Drawn facing right; left mirrors it. */
+export type WidgetMascotFacing = "right" | "left";
 /** Which way a collapsed widget prefers to open, on each axis. A preference:
- * with no room that way, it opens the other way. */
-export type WidgetExpandVertical = "up" | "down";
-export type WidgetExpandHorizontal = "left" | "right";
+ * with no room that way, it opens the other way. Center, set on both axes,
+ * opens it every way at once, centred over the pill. */
+export type WidgetExpandVertical = "up" | "down" | "center";
+export type WidgetExpandHorizontal = "left" | "right" | "center";
 /** The corner a widget folds into and unfolds from. The backend picks it
  * from where the pill sits, so the widget opens away from screen edges. */
 export type WidgetCollapseCorner =
   | "topLeft"
   | "topRight"
   | "bottomLeft"
-  | "bottomRight";
+  | "bottomRight"
+  | "center";
 
 export interface WidgetState {
   widgetId: string;
@@ -150,6 +154,7 @@ export interface WidgetState {
   mascotStyle: WidgetMascotStyle;
   /** Plays the mascot's sprite animations; off holds it still. */
   mascotAnimated: boolean;
+  mascotFacing: WidgetMascotFacing;
   expandVertical: WidgetExpandVertical;
   expandHorizontal: WidgetExpandHorizontal;
   /** Seconds an open widget waits, pointer off it, before collapsing; 0 is

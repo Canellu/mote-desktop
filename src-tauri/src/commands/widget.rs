@@ -213,6 +213,16 @@ impl Default for WidgetCollapseMode {
     }
 }
 
+/// Which way the mascot faces. It is drawn facing right; left mirrors it,
+/// for a moth parked on the right of the screen.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WidgetMascotFacing {
+    #[default]
+    Right,
+    Left,
+}
+
 /// The corner a widget folds into and unfolds from. It follows where the pill
 /// was last expanded from, so the widget always opens away from the screen
 /// edges it sits against.
@@ -223,6 +233,8 @@ pub enum WidgetCollapseCorner {
     TopRight,
     BottomLeft,
     BottomRight,
+    /// Opens evenly every way, centred over the pill.
+    Center,
 }
 
 impl Default for WidgetCollapseCorner {
@@ -248,6 +260,25 @@ impl WidgetCollapseCorner {
     fn is_bottom(&self) -> bool {
         matches!(self, Self::BottomLeft | Self::BottomRight)
     }
+
+    /// Where a rectangle of `size` sits against one at `frame`, sharing this
+    /// corner, or its middle when centred. Physical pixels.
+    fn place(&self, frame: (i32, i32, i32, i32), size: (i32, i32)) -> (i32, i32) {
+        let (x, y, width, height) = frame;
+        let along = |start: i32, length: i32, size: i32, end: bool| {
+            if matches!(self, Self::Center) {
+                start + (length - size) / 2
+            } else if end {
+                start + length - size
+            } else {
+                start
+            }
+        };
+        (
+            along(x, width, size.0, self.is_right()),
+            along(y, height, size.1, self.is_bottom()),
+        )
+    }
 }
 
 /// Which way a collapsed widget prefers to open, vertically. A preference, not
@@ -257,6 +288,9 @@ impl WidgetCollapseCorner {
 pub enum WidgetExpandVertical {
     Up,
     Down,
+    /// Evenly up and down, centred over the pill. Set with
+    /// [`WidgetExpandHorizontal::Center`]: the widget then opens every way.
+    Center,
 }
 
 impl Default for WidgetExpandVertical {
@@ -272,6 +306,7 @@ impl Default for WidgetExpandVertical {
 pub enum WidgetExpandHorizontal {
     Left,
     Right,
+    Center,
 }
 
 impl Default for WidgetExpandHorizontal {
@@ -429,6 +464,8 @@ struct StoredWidget {
     /// Plays the mascot's sprite animations. Off holds it still.
     #[serde(default = "default_mascot_animated")]
     mascot_animated: bool,
+    #[serde(default)]
+    mascot_facing: WidgetMascotFacing,
     #[serde(default)]
     expand_vertical: WidgetExpandVertical,
     #[serde(default)]
@@ -599,6 +636,7 @@ pub struct WidgetState {
     mascot_style: WidgetMascotStyle,
     fold_animation: WidgetFoldAnimation,
     mascot_animated: bool,
+    mascot_facing: WidgetMascotFacing,
     expand_vertical: WidgetExpandVertical,
     expand_horizontal: WidgetExpandHorizontal,
     /// Null while auto collapse is off.
@@ -633,6 +671,7 @@ impl WidgetState {
             mascot_style: widget.mascot_style.clone(),
             fold_animation: widget.fold_animation,
             mascot_animated: widget.mascot_animated,
+            mascot_facing: widget.mascot_facing,
             expand_vertical: widget.expand_vertical,
             expand_horizontal: widget.expand_horizontal,
             auto_collapse_seconds: widget.auto_collapse_after,
@@ -663,6 +702,7 @@ impl WidgetState {
             mascot_style: WidgetMascotStyle::default(),
             fold_animation: WidgetFoldAnimation::default(),
             mascot_animated: default_mascot_animated(),
+            mascot_facing: WidgetMascotFacing::default(),
             expand_vertical: WidgetExpandVertical::default(),
             expand_horizontal: WidgetExpandHorizontal::default(),
             auto_collapse_seconds: None,
@@ -691,6 +731,7 @@ pub fn open_widget_window(
     mascot_style: Option<WidgetMascotStyle>,
     fold_animation: Option<WidgetFoldAnimation>,
     mascot_animated: Option<bool>,
+    mascot_facing: Option<WidgetMascotFacing>,
     expand_vertical: Option<WidgetExpandVertical>,
     expand_horizontal: Option<WidgetExpandHorizontal>,
     auto_collapse_seconds: Option<i32>,
@@ -770,6 +811,7 @@ pub fn open_widget_window(
             mascot_style: mascot_style.unwrap_or_default(),
             fold_animation: fold_animation.unwrap_or_default(),
             mascot_animated: mascot_animated.unwrap_or_else(default_mascot_animated),
+            mascot_facing: mascot_facing.unwrap_or_default(),
             expand_vertical: expand_vertical.unwrap_or_default(),
             expand_horizontal: expand_horizontal.unwrap_or_default(),
             auto_collapse_after: auto_collapse_seconds.and_then(auto_collapse_from),
@@ -1273,6 +1315,7 @@ pub fn preview_widget_config(
     mascot_style: Option<WidgetMascotStyle>,
     fold_animation: Option<WidgetFoldAnimation>,
     mascot_animated: Option<bool>,
+    mascot_facing: Option<WidgetMascotFacing>,
     expand_vertical: Option<WidgetExpandVertical>,
     expand_horizontal: Option<WidgetExpandHorizontal>,
     auto_collapse_seconds: Option<i32>,
@@ -1314,6 +1357,9 @@ pub fn preview_widget_config(
     }
     if let Some(mascot_animated) = mascot_animated {
         preview.mascot_animated = mascot_animated;
+    }
+    if let Some(mascot_facing) = mascot_facing {
+        preview.mascot_facing = mascot_facing;
     }
     if let Some(expand_vertical) = expand_vertical {
         preview.expand_vertical = expand_vertical;
@@ -1360,6 +1406,7 @@ pub fn set_widget_config(
     mascot_style: Option<WidgetMascotStyle>,
     fold_animation: Option<WidgetFoldAnimation>,
     mascot_animated: Option<bool>,
+    mascot_facing: Option<WidgetMascotFacing>,
     expand_vertical: Option<WidgetExpandVertical>,
     expand_horizontal: Option<WidgetExpandHorizontal>,
     auto_collapse_seconds: Option<i32>,
@@ -1426,6 +1473,9 @@ pub fn set_widget_config(
     }
     if let Some(mascot_animated) = mascot_animated {
         widget.mascot_animated = mascot_animated;
+    }
+    if let Some(mascot_facing) = mascot_facing {
+        widget.mascot_facing = mascot_facing;
     }
     if let Some(expand_vertical) = expand_vertical {
         widget.expand_vertical = expand_vertical;
@@ -2055,18 +2105,13 @@ fn collapsed_frame(
         .unwrap_or((pill_width as u32, pill_height as u32));
     let width = width.max(pill_width as u32);
     let height = height.max(pill_height as u32);
-    let corner = &widget.collapse_corner;
+    let (x, y) = widget.collapse_corner.place(
+        (pill.x, pill.y, pill_width, pill_height),
+        (width as i32, height as i32),
+    );
     StoredWidgetBounds {
-        x: if corner.is_right() {
-            pill.x + pill_width - width as i32
-        } else {
-            pill.x
-        },
-        y: if corner.is_bottom() {
-            pill.y + pill_height - height as i32
-        } else {
-            pill.y
-        },
+        x,
+        y,
         width,
         height,
     }
@@ -2152,6 +2197,51 @@ pub fn clear_widget_clip(app: tauri::AppHandle, widget_id: Option<String>) -> Re
     Ok(())
 }
 
+/// The open panel's rectangle in the widget's own CSS pixels.
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct WidgetPanelRect {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
+
+/// Clips an open widget to its panel, or lifts the clip. The window is kept
+/// big enough for the pill it folds into, which can be taller than a widget
+/// with few controls; the rest of it is cut away so it neither shows nor
+/// catches the pointer. A collapsed widget keeps its own clip.
+#[tauri::command(rename = "clip-widget-to-panel")]
+pub fn clip_widget_to_panel(
+    app: tauri::AppHandle,
+    widget_id: Option<String>,
+    rect: Option<WidgetPanelRect>,
+) -> Result<(), String> {
+    let widget_id = resolve_widget_id(&app, widget_id)?;
+    let settings = read_widget_settings(&app)?;
+    let Some(widget) = settings.widgets.iter().find(|widget| widget.id == widget_id) else {
+        return Ok(());
+    };
+    if widget.collapsed.is_some() {
+        return Ok(());
+    }
+    let Some(window) = app.get_webview_window(&widget_label(&widget_id)) else {
+        return Ok(());
+    };
+    let ratio = open_zoom(widget) * window.scale_factor().unwrap_or(1.0);
+    set_window_region(
+        &window,
+        rect.map(|rect| {
+            (
+                (rect.x * ratio).floor() as i32,
+                (rect.y * ratio).floor() as i32,
+                (rect.width * ratio).ceil() as i32,
+                (rect.height * ratio).ceil() as i32,
+            )
+        }),
+    );
+    Ok(())
+}
+
 #[tauri::command(rename = "set-widget-collapsed")]
 pub fn set_widget_collapsed(
     app: tauri::AppHandle,
@@ -2220,21 +2310,9 @@ pub fn set_widget_collapsed(
             }
         };
         let (x, y) = match frame {
-            Some((frame_x, frame_y, frame_width, frame_height)) => {
-                let corner = &widget.collapse_corner;
-                (
-                    if corner.is_right() {
-                        frame_x + frame_width - pill_width
-                    } else {
-                        frame_x
-                    },
-                    if corner.is_bottom() {
-                        frame_y + frame_height - pill_height
-                    } else {
-                        frame_y
-                    },
-                )
-            }
+            Some(frame) => widget
+                .collapse_corner
+                .place(frame, (pill_width, pill_height)),
             None => window
                 .outer_position()
                 .map(|position| (position.x, position.y))
@@ -2290,18 +2368,19 @@ pub fn set_widget_collapsed(
                     !prefer_side(room_right, room_left, width)
                 };
             }
-            widget.collapse_corner = WidgetCollapseCorner::from_sides(grow_left, grow_up);
-            let corner = &widget.collapse_corner;
-            let mut x = if corner.is_right() {
-                previous.x + pill_width - bounds.width as i32
+            // Centred, it opens every way at once and never flips; the screen
+            // edge clamp below still keeps it on the monitor.
+            widget.collapse_corner = if widget.expand_vertical == WidgetExpandVertical::Center
+                || widget.expand_horizontal == WidgetExpandHorizontal::Center
+            {
+                WidgetCollapseCorner::Center
             } else {
-                previous.x
+                WidgetCollapseCorner::from_sides(grow_left, grow_up)
             };
-            let mut y = if corner.is_bottom() {
-                previous.y + pill_height - bounds.height as i32
-            } else {
-                previous.y
-            };
+            let (mut x, mut y) = widget.collapse_corner.place(
+                (previous.x, previous.y, pill_width, pill_height),
+                (bounds.width as i32, bounds.height as i32),
+            );
             if let Some(monitor) = monitor {
                 let max_x = monitor.work_x + monitor.work_width as i32 - bounds.width as i32;
                 let max_y = monitor.work_y + monitor.work_height as i32 - bounds.height as i32;
@@ -2714,6 +2793,7 @@ fn legacy_widget_settings_from_value(value: &Value) -> StoredWidgetSettings {
             mascot_style: WidgetMascotStyle::default(),
             fold_animation: WidgetFoldAnimation::default(),
             mascot_animated: default_mascot_animated(),
+            mascot_facing: WidgetMascotFacing::default(),
             expand_vertical: WidgetExpandVertical::default(),
             expand_horizontal: WidgetExpandHorizontal::default(),
             auto_collapse_after: None,

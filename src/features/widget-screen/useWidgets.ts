@@ -11,6 +11,7 @@ import type {
   WidgetBackgroundMode,
   WidgetCollapseMode,
   WidgetFoldAnimation,
+  WidgetMascotFacing,
   WidgetMascotStyle,
   WidgetExpandHorizontal,
   WidgetExpandVertical,
@@ -67,6 +68,7 @@ const toSummary = (state: WidgetState): WidgetSummary => ({
   foldAnimation: state.foldAnimation ?? "stack",
   mascotStyle: state.mascotStyle ?? "celShaded",
   mascotAnimated: state.mascotAnimated ?? true,
+  mascotFacing: state.mascotFacing ?? "right",
   expandVertical: state.expandVertical ?? "up",
   expandHorizontal: state.expandHorizontal ?? "right",
   autoCollapseSeconds: state.autoCollapseSeconds ?? AUTO_COLLAPSE_SECONDS.off,
@@ -102,6 +104,7 @@ export interface WidgetConfigDraft {
   foldAnimation: WidgetFoldAnimation;
   mascotStyle: WidgetMascotStyle;
   mascotAnimated: boolean;
+  mascotFacing: WidgetMascotFacing;
   expandVertical: WidgetExpandVertical;
   expandHorizontal: WidgetExpandHorizontal;
   autoCollapseSeconds: number;

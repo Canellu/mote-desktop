@@ -31,6 +31,7 @@ import { MascotSprite } from "./MascotSprite";
 import type {
   WidgetCollapseCorner,
   WidgetCollapseMode,
+  WidgetMascotFacing,
   WidgetMascotStyle,
   WidgetControl,
   WidgetState,
@@ -91,13 +92,19 @@ export const MOTH_RELEASE_SCALE = 1.3;
  * it and grows out of it, and the content inside holds still meanwhile. */
 /** The CSS transform origin at a collapse corner. */
 const cornerOrigin = (corner: WidgetCollapseCorner) =>
-  `${corner.endsWith("Right") ? "right" : "left"} ${corner.startsWith("bottom") ? "bottom" : "top"}`;
+  corner === "center"
+    ? "center"
+    : `${corner.endsWith("Right") ? "right" : "left"} ${corner.startsWith("bottom") ? "bottom" : "top"}`;
 
-const cornerClasses = (corner: WidgetCollapseCorner) =>
-  cn(
-    corner.startsWith("bottom") ? "bottom-0" : "top-0",
-    corner.endsWith("Right") ? "right-0" : "left-0",
-  );
+/** `flipVertical` pins it to the other edge: a panel shorter than the pill
+ * window sits at the far end, so it still opens the way it was asked to. */
+const cornerClasses = (corner: WidgetCollapseCorner, flipVertical = false) =>
+  corner === "center"
+    ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+    : cn(
+        corner.startsWith("bottom") !== flipVertical ? "bottom-0" : "top-0",
+        corner.endsWith("Right") ? "right-0" : "left-0",
+      );
 
 /** Resolves once the window has grown past `width`, so an expand animation
  * starts from the real window size. Gives up after half a second. */
@@ -412,6 +419,7 @@ export const CollapsedWidget = ({
   mode,
   mascotStyle = "celShaded",
   mascotAnimated = true,
+  mascotFacing = "right",
   title,
   pinned,
   style,
@@ -424,6 +432,7 @@ export const CollapsedWidget = ({
   mode: WidgetCollapseMode;
   mascotStyle?: WidgetMascotStyle;
   mascotAnimated?: boolean;
+  mascotFacing?: WidgetMascotFacing;
   title: string;
   pinned: boolean;
   style: React.CSSProperties;
@@ -529,14 +538,21 @@ export const CollapsedWidget = ({
           {!probe && !ghost ? (
             <span className="pointer-events-auto absolute left-1/2 top-1/2 size-12 -translate-x-1/2 -translate-y-1/2 rounded-full" />
           ) : null}
-          <MascotSprite
-            style={mascotStyle}
-            hovering={hovering}
-            pressed={pressed}
-            // The measuring copy and the fading-in copy hold still, so the real
-            // one takes over from them without a jump.
-            animated={mascotAnimated && !probe && !ghost}
-          />
+          <span
+            className={cn(
+              "block size-full",
+              mascotFacing === "left" && "-scale-x-100",
+            )}
+          >
+            <MascotSprite
+              style={mascotStyle}
+              hovering={hovering}
+              pressed={pressed}
+              // The measuring copy and the fading-in copy hold still, so the
+              // real one takes over from them without a jump.
+              animated={mascotAnimated && !probe && !ghost}
+            />
+          </span>
         </>
       ) : (
         <img
@@ -566,6 +582,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     foldAnimation,
     mascotStyle,
     mascotAnimated,
+    mascotFacing,
     scale,
     collapsedScale,
     collapseCorner,
@@ -627,6 +644,18 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   // simply reflows, so we never force the size again.
   const hasAutoFitRef = useRef(false);
   const resizeSaveTimerRef = useRef<number | null>(null);
+  // How tall the open panel is drawn: the cards' height, which can be less
+  // than the window's when the pill needs more room. Unset, it fills it.
+  const [panelHeight, setPanelHeight] = useState<number | null>(null);
+  const panelHeightRef = useRef(panelHeight);
+  panelHeightRef.current = panelHeight;
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+  useEffect(() => {
+    const update = () => setViewportHeight(window.innerHeight);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  const panelShort = panelHeight != null && panelHeight < viewportHeight - 1;
 
   useEffect(() => {
     document.documentElement.dataset.window = "widget";
@@ -716,13 +745,24 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     // window shrink again: the min height now tracks the content instead of
     // ratcheting up to the tallest the window has ever been.
     const contentHeight = content.getBoundingClientRect().height;
-    const height = Math.ceil(
+    const panel = Math.ceil(
       Math.max(
         contentHeight + sizeMetrics.edgePadding + WIDGET_SIDE_PADDING,
         WIDGET_MIN_HEIGHT,
       ),
     );
+    // The window is never smaller than the pill it folds into: a moth taller
+    // than a one-control widget hung over the window's edge mid-fold, cut
+    // off, and jumped as the window grew to fit it. The panel still hugs the
+    // cards, and the room left over is clipped away.
+    const pill = probeRef.current?.firstElementChild;
+    const pillWidth =
+      pill instanceof HTMLElement ? pill.offsetWidth * pillRatio : 0;
+    const pillHeight =
+      pill instanceof HTMLElement ? pill.offsetHeight * pillRatio : 0;
+    const height = Math.max(panel, Math.ceil(pillHeight));
     if (height <= 0) return;
+    setPanelHeight(panel);
 
     // The min width is a single card (at its size setting) plus the padding, so
     // the window can always shrink down to one column; flex handles everything
@@ -733,13 +773,17 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     hasAutoFitRef.current = true;
     void invoke("sync-widget-layout", {
       widgetId,
-      minWidth: sizeMetrics.cardBasis + WIDGET_SIDE_PADDING * 2,
+      minWidth: Math.ceil(
+        Math.max(sizeMetrics.cardBasis + WIDGET_SIDE_PADDING * 2, pillWidth),
+      ),
       minHeight: height,
       autoFit,
     }).catch(() => undefined);
   }, [
     collapsed,
     transition,
+    pillRatio,
+    collapseMode,
     sizeMetrics.cardBasis,
     sizeMetrics.edgePadding,
     widgetId,
@@ -791,6 +835,33 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     };
   }, [widgetId]);
 
+  // While open and still, the window is cut down to the panel, so the room
+  // kept for the pill neither shows nor catches the pointer. A fold lifts it.
+  useEffect(() => {
+    if (collapsed || transition !== "none") return;
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    const clip = () => {
+      const shell = shellRef.current;
+      if (!shell) return;
+      const rect = shell.getBoundingClientRect();
+      void invoke("clip-widget-to-panel", {
+        widgetId,
+        rect:
+          rect.height >= window.innerHeight - 1
+            ? null
+            : {
+                x: rect.left,
+                y: rect.top,
+                width: rect.width,
+                height: rect.height,
+              },
+      }).catch(() => undefined);
+    };
+    clip();
+    window.addEventListener("resize", clip);
+    return () => window.removeEventListener("resize", clip);
+  }, [collapsed, transition, panelHeight, panelShort, widgetId]);
+
   const openSettings = () =>
     void invoke("open-widget-settings", { widgetId }).catch(() => undefined);
 
@@ -826,10 +897,19 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   // corner, nearest the corner first. `width` and `height` are the pill's
   // drawn size.
   const cardStack = (width: number, height: number) => {
+    const center = collapseCorner === "center";
     const right = collapseCorner.endsWith("Right");
     const bottom = collapseCorner.startsWith("bottom");
-    const toX = right ? window.innerWidth - width / 2 : width / 2;
-    const toY = bottom ? window.innerHeight - height / 2 : height / 2;
+    const toX = center
+      ? window.innerWidth / 2
+      : right
+        ? window.innerWidth - width / 2
+        : width / 2;
+    const toY = center
+      ? window.innerHeight / 2
+      : bottom
+        ? window.innerHeight - height / 2
+        : height / 2;
     const grid = contentRef.current?.firstElementChild;
     return (grid ? Array.from(grid.children) : [])
       .filter((card): card is HTMLElement => card instanceof HTMLElement)
@@ -875,6 +955,11 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     const stacking = foldAnimation === "stack";
     setBareFold(bare || stacking);
     changeTransition("collapsing");
+    // The pill can be bigger than the panel, so the window's clip comes off
+    // before anything moves toward it.
+    await invoke("clip-widget-to-panel", { widgetId, rect: null }).catch(
+      () => undefined,
+    );
     const start = shell.getBoundingClientRect();
     const ghost = ghostRef.current;
     const ghostMoth = ghostMothRef.current;
@@ -989,6 +1074,9 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
         ),
     ];
 
+    // A pill bigger than the panel stacks partly outside it; the shell has no
+    // background by now, and is replaced once the fold ends.
+    if (stacking) shell.style.overflow = "visible";
     await Promise.all(stacking ? stack() : fadeOut());
     morph.stop();
     setUnfolded(false);
@@ -1044,9 +1132,22 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     // React owns the radius through `style`; the animation ends on the same
     // value so handing it back changes nothing.
     const radius = `${shellRadius()}px`;
-    shell.style.width = `${from.width}px`;
-    shell.style.height = `${from.height}px`;
-    shell.style.borderRadius = `${from.height / 2}px`;
+    // The panel, which only fills the window when the pill fits inside it.
+    const to = {
+      width: window.innerWidth,
+      height: Math.min(
+        panelHeightRef.current ?? window.innerHeight,
+        window.innerHeight,
+      ),
+    };
+    // Grows out of the pill, but never from taller than it ends up.
+    const grow = {
+      width: Math.min(from.width, to.width),
+      height: Math.min(from.height, to.height),
+    };
+    shell.style.width = `${grow.width}px`;
+    shell.style.height = `${grow.height}px`;
+    shell.style.borderRadius = `${grow.height / 2}px`;
     // The reverse of a collapse: the cards leave the stack where the pill
     // was and spread out to their places, the last to have landed first.
     const stacking = foldAnimation === "stack";
@@ -1094,12 +1195,8 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     void Promise.all([
       morphShell(
         shell,
-        { ...from, radius: from.height / 2 },
-        {
-          width: window.innerWidth,
-          height: window.innerHeight,
-          radius: shellRadius(),
-        },
+        { ...grow, radius: grow.height / 2 },
+        { ...to, radius: shellRadius() },
         EXPAND_TRANSITION,
       ),
       header &&
@@ -1307,8 +1404,16 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
         key="collapsed"
         className={cn(
           "flex h-screen w-screen overflow-hidden bg-transparent",
-          collapseCorner.startsWith("bottom") ? "items-end" : "items-start",
-          collapseCorner.endsWith("Right") ? "justify-end" : "justify-start",
+          collapseCorner === "center"
+            ? "items-center justify-center"
+            : cn(
+                collapseCorner.startsWith("bottom")
+                  ? "items-end"
+                  : "items-start",
+                collapseCorner.endsWith("Right")
+                  ? "justify-end"
+                  : "justify-start",
+              ),
         )}
       >
         <HueResourcesStoreEffects />
@@ -1330,6 +1435,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
             mode={collapseMode}
             mascotStyle={mascotStyle}
             mascotAnimated={mascotAnimated}
+            mascotFacing={mascotFacing}
             title={pillTitle}
             pinned={pinned}
             style={shellStyle}
@@ -1349,17 +1455,21 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
         key="expanded"
         ref={shellRef}
         className={cn(
-          "group/widget absolute h-screen w-screen overflow-hidden border text-foreground transition-colors",
-          cornerClasses(collapseCorner),
+          "group/widget absolute h-[min(var(--panel-height,100vh),100vh)] w-screen overflow-hidden border text-foreground transition-colors",
+          cornerClasses(collapseCorner, panelShort),
           showShell ? "border-border/20" : "border-transparent",
           showShell && !folding && "shadow-2xl",
           flashing && "bg-primary/35",
         )}
         data-tile-background={backgroundMode}
         style={
-          showShell
-            ? shellStyle
-            : { ...shellStyle, backgroundColor: "transparent" }
+          {
+            ...shellStyle,
+            ...(!showShell && { backgroundColor: "transparent" }),
+            ...(panelHeight != null && {
+              "--panel-height": `${panelHeight}px`,
+            }),
+          } as React.CSSProperties
         }
         onMouseEnter={() => setPointerOver(true)}
         onMouseLeave={() => {
@@ -1384,7 +1494,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
         <div
           ref={fadeRef}
           className={cn(
-            "absolute h-[calc(100vh-2px)] w-[calc(100vw-2px)]",
+            "absolute h-[calc(min(var(--panel-height,100vh),100vh)-2px)] w-[calc(100vw-2px)]",
             cornerClasses(collapseCorner),
           )}
         >
@@ -1427,7 +1537,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
            `syncWidgetLayout` reads to set a min height the window can still
            shrink back down to. */
             <section
-              className="h-[calc(100vh-2px)] w-[calc(100vw-2px)] overflow-hidden"
+              className="h-[calc(min(var(--panel-height,100vh),100vh)-2px)] w-[calc(100vw-2px)] overflow-hidden"
               style={{
                 paddingTop: sizeMetrics.edgePadding,
                 paddingLeft: WIDGET_SIDE_PADDING,
@@ -1471,6 +1581,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
             mode={collapseMode}
             mascotStyle={mascotStyle}
             mascotAnimated={mascotAnimated}
+            mascotFacing={mascotFacing}
             title={pillTitle}
             pinned={pinned}
             style={{
