@@ -413,9 +413,15 @@ impl Default for EntitlementRuntime {
         {
             // Development opens on the Free tier deliberately. The unpaid path
             // is the one that ships to everyone, so it should be the one a
-            // developer sees without asking for it.
+            // developer sees without asking for it. `MOTE_DEBUG_PRO` at build time
+            // opts a personal debug install into Pro instead.
+            let pro = if option_env!("MOTE_DEBUG_PRO").is_some() {
+                EntitlementState::Active
+            } else {
+                EntitlementState::Inactive
+            };
             let debug = Arc::new(DebugEntitlementProvider::new(EntitlementSnapshot {
-                pro: EntitlementState::Inactive,
+                pro,
                 household: EntitlementState::Inactive,
             }));
 

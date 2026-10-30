@@ -329,6 +329,11 @@ fn set_auto_start_enabled(enabled: bool) -> Result<(), String> {
         };
     }
 
+    // A `tauri dev` exe loads the Vite dev server, which isn't running at sign-in.
+    if enabled && tauri::is_dev() {
+        return Err("Start on login is unavailable in development builds.".to_string());
+    }
+
     let key = CURRENT_USER
         .create(auto_start_run_key())
         .map_err(|error| error.to_string())?;

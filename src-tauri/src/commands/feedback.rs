@@ -265,6 +265,16 @@ fn build_preview(
     reuse_previewed: bool,
 ) -> Result<FeedbackPreview, String> {
     let wanted = draft.include_diagnostics || draft.diagnostics_report;
+    let fresh_snapshot = || {
+        let mut snapshot = diagnostics::snapshot(is_packaged());
+        // The plan lives in the entitlement runtime, which the diagnostics
+        // trail can't reach without an app handle, so it joins here.
+        snapshot.facts.insert(
+            "plan",
+            diagnostics::Fact::Code(crate::commands::entitlements::plan_code(app)),
+        );
+        snapshot
+    };
     let diagnostics = if !wanted {
         None
     } else if reuse_previewed {
@@ -272,9 +282,9 @@ fn build_preview(
             .lock()
             .ok()
             .and_then(|previewed| previewed.clone())
-            .or_else(|| Some(diagnostics::snapshot(is_packaged())))
+            .or_else(|| Some(fresh_snapshot()))
     } else {
-        let snapshot = diagnostics::snapshot(is_packaged());
+        let snapshot = fresh_snapshot();
         if let Ok(mut previewed) = previewed_diagnostics().lock() {
             *previewed = Some(snapshot.clone());
         }

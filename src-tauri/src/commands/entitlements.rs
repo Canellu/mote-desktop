@@ -7,7 +7,8 @@ use crate::commands::store_commerce::{
     purchase_mote_pro, read_pro_offer, read_store_entitlements, ProOffer, PurchaseOutcome,
 };
 use crate::services::entitlements::{
-    AuthorizationError, Capability, EntitlementRuntime, EntitlementSnapshot, EntitlementStatus,
+    AuthorizationError, Capability, EntitlementRuntime, EntitlementSnapshot, EntitlementState,
+    EntitlementStatus,
 };
 use crate::services::trial;
 
@@ -275,6 +276,26 @@ pub fn require(app: &AppHandle, capability: Capability) -> Result<(), String> {
     };
 
     runtime.authorize(capability).map_err(serialize_refusal)
+}
+
+/// Which plan this installation is on, as a diagnostics code: `pro` (bought),
+/// `trial` (running), `trial_ended` (over, nothing bought), `free` (never
+/// trialled, nothing bought), or `unknown` (the Store could not say). A report
+/// then shows whether a problem was met on Free or with Pro features on.
+pub fn plan_code(app: &AppHandle) -> &'static str {
+    let status = get_entitlements(app.clone());
+    let trial = status.trial;
+    if status.pro == EntitlementState::Active {
+        "pro"
+    } else if trial.is_some_and(|trial| trial.active) {
+        "trial"
+    } else if status.pro == EntitlementState::Unknown {
+        "unknown"
+    } else if trial.is_some() {
+        "trial_ended"
+    } else {
+        "free"
+    }
 }
 
 fn serialize_refusal(error: AuthorizationError) -> String {
