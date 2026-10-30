@@ -5,6 +5,24 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Highlights
+
+- Widgets can collapse into a small moth, a pill with their name, or a round
+  bubble. Click it to expand the widget again, or drag it somewhere else.
+  Pick the look, its size, and which way it expands in the widget's
+  settings. The moth glows softly, blinks now and then, and flutters when
+  you hover it.
+- **Auto collapse** folds a widget away once the pointer has been off it for
+  a few seconds.
+
+### Improvements
+
+- A pinned widget stays out of the way: its lights float on the desktop
+  without a background, and hovering them doesn't change that. Hover the top
+  edge to bring up the background and the pin, settings, collapse and close
+  buttons. Right after a pinned widget expands from its collapsed look, it
+  keeps its background until you move the pointer off it.
+
 ## [0.11.2] - 2026-10-25
 
 ### Fixes

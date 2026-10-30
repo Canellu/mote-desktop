@@ -35,10 +35,12 @@ export const WIDGET_SCALE = {
  * one pill or moth, so it may grow far past the open widget's limit. */
 export const WIDGET_COLLAPSED_SCALE_MAX = 300;
 
-/** Mirrors the Rust auto-collapse range; 0 is off. `default` is what turning
- * it on starts at. */
+/** Mirrors the Rust auto-collapse range; 0 collapses as soon as the pointer
+ * leaves. `off` is how the frontend holds it turned off, and what it sends to
+ * turn it off. `default` is what turning it on starts at. */
 export const AUTO_COLLAPSE_SECONDS = {
-  min: 1,
+  off: -1,
+  min: 0,
   max: 30,
   default: 5,
 } as const;
@@ -65,7 +67,7 @@ const toSummary = (state: WidgetState): WidgetSummary => ({
   mascotAnimated: state.mascotAnimated ?? true,
   expandVertical: state.expandVertical ?? "up",
   expandHorizontal: state.expandHorizontal ?? "right",
-  autoCollapseSeconds: state.autoCollapseSeconds ?? 0,
+  autoCollapseSeconds: state.autoCollapseSeconds ?? AUTO_COLLAPSE_SECONDS.off,
   collapseCorner: state.collapseCorner ?? "topLeft",
   collapsed: state.collapsed ?? false,
   controls: state.controls ?? [],

@@ -12,6 +12,7 @@ import type {
 } from "@/features/widget-screen/types";
 import {
   DEFAULT_TILE_OPACITY,
+  AUTO_COLLAPSE_SECONDS,
   WIDGET_COLLAPSED_SCALE_MAX,
   WIDGET_SCALE,
   type WidgetConfigDraft,
@@ -472,7 +473,7 @@ export const WidgetSettings = ({
           />
         </SettingsRow>
         <AutoCollapseSetting
-          seconds={autoCollapseSeconds}
+          seconds={autoCollapseSeconds ?? AUTO_COLLAPSE_SECONDS.off}
           onChange={(seconds) => updateConfig({ autoCollapseSeconds: seconds })}
         />
       </SettingsSection>

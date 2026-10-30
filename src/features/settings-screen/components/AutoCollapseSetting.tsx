@@ -6,7 +6,8 @@ import { SettingsReveal, SettingsRow } from "./SettingsList";
 
 /**
  * Turns auto collapse on or off and sets how many seconds an open widget waits,
- * with the pointer off it, before collapsing. Zero is off. The delay is saved
+ * with the pointer off it, before collapsing: zero is as soon as it leaves,
+ * `AUTO_COLLAPSE_SECONDS.off` is off. The delay is saved
  * when the slider is let go, so dragging it doesn't save every step.
  */
 export const AutoCollapseSetting = ({
@@ -18,7 +19,7 @@ export const AutoCollapseSetting = ({
 }) => {
   const [draft, setDraft] = useState(seconds);
   useEffect(() => setDraft(seconds), [seconds]);
-  const enabled = seconds > 0;
+  const enabled = seconds >= 0;
 
   return (
     <div className="grid min-w-0">
@@ -30,17 +31,28 @@ export const AutoCollapseSetting = ({
         <Switch
           checked={enabled}
           onCheckedChange={(checked) =>
-            onChange(checked ? AUTO_COLLAPSE_SECONDS.default : 0)
+            onChange(
+              checked
+                ? AUTO_COLLAPSE_SECONDS.default
+                : AUTO_COLLAPSE_SECONDS.off,
+            )
           }
           aria-label="Auto collapse"
         />
       </SettingsRow>
-      <SettingsReveal open={enabled}>
+      {/* The reveal clips while it slides, so it reaches past the row on each
+        side and below by the thumb's overhang and hover ring, which would
+        otherwise be cut off at either end of the track. */}
+      <SettingsReveal
+        open={enabled}
+        className="-mx-3 -mb-2"
+        spacingClassName="px-3 pt-4 pb-2"
+      >
         <div className="grid gap-3">
           <div className="flex items-center justify-between gap-3">
             <p className="text-sm font-medium">Collapse after</p>
             <span className="text-sm tabular-nums text-muted-foreground">
-              {draft} s
+              {draft === 0 ? "Immediately" : `${draft} s`}
             </span>
           </div>
           <Slider

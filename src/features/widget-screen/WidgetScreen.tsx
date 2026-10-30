@@ -97,13 +97,17 @@ const RESIZE_SAVE_DELAY_MS = 300;
 const TitleBarButton = ({
   label,
   onClick,
+  folding,
   children,
 }: {
   label: string;
   onClick: (event: React.MouseEvent) => void;
+  /** The label is portalled outside the shell, so it wouldn't fade with it;
+   * it's put away for the fold instead of being left floating on its own. */
+  folding: boolean;
   children: React.ReactNode;
 }) => (
-  <Tooltip>
+  <Tooltip disabled={folding}>
     <TooltipTrigger
       render={
         <button
@@ -156,6 +160,7 @@ const WidgetTitleBar = ({
   onOpenSettings,
   onCollapse,
   onRevealChange,
+  folding,
 }: {
   widgetId: string;
   pinned: boolean;
@@ -165,6 +170,7 @@ const WidgetTitleBar = ({
   /** Notifies the shell when the title bar is hovered/focused so it can reveal
    * its own background and border in step with the title bar. */
   onRevealChange: (revealed: boolean) => void;
+  folding: boolean;
 }) => {
   const { hasPro } = useEntitlements();
   const [hovering, setHovering] = useState(false);
@@ -227,6 +233,7 @@ const WidgetTitleBar = ({
               leaves the button out. Unpinning is always offered. */}
           {hasPro || pinned ? (
             <TitleBarButton
+              folding={folding}
               label={pinned ? "Unpin widget" : "Pin widget"}
               onClick={() => void togglePinned()}
             >
@@ -235,15 +242,24 @@ const WidgetTitleBar = ({
               {pinned ? <PinOff size={15} /> : <Pin size={15} />}
             </TitleBarButton>
           ) : null}
-          <TitleBarButton label="Widget settings" onClick={onOpenSettings}>
+          <TitleBarButton
+            folding={folding}
+            label="Widget settings"
+            onClick={onOpenSettings}
+          >
             <Settings size={15} />
           </TitleBarButton>
         </div>
         <div className="flex items-center gap-0.5">
-          <TitleBarButton label="Collapse widget" onClick={onCollapse}>
+          <TitleBarButton
+            folding={folding}
+            label="Collapse widget"
+            onClick={onCollapse}
+          >
             <Minimize2 size={15} />
           </TitleBarButton>
           <TitleBarButton
+            folding={folding}
             label="Close widget"
             onClick={() => void invoke("close-widget-window", { widgetId })}
           >
@@ -560,9 +576,13 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   // Whether the window has been fitted to the pill since it last expanded.
   const fittedRef = useRef(false);
   const expandFromRef = useRef<{ width: number; height: number } | null>(null);
-  // The shell keeps its background while the pointer is anywhere on it, not
-  // only over the title bar, which a fold rebuilds and so forgets was hovered.
+  // Whether the pointer is anywhere on the widget. Only times auto collapse;
+  // what's drawn follows `unfolded` and the title bar.
   const [pointerOver, setPointerOver] = useState(false);
+  // Set by an unfold under the pointer: the shell grew out of the pill with
+  // its background, so a pinned widget keeps it while the pointer stays, and
+  // goes bare like any pinned widget once it leaves.
+  const [unfolded, setUnfolded] = useState(false);
   const sizeMetrics = WIDGET_SIZE_METRICS[sizeMode];
   const hasLoaded = useHueResourcesStore((state) => state.hasLoaded);
   const [shellRevealed, setShellRevealed] = useState(false);
@@ -771,8 +791,9 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     });
 
   // The shell shrinks into its collapse corner inside the still
-  // full-size window; the window itself only shrinks once the pill has taken
-  // over (see `fitCollapsed`), in one step, so nothing jumps.
+  // full-size window. The window never shrinks: once the pill has taken over
+  // (see `fitCollapsed`) it is clipped to the pill, so the webview never
+  // shows a stale frame of a resize.
   const collapse = async () => {
     const shell = shellRef.current;
     const fade = fadeRef.current;
@@ -788,37 +809,51 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     changeTransition("collapsing");
     const start = shell.getBoundingClientRect();
     const ghost = ghostRef.current;
+    const mascot = collapseMode === "mascot";
+    const morph = morphShell(
+      shell,
+      { width: start.width, height: start.height, radius: shellRadius() },
+      { width, height, radius: height / 2 },
+    );
     await Promise.all([
-      animate(fade, { opacity: 0 }, { duration: duration * 0.5 }),
+      // The cards go first and quickly for the moth, so it never shows
+      // through them as it arrives.
+      animate(
+        fade,
+        { opacity: 0 },
+        { duration: duration * (mascot ? 0.25 : 0.5) },
+      ),
       ghost &&
         animate(
           ghost,
           { opacity: 1 },
           // The moth arrives as the shell leaves, so the corner is never
           // empty between them; the pill waits for the shell to reach it.
-          collapseMode === "mascot"
-            ? { duration: duration * 0.45, delay: duration * 0.15 }
+          mascot
+            ? { duration: duration * 0.3, delay: duration * 0.2 }
             : { duration: duration * 0.5, delay: duration * 0.4 },
         ),
       // The moth has no background, so the shell leaves rather than becoming
       // it, and is gone before it is small enough to read as a disc behind it.
-      collapseMode === "mascot" &&
-        animate(shell, { opacity: 0 }, { duration: duration * 0.35 }),
-      morphShell(
-        shell,
-        { width: start.width, height: start.height, radius: shellRadius() },
-        { width, height, radius: height / 2 },
-      ),
+      // Once it's gone and the moth is in, the rest of its shrink can't be
+      // seen, so the fold ends there instead of idling until it's done.
+      mascot
+        ? animate(shell, { opacity: 0 }, { duration: duration * 0.35 })
+        : morph,
     ]);
+    morph.stop();
+    setUnfolded(false);
     setCollapsed(true);
     changeTransition("none");
   };
 
-  // The window grows first, with the pill held in its top-left corner, and
-  // the shell then unfolds out of the pill (see the layout effect below).
+  // The clip comes off first (and the window moves, if it has to expand the
+  // other way), and the shell then unfolds out of the pill (see the layout
+  // effect below).
   const expand = async () => {
     if (transitionRef.current !== "none") return;
     changeTransition("expanding");
+    setUnfolded(true);
     // The next collapse has to fit the window again, even at the same size.
     fittedRef.current = false;
     // The window grows and moves in separate steps, and the pill may switch
@@ -870,18 +905,25 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     shell.style.borderRadius = `${from.height / 2}px`;
     fade.style.opacity = "0";
     const ghost = ghostRef.current;
+    const mascot = collapseMode === "mascot";
     if (ghost) {
       ghost.style.opacity = "1";
-      void animate(ghost, { opacity: 0 }, { duration: duration * 0.4 });
+      // The moth stays until the shell has faded in around it, so the two
+      // overlap rather than leaving the corner empty between them.
+      void animate(
+        ghost,
+        { opacity: 0 },
+        { duration: duration * (mascot ? 0.45 : 0.4) },
+      );
     }
-    if (collapseMode === "mascot") {
-      // Held back until the shell has grown well past the moth, so it never
-      // shows as a disc around it.
+    if (mascot) {
+      // Held back a moment: the shell eases out fast, so by then it has
+      // grown well past the moth and never shows as a disc around it.
       shell.style.opacity = "0";
       void animate(
         shell,
         { opacity: 1 },
-        { duration: duration * 0.4, delay: duration * 0.35 },
+        { duration: duration * 0.35, delay: duration * 0.05 },
       ).then(() => {
         shell.style.opacity = "";
       });
@@ -899,7 +941,12 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       animate(
         fade,
         { opacity: 1 },
-        { duration: duration * 0.6, delay: duration * 0.4 },
+        // Behind the shell by a beat; for the moth, which has no pill
+        // background to grow out of, only just, so the shell is never an
+        // empty box.
+        mascot
+          ? { duration: duration * 0.45, delay: duration * 0.15 }
+          : { duration: duration * 0.6, delay: duration * 0.4 },
       ),
     ]).then(() => {
       shell.style.width = "";
@@ -912,8 +959,8 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collapsed]);
 
-  // Also runs for a widget that opens collapsed, placing it again at the
-  // freshly measured size.
+  // Clips the window to the pill. Also runs for a widget that opens
+  // collapsed, clipping it again at the freshly measured size.
   const fitCollapsed = useCallback(
     (width: number, height: number) => {
       // The pill reports its size on mount and again from its observer. A
@@ -955,30 +1002,17 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     };
   }, [setCollapsed, widgetId]);
 
-  // A safety net under the folds: once nothing is animating, the window's size
-  // has to match the state. An opened widget squeezed into a pill-sized window,
-  // or a pill left in a full-size one, means a resize request lost a race, so
-  // the right one is sent again instead of leaving it stuck.
+  // A safety net under the folds: once nothing is animating, an opened widget
+  // squeezed into a tiny window means a resize request lost a race, so the
+  // right one is sent again instead of leaving it stuck. A collapsed window
+  // keeps the open size and is clipped to the pill, so its size says nothing.
   const healWindowRef = useRef(() => {});
   healWindowRef.current = () => {
     if (transitionRef.current !== "none") return;
-    const pill = pillSizeRef.current;
-    // Height tells them apart: a pill is ~40px tall, an open widget never
-    // less than its minimum.
     if (!collapsed && window.innerHeight < WIDGET_MIN_HEIGHT - 8) {
       void invoke("set-widget-collapsed", { widgetId, collapsed: false }).catch(
         () => undefined,
       );
-    } else if (
-      collapsed &&
-      pill.width > 0 &&
-      // Too big leaves glass around the pill; too small cuts it off. A
-      // couple of pixels is the zoom's rounding, not a wrong size.
-      (Math.abs(window.innerWidth - pill.width * pillRatio) > 2 ||
-        Math.abs(window.innerHeight - pill.height * pillRatio) > 2)
-    ) {
-      fittedRef.current = false;
-      fitCollapsed(pill.width, pill.height);
     }
   };
   useEffect(() => {
@@ -1016,7 +1050,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   collapseRef.current = collapse;
   useEffect(() => {
     if (
-      autoCollapseSeconds <= 0 ||
+      autoCollapseSeconds < 0 ||
       collapsed ||
       transition !== "none" ||
       pointerOver ||
@@ -1047,7 +1081,9 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   // Folding shows the shell's background, so the shell and the pill it turns
   // into match even on a pinned widget whose chrome is hidden.
   const folding = transition !== "none";
-  const showShell = shellRevealed || pointerOver || !hasLoaded || folding;
+  // A pinned widget shows it only while its title bar is hovered, or just
+  // after it unfolded; the cards alone never bring it up.
+  const showShell = shellRevealed || unfolded || !hasLoaded || folding;
   const pillTitle = title?.trim() || "Lights";
 
   if (collapsed) {
@@ -1115,7 +1151,10 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
             : { ...shellStyle, backgroundColor: "transparent" }
         }
         onMouseEnter={() => setPointerOver(true)}
-        onMouseLeave={() => setPointerOver(false)}
+        onMouseLeave={() => {
+          setPointerOver(false);
+          setUnfolded(false);
+        }}
       >
         <HueResourcesStoreEffects />
         <EntertainmentStoreEffects />
@@ -1145,6 +1184,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
             onOpenSettings={openSettings}
             onCollapse={collapse}
             onRevealChange={setShellRevealed}
+            folding={folding}
           />
 
           {!hasLoaded ? (

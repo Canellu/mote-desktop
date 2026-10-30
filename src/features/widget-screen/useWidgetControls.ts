@@ -12,7 +12,11 @@ import type {
   WidgetState,
   WidgetThemeMode,
 } from "./types";
-import { DEFAULT_TILE_OPACITY, WIDGET_SCALE } from "./useWidgets";
+import {
+  AUTO_COLLAPSE_SECONDS,
+  DEFAULT_TILE_OPACITY,
+  WIDGET_SCALE,
+} from "./useWidgets";
 
 /** Emitted by the Rust side when a widget's controls change (here or from the
  * main window's Settings tab) so a live widget updates without reopening. */
@@ -45,7 +49,9 @@ export const useWidgetControls = (widgetId: string) => {
   );
   const [collapseCorner, setCollapseCorner] =
     useState<WidgetCollapseCorner>("topLeft");
-  const [autoCollapseSeconds, setAutoCollapseSeconds] = useState(0);
+  const [autoCollapseSeconds, setAutoCollapseSeconds] = useState<number>(
+    AUTO_COLLAPSE_SECONDS.off,
+  );
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   // The last value we wrote, so the echoed change event doesn't clobber a newer
@@ -72,7 +78,9 @@ export const useWidgetControls = (widgetId: string) => {
           state.collapsedScale ?? state.scale ?? WIDGET_SCALE.default,
         );
         setCollapseCorner(state.collapseCorner ?? "topLeft");
-        setAutoCollapseSeconds(state.autoCollapseSeconds ?? 0);
+        setAutoCollapseSeconds(
+          state.autoCollapseSeconds ?? AUTO_COLLAPSE_SECONDS.off,
+        );
         setCollapsed(state.collapsed ?? false);
       })
       .catch(() => {
@@ -110,7 +118,9 @@ export const useWidgetControls = (widgetId: string) => {
             event.payload.scale ??
             WIDGET_SCALE.default,
         );
-        setAutoCollapseSeconds(event.payload.autoCollapseSeconds ?? 0);
+        setAutoCollapseSeconds(
+          event.payload.autoCollapseSeconds ?? AUTO_COLLAPSE_SECONDS.off,
+        );
         // `collapsed` is left to the widget window, which folds and unfolds
         // itself and would be cut short mid-animation by its own echo.
       },

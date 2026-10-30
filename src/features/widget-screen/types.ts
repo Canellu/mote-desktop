@@ -149,8 +149,8 @@ export interface WidgetState {
   expandVertical: WidgetExpandVertical;
   expandHorizontal: WidgetExpandHorizontal;
   /** Seconds an open widget waits, pointer off it, before collapsing; 0 is
-   * off. */
-  autoCollapseSeconds: number;
+   * at once, null is off. Held as -1 for off once read (see `useWidgets`). */
+  autoCollapseSeconds: number | null;
   collapseCorner: WidgetCollapseCorner;
   /** Shown as its pill or bubble rather than the full controls. */
   collapsed: boolean;

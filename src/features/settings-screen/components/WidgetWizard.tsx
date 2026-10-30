@@ -44,6 +44,7 @@ import {
   type WidgetThemeMode,
 } from "@/features/widget-screen/types";
 import {
+  AUTO_COLLAPSE_SECONDS,
   DEFAULT_TILE_OPACITY,
   WIDGET_SCALE,
 } from "@/features/widget-screen/useWidgets";
@@ -290,7 +291,9 @@ export const WidgetWizard = ({
     useState<WidgetExpandVertical>("up");
   const [expandHorizontal, setExpandHorizontal] =
     useState<WidgetExpandHorizontal>("right");
-  const [autoCollapseSeconds, setAutoCollapseSeconds] = useState(0);
+  const [autoCollapseSeconds, setAutoCollapseSeconds] = useState<number>(
+    AUTO_COLLAPSE_SECONDS.off,
+  );
   const [maxUnlockedStep, setMaxUnlockedStep] = useState(initialStep);
   // Editable list of controls, seeded from the Controls step. Held as state
   // (not derived) so it can be reordered and configured per-control. Each pick
