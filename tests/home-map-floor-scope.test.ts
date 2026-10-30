@@ -223,7 +223,7 @@ test("unavailable resources and unlinked floors are named, not guessed", () => {
   expect(loading.disabledReason).toBe("Loading Hue resources.");
 });
 
-test("sync and unreachable members are excluded from what can be controlled", () => {
+test("sync members are excluded while unreachable lights remain controllable", () => {
   const map = document({ placements: { a: "ground", b: "ground" } });
   const result = scope(
     map,
@@ -232,6 +232,6 @@ test("sync and unreachable members are excluded from what can be controlled", ()
     { syncedLightIds: ["b"] },
   );
   expect(result.lightIds).toEqual(["a", "b"]);
-  expect(result.controllableLightIds).toEqual([]);
-  expect(result.disabledReason).toContain("No reachable lights");
+  expect(result.controllableLightIds).toEqual(["a"]);
+  expect(result.disabledReason).toBeNull();
 });

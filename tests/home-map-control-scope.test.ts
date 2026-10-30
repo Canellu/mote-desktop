@@ -234,10 +234,11 @@ describe("Home Map control scope", () => {
     expect(scope.controllableMembers.map((member) => member.id)).toEqual([
       "inside",
       "outside",
+      "upstairs",
     ]);
     expect(scope.anyOn).toBe(true);
     expect(scope.allOn).toBe(true);
-    expect(scope.brightness).toBe(60);
+    expect(scope.brightness).toBeCloseTo(220 / 3);
     expect(scope.brightnessMixed).toBe(true);
     expect(scope.controlsDisabledReason).toBeNull();
     expect(scope.scenesDisabledReason).toContain("Stop sync");
@@ -327,7 +328,7 @@ describe("Home Map control scope", () => {
     expect(unlinked.sharedAreaCount).toBe(0);
   });
 
-  test("disables a fully syncing or unreachable group and keeps partial sync power available", () => {
+  test("disables a fully syncing group but allows unreachable lights and partial sync power", () => {
     const state = input();
     state.syncedLightIds = state.roomZones[0].lightIds;
     const syncing = getMapControlScope(state);
@@ -341,9 +342,7 @@ describe("Home Map control scope", () => {
       ...member,
       reachable: false,
     }));
-    expect(getMapControlScope(state).controlsDisabledReason).toContain(
-      "No reachable lights",
-    );
+    expect(getMapControlScope(state).controlsDisabledReason).toBeNull();
 
     state.syncedLightIds = [];
     state.lights = [];

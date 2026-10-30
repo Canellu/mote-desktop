@@ -1,5 +1,14 @@
 # Windows Store packaging and commerce spike
 
+Release preparation on 2026-10-30: **0.12.0 — A moth for your desktop** is
+built as an optimized NSIS installer and unsigned Store-identity `0.12.0.0`
+MSIX. It introduces the five moth styles and the widget folding, configuration,
+pinning, and frame fixes together. Package hashes, verification, remaining
+smoke tests, Store copy, and website rollout are recorded in
+[the 0.12.0 release record](releases/0.12.0.md). It has not been uploaded,
+submitted, or published. The website changes are prepared locally for the
+Store launch.
+
 Release preparation on 2026-10-25: the unsigned 0.11.2.0 MSIX builds from
 `0da2a1a` and is 10,746,797 bytes (SHA-256
 `B0627A6B9A3EE8B0B28872A9D7F7FCEDE850EADAD3145CBA55098D98627B6D12`, tag

@@ -5,14 +5,19 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.12.0] - 2026-10-30
+
 ### Highlights
 
 - Widgets can collapse into a small moth, a pill with their name, or a round
   bubble. Click it to expand the widget again, or drag it somewhere else.
-  Pick the look, its size, and which way it expands in the widget's
-  settings, and how it folds: its cards stacking into the collapsed look one
-  by one, or the whole panel fading into it. The moth glows softly, blinks
-  now and then, and flutters when you hover it.
+  Choose from five moth styles: Cartoon, Low poly, Pixel art, Paper, and
+  Watercolor. The moth glows softly, blinks now and then, and flutters when
+  you hover it. Choose which way it faces, or turn its animation off.
+- Choose how a widget folds and opens: its cards stacking one by one, or
+  the whole panel fading. Pick which way it expands, including evenly around
+  the collapsed widget. Open and collapsed sizes can be set separately with
+  Mote Pro.
 - **Auto collapse** folds a widget away once the pointer has been off it for
   a few seconds.
 
@@ -23,6 +28,13 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
   edge to bring up the background and the pin, settings, collapse and close
   buttons. Right after a pinned widget expands from its collapsed look, it
   keeps its background until you move the pointer off it.
+- Removing a control asks for confirmation inside the widget.
+
+### Fixes
+
+- Widgets no longer flash a native Windows frame while folding or opening.
+- The moth fits small collapsed widgets without being clipped.
+- Identifying a light finishes its breathing effect after 1.5 seconds.
 
 ## [0.11.2] - 2026-10-25
 

@@ -39,6 +39,12 @@ and system theme. Until then Free had no limit on how many widgets could exist a
 the composition of each was paid. More widgets, more controls, and every
 appearance and window option are Pro.
 
+Since 0.12.0, the free widget also supports collapsing into a moth, pill, or
+bubble; all five mascot styles; optional animation and facing direction;
+stacking or fading; expansion direction; and auto collapse. Custom open and
+collapsed sizes remain Pro, as do pinning and always-on-top behavior. These
+collapse options are an exception to the appearance rule above.
+
 **No grandfathering.** The owner confirmed on 2026-09-11, and again on
 2026-09-14, that nobody has downloaded the app yet, so there is no installed
 base to protect and enforcement takes nothing away from anyone. From 0.3.0 each

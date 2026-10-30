@@ -3,7 +3,6 @@ import fs from 'node:fs/promises';
 const dir='output/moth-sheets-24-frame-2026-10-30/';
 const original=dir+'02-pixel-art.png';
 const source='C:/Users/Anton/.codex/generated_images/01a18cb9-293f-74d0-872a-58ad1298ce0f/exec-4fcd1d8a-bd64-4174-a368-70287d6a680c.png';
-function anchor(data,w,h){let sx=0,sy=0,n=0;for(let y=h*.32|0;y<h*.53;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;const [r,g,b,a]=data.subarray(i,i+4);if(a>200&&r>170&&g>140&&b>90&&r>b*1.12&&g>b*1.07){sx+=x;sy+=y;n++;}}return {x:sx/n,y:sy/n};}
 const {data,info}=await sharp(original).ensureAlpha().raw().toBuffer({resolveWithObject:true});
 const base=await sharp(original).extract({left:0,top:0,width:384,height:384}).ensureAlpha().raw().toBuffer();
 // Match the stationary head, with one scale shared by all five replacement frames.

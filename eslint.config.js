@@ -7,9 +7,20 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   // Generated / build output — never linted.
-  { ignores: ["dist", "src-tauri/target", "src-tauri/gen"] },
+  {
+    ignores: [
+      "dist",
+      "src-tauri/target",
+      "src-tauri/target-*",
+      "src-tauri/gen",
+    ],
+  },
   js.configs.recommended,
   tseslint.configs.recommended,
+  {
+    files: ["output/**/*.mjs"],
+    languageOptions: { globals: globals.node },
+  },
   {
     files: ["**/*.{ts,tsx}"],
     plugins: {

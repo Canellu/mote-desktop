@@ -1,8 +1,8 @@
 # Microsoft Store listing copy
 
-Status: **submitted; the live listing is the record**.
+Status: **0.12.0 copy prepared; not yet carried across to Partner Center**.
 
-Last reviewed: **2026-09-18**.
+Last reviewed: **2026-10-30**.
 
 This is the source-controlled English listing copy for the Windows release. It
 has a useful Free tier, a 14-day Mote Pro trial, and a one-time Mote Pro
@@ -52,6 +52,9 @@ one-time Microsoft Store purchase keeps Mote Pro working. No account or payment
 details are needed to start the trial.
 
 The Free tier includes one desktop widget holding one room, zone, or light.
+Fold it into an animated moth, a named pill, or a round bubble, then click to
+open it again. Choose from five moth styles, its facing direction, stacking
+or fading, where the widget opens, and an optional auto-collapse delay.
 Mote Pro adds global keyboard shortcuts that control your lights from
 anywhere in Windows, an on-air light during calls, lights that dim or turn off
 when you lock the PC, focus sessions, phone presence and calendar based lighting,
@@ -84,7 +87,9 @@ releases.
 - Use the home dashboard and switch between standard grouping modes.
 - Discover, pair, and control one Hue Play HDMI Sync Box.
 - Discover, pair, restore, rename, and remove one saved Hue Bridge.
-- Create one desktop widget holding one room, zone, or light.
+- Create one desktop widget holding one room, zone, or light. Fold it into a
+  moth, pill, or bubble, with five mascot styles, optional animation, facing
+  direction, stacking or fading, expansion direction, and auto collapse.
 - Choose light, dark, or system appearance and configure tray and startup
   behavior.
 - Keep Hue credentials in the Windows credential store and preferences on your
@@ -102,7 +107,9 @@ releases.
   from an iCal calendar address.
 - Create as many desktop widgets as you like, put several controls or a
   multi-target toggle group in each, and choose its theme, size, corners,
-  placement, pinning, and always-on-top behavior.
+  placement, pinning, and always-on-top behavior. Set open and collapsed sizes
+  separately, and let pinned controls float without a background until you
+  hover the top edge.
 - Reorder cards and persist a custom home-dashboard layout.
 - Save and switch among multiple Hue Bridges, with one active bridge at a time.
 
@@ -121,6 +128,21 @@ releases.
 Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
+
+## What's new in 0.12.0
+
+A moth for your desktop. Fold a widget into an animated moth, a pill with its
+name, or a round bubble. Click to open it, or drag it somewhere else.
+
+Choose Cartoon, Low poly, Pixel art, Paper, or Watercolor; set which way the
+moth faces, or hold it still. Choose stacking or fading, where the widget
+opens, and an auto-collapse delay. These options work with the free widget.
+Mote Pro also lets you set open and collapsed sizes separately.
+
+Pinned widgets keep their controls visible without a background; hover the
+top edge for the toolbar. Folding and opening are smoother, without a flash
+of the Windows frame. Removing a control now asks for confirmation in place,
+and the moth fits small widgets correctly.
 
 ## What's new in 0.8.0
 
