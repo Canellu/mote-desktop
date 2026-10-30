@@ -1,14 +1,3 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -493,6 +482,7 @@ const ControlSheet = ({
     <SheetContent side="left" className="gap-0 data-[side=left]:sm:max-w-md">
       {control ? (
         <ControlSheetBody
+          key={control.id}
           control={control}
           groupScenes={groupScenes}
           onDelete={onDelete}
@@ -518,6 +508,7 @@ const ControlSheetBody = ({
   onChange: (control: WidgetControl) => void;
 }) => {
   const display = useControlDisplay(control);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
 
   return (
     <>
@@ -549,41 +540,39 @@ const ControlSheetBody = ({
         </ScrollArea>
       )}
       <SheetFooter className="mt-0 border-t border-border">
-        <AlertDialog>
-          <AlertDialogTrigger
-            render={
+        {/* Confirms in place: a modal would stack under the portaled spotlight. */}
+        {confirmingRemove ? (
+          <div className="grid gap-3">
+            <p className="text-sm text-muted-foreground">
+              Remove “{display.name}” from this widget? The room, zone, or
+              light itself isn't affected.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
               <Button
                 type="button"
-                variant="ghost"
-                className="text-(--destructive-text) hover:text-(--destructive-text)"
-              />
-            }
+                variant="outline"
+                autoFocus
+                onClick={() => setConfirmingRemove(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="button" variant="destructive" onClick={onDelete}>
+                <Trash2 size={15} />
+                Remove
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            variant="ghost"
+            className="text-(--destructive-text) hover:text-(--destructive-text)"
+            onClick={() => setConfirmingRemove(true)}
           >
             <Trash2 size={15} />
             Remove control
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove control?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This removes “{display.name}” from this widget. The room, zone,
-                or light itself isn't affected.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel size="xl">Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                variant="destructive"
-                size="xl"
-                className="gap-2"
-                onClick={onDelete}
-              >
-                <Trash2 size={15} />
-                Remove
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          </Button>
+        )}
       </SheetFooter>
     </>
   );
