@@ -280,7 +280,11 @@ export const ControlView = ({
           ) : (
             <Switch
               size="xl"
-              className={TILE_POWER_SWITCH_CLASS}
+              className={cn(
+                TILE_POWER_SWITCH_CLASS,
+                // Follows the widget's corner style (see widgetShellStyle).
+                "rounded-[var(--widget-pill-radius,9999px)] **:data-[slot=switch-thumb]:rounded-[var(--widget-pill-radius,9999px)]",
+              )}
               checked={isOn}
               aria-label={`Toggle ${name}`}
               onCheckedChange={onToggle}
@@ -303,6 +307,8 @@ export const ControlView = ({
               ariaLabel={`${name} brightness`}
               className={cn(
                 TILE_BRIGHTNESS_SLIDER_CLASS,
+                // Follows the widget's corner style (see widgetShellStyle).
+                "**:data-[slot=slider-thumb]:rounded-[var(--widget-slider-radius,9999px)] **:data-[slot=slider-track]:rounded-[var(--widget-slider-radius,9999px)]",
                 !isOn && "tile-brightness-slider-off",
               )}
               size="default"
@@ -604,7 +610,7 @@ const SingleControlCard = ({
     const hex = light.isOn && !syncLocked ? lightColorHex(light) : null;
     return (
       <ControlView
-        name={control.label ?? light.name}
+        name={light.name}
         icon={<Lightbulb size={iconSize} strokeWidth={2.5} />}
         isOn={light.isOn}
         brightness={light.brightness}
@@ -668,7 +674,7 @@ const SingleControlCard = ({
   const Icon = getRoomZoneIcon(roomZone.class);
   return (
     <ControlView
-      name={control.label ?? roomZone.name}
+      name={roomZone.name}
       icon={<Icon size={iconSize} strokeWidth={2.5} />}
       isOn={isOn}
       brightness={brightness}

@@ -44,6 +44,7 @@ export const widgetWizardDevViews = [
   { id: "widget-wizard-profile", label: "Profile", step: 0 },
   { id: "widget-wizard-targets", label: "Controls", step: 1 },
   { id: "widget-wizard-configure", label: "Configure", step: 2 },
+  { id: "widget-wizard-appearance", label: "Appearance", step: 3 },
 ] as const;
 
 /** Maps a dev view id to the wizard step it previews, or null if unrelated. */

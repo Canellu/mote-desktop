@@ -741,6 +741,7 @@ export const RootLayout: React.FC = () => {
     pathname.startsWith("/settings/switch/") ||
     pathname === "/focus/new" ||
     pathname === "/settings/scenes/new" ||
+    pathname === "/settings/widget-wizard" ||
     pathname === "/";
   const reduceMotion = useReducedMotion();
   /**

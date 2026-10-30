@@ -9,6 +9,10 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import type {
   WidgetBackgroundMode,
+  WidgetCollapseMode,
+  WidgetMascotStyle,
+  WidgetExpandHorizontal,
+  WidgetExpandVertical,
   WidgetControl,
   WidgetCornerMode,
   WidgetSizeMode,
@@ -17,6 +21,27 @@ import type {
 } from "./types";
 
 export type WidgetSummary = WidgetState;
+
+/** Mirrors the Rust widget scale range: the whole widget is drawn at 70–130%
+ * in 1% steps, and anything but 100% is Pro. */
+export const WIDGET_SCALE = {
+  min: 70,
+  max: 130,
+  step: 1,
+  default: 100,
+} as const;
+
+/** Mirrors the Rust `MAX_COLLAPSED_WIDGET_SCALE`: collapsed, the widget is
+ * one pill or moth, so it may grow far past the open widget's limit. */
+export const WIDGET_COLLAPSED_SCALE_MAX = 300;
+
+/** Mirrors the Rust auto-collapse range; 0 is off. `default` is what turning
+ * it on starts at. */
+export const AUTO_COLLAPSE_SECONDS = {
+  min: 1,
+  max: 30,
+  default: 5,
+} as const;
 
 /** Mirrors the Rust `default_tile_opacity`. */
 export const DEFAULT_TILE_OPACITY = 40;
@@ -33,6 +58,16 @@ const toSummary = (state: WidgetState): WidgetSummary => ({
   cornerMode: state.cornerMode ?? "rounded",
   backgroundMode: state.backgroundMode ?? "solid",
   tileOpacity: state.tileOpacity ?? DEFAULT_TILE_OPACITY,
+  scale: state.scale ?? WIDGET_SCALE.default,
+  collapsedScale: state.collapsedScale ?? state.scale ?? WIDGET_SCALE.default,
+  collapseMode: state.collapseMode ?? "mascot",
+  mascotStyle: state.mascotStyle ?? "celShaded",
+  mascotAnimated: state.mascotAnimated ?? true,
+  expandVertical: state.expandVertical ?? "up",
+  expandHorizontal: state.expandHorizontal ?? "right",
+  autoCollapseSeconds: state.autoCollapseSeconds ?? 0,
+  collapseCorner: state.collapseCorner ?? "topLeft",
+  collapsed: state.collapsed ?? false,
   controls: state.controls ?? [],
   locked: state.locked ?? false,
 });
@@ -57,6 +92,14 @@ export interface WidgetConfigDraft {
   cornerMode: WidgetCornerMode;
   backgroundMode: WidgetBackgroundMode;
   tileOpacity: number;
+  scale: number;
+  collapsedScale: number;
+  collapseMode: WidgetCollapseMode;
+  mascotStyle: WidgetMascotStyle;
+  mascotAnimated: boolean;
+  expandVertical: WidgetExpandVertical;
+  expandHorizontal: WidgetExpandHorizontal;
+  autoCollapseSeconds: number;
 }
 
 /**
@@ -102,6 +145,15 @@ export const useWidgets = () => {
         themeMode?: WidgetThemeMode;
         sizeMode?: WidgetSizeMode;
         cornerMode?: WidgetCornerMode;
+        backgroundMode?: WidgetBackgroundMode;
+        tileOpacity?: number;
+        scale?: number;
+        collapsedScale?: number;
+        collapseMode?: WidgetCollapseMode;
+        mascotStyle?: WidgetMascotStyle;
+        expandVertical?: WidgetExpandVertical;
+        expandHorizontal?: WidgetExpandHorizontal;
+        autoCollapseSeconds?: number;
       },
     ) => {
       if (opening) return;
@@ -190,8 +242,10 @@ export const useWidgets = () => {
     [refresh],
   );
 
+  // Sends only the fields that changed. The backend leaves the rest as they
+  // are, so the Free view of a widget is never written over its Pro setup.
   const setConfig = useCallback(
-    async (widgetId: string, config: WidgetConfigDraft) => {
+    async (widgetId: string, config: Partial<WidgetConfigDraft>) => {
       setWidgets((current) =>
         current.map((widget) =>
           widget.widgetId === widgetId ? { ...widget, ...config } : widget,

@@ -24,3 +24,27 @@ which is the product described without a screenshot of it.
   resized to 1600px wide and re-encoded as WebP. The crop matters: the lower
   third of the original is near-white sky, which filled half the dialog with
   nothing once it was used as a background.
+
+## `mascot/moth-*.webp`
+
+- **Source**: Mote's own moth mascot, generated for Mote Desktop with an image
+  generation tool from the approved Dusk moth concept. Prompts and originals
+  are in `output/moth-styles-2026-09-22/`.
+- **Author**: Mote Desktop.
+- **Licence**: owned by Mote Desktop for use in the product.
+- **Modifications**: background cut out to transparency, floor shadows
+  removed, cropped and resized to 256px, re-encoded as WebP, by
+  `output/moth-12-frame-2026-10-30/pack_mascot.py`.
+
+## `mascot/moth-*-sheet.webp`
+
+- **Source**: Mote's own moth mascot animations (idle, flutter, blink, glow,
+  six poses each), generated for Mote Desktop with ChatGPT's image generation
+  from the approved moth styles, on transparent backgrounds. Prompts and the
+  sheets are in `output/moth-sheets-24-frame-2026-10-30/`.
+- **Author**: Mote Desktop.
+- **Licence**: owned by Mote Desktop for use in the product.
+- **Modifications**: each animation's six poses played forward then back to
+  twelve frames, every frame cropped to one shared box, resized to 160px and
+  packed six to a row, by `output/moth-12-frame-2026-10-30/pack_mascot.py`
+  (`--sheets`).

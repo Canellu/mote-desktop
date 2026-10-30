@@ -102,6 +102,27 @@ export type WidgetSizeMode = "small" | "default" | "large";
 export type WidgetCornerMode = "square" | "soft" | "rounded" | "round";
 /** What the tiles are painted on. */
 export type WidgetBackgroundMode = "solid" | "translucent";
+/** What the widget folds into when collapsed: a slim titled pill, a round
+ * icon bubble, or the moth mascot on its own. */
+export type WidgetCollapseMode = "pill" | "bubble" | "mascot";
+/** Which drawing of the moth the mascot mode shows. */
+export type WidgetMascotStyle =
+  | "celShaded"
+  | "lowPoly"
+  | "pixelArt"
+  | "paperCutout"
+  | "watercolor";
+/** Which way a collapsed widget prefers to open, on each axis. A preference:
+ * with no room that way, it opens the other way. */
+export type WidgetExpandVertical = "up" | "down";
+export type WidgetExpandHorizontal = "left" | "right";
+/** The corner a widget folds into and unfolds from. The backend picks it
+ * from where the pill sits, so the widget opens away from screen edges. */
+export type WidgetCollapseCorner =
+  | "topLeft"
+  | "topRight"
+  | "bottomLeft"
+  | "bottomRight";
 
 export interface WidgetState {
   widgetId: string;
@@ -117,6 +138,22 @@ export interface WidgetState {
   backgroundMode: WidgetBackgroundMode;
   /** Percent opacity of translucent tiles, 10–90. */
   tileOpacity: number;
+  /** How large the whole widget is drawn, in percent: 70–130. */
+  scale: number;
+  /** The same, while collapsed. Sized apart from the open widget. */
+  collapsedScale: number;
+  collapseMode: WidgetCollapseMode;
+  mascotStyle: WidgetMascotStyle;
+  /** Plays the mascot's sprite animations; off holds it still. */
+  mascotAnimated: boolean;
+  expandVertical: WidgetExpandVertical;
+  expandHorizontal: WidgetExpandHorizontal;
+  /** Seconds an open widget waits, pointer off it, before collapsing; 0 is
+   * off. */
+  autoCollapseSeconds: number;
+  collapseCorner: WidgetCollapseCorner;
+  /** Shown as its pill or bubble rather than the full controls. */
+  collapsed: boolean;
   controls: WidgetControl[];
   /**
    * Saved under Pro past the one widget Free runs. It stays saved and comes

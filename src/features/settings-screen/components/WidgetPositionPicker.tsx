@@ -298,14 +298,14 @@ export const WidgetPositionPicker = ({
   const displayBounds = dragBounds ?? bounds;
 
   return (
-    <div className="mb-4">
+    <div>
       <div className={cn("mb-3", SETTINGS_WRAP_ROW)}>
-        <div className={SETTINGS_WRAP_ROW_TEXT}>
-          <p className="flex items-center gap-2 text-sm font-medium">
+        <div className={cn("grid gap-1", SETTINGS_WRAP_ROW_TEXT)}>
+          <p className="flex items-center gap-2 text-sm font-medium text-foreground">
             Position
             <ProTag />
           </p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm leading-5 text-muted-foreground">
             Drag the widget, or click a region to move it there.
           </p>
         </div>
@@ -376,7 +376,9 @@ export const WidgetPositionPicker = ({
               aria-label="Drag to move the widget"
               onPointerDown={startRectDrag}
               className={cn(
-                "absolute z-30 flex touch-none select-none items-center justify-center rounded-sm border-2 border-primary bg-primary/25 transition-colors hover:bg-primary/35",
+                // The minimum keeps a collapsed widget's pill big enough to see
+                // and grab; at screen scale it's only a few pixels tall.
+                "absolute z-30 flex min-h-4 min-w-6 touch-none select-none items-center justify-center rounded-sm border-2 border-primary bg-primary/25 transition-colors hover:bg-primary/35",
                 dragBounds ? "cursor-grabbing" : "cursor-grab",
                 busy && "pointer-events-none",
               )}

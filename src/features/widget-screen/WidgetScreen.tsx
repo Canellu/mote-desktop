@@ -15,7 +15,8 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Loader2, Pin, PinOff, Settings, X } from "lucide-react";
+import { animate, useReducedMotion } from "motion/react";
+import { Loader2, Minimize2, Pin, PinOff, Settings, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -24,8 +25,16 @@ import {
   useRef,
   useState,
 } from "react";
+import appLogo from "@/assets/app-logo.png";
 import { ControlCard } from "./components/ControlCard";
-import type { WidgetControl } from "./types";
+import { MascotSprite } from "./MascotSprite";
+import type {
+  WidgetCollapseCorner,
+  WidgetCollapseMode,
+  WidgetMascotStyle,
+  WidgetControl,
+  WidgetState,
+} from "./types";
 import { useWidgetControls } from "./useWidgetControls";
 import {
   WIDGET_SIZE_METRICS,
@@ -42,6 +51,44 @@ interface WidgetWindowState {
 }
 
 const TITLE_BAR_HEIGHT = 36;
+/** How far the pointer travels on a pill or bubble before a press is a drag
+ * rather than a click that expands it. */
+const COLLAPSED_DRAG_THRESHOLD = 4;
+/** Seconds the widget takes to fold into its pill or unfold from it. The
+ * shell eases out without overshooting: a bounce shrank it below the pill's
+ * size and cut its icon and title off. */
+const COLLAPSE_DURATION = 0.34;
+export const COLLAPSE_TRANSITION = {
+  duration: COLLAPSE_DURATION,
+  ease: [0.22, 1, 0.36, 1],
+} as const;
+
+/** Pins an element to the widget's collapse corner, so the shell shrinks into
+ * it and grows out of it, and the content inside holds still meanwhile. */
+/** The CSS transform origin at a collapse corner. */
+const cornerOrigin = (corner: WidgetCollapseCorner) =>
+  `${corner.endsWith("Right") ? "right" : "left"} ${corner.startsWith("bottom") ? "bottom" : "top"}`;
+
+const cornerClasses = (corner: WidgetCollapseCorner) =>
+  cn(
+    corner.startsWith("bottom") ? "bottom-0" : "top-0",
+    corner.endsWith("Right") ? "right-0" : "left-0",
+  );
+
+/** Resolves once the window has grown past `width`, so an expand animation
+ * starts from the real window size. Gives up after half a second. */
+const waitForViewportWider = (width: number) =>
+  new Promise<void>((resolve) => {
+    const started = performance.now();
+    const check = () => {
+      if (window.innerWidth > width || performance.now() - started > 500) {
+        resolve();
+      } else {
+        requestAnimationFrame(check);
+      }
+    };
+    check();
+  });
 const WIDGET_MIN_HEIGHT = 136;
 const RESIZE_SAVE_DELAY_MS = 300;
 /** Side/bottom inset (px) around the control grid — Tailwind `p-4`. Kept tight
@@ -76,29 +123,9 @@ const TitleBarButton = ({
   </Tooltip>
 );
 
-const WidgetTitleBar = ({
-  widgetId,
-  onOpenSettings,
-  onRevealChange,
-}: {
-  widgetId: string;
-  onOpenSettings: () => void;
-  /** Notifies the shell when the title bar is hovered/focused so it can reveal
-   * its own background and border in step with the title bar. */
-  onRevealChange: (revealed: boolean) => void;
-}) => {
+/** The widget's pin, kept in step with toggles made from the Settings tab. */
+const useWidgetPinned = (widgetId: string) => {
   const [pinned, setPinned] = useState(false);
-  const { hasPro } = useEntitlements();
-  const [hovering, setHovering] = useState(false);
-  const [focusing, setFocusing] = useState(false);
-  // An unpinned widget is "in arrangement mode": keep its background and title
-  // bar visible so it's easy to spot and grab. Once pinned, it settles in and
-  // only reveals its chrome on hover/focus.
-  const revealed = !pinned || hovering || focusing;
-
-  useEffect(() => {
-    onRevealChange(revealed);
-  }, [revealed, onRevealChange]);
 
   useEffect(() => {
     void invoke<WidgetWindowState>("get-widget-state", { widgetId })
@@ -119,6 +146,38 @@ const WidgetTitleBar = ({
     };
   }, [widgetId]);
 
+  return [pinned, setPinned] as const;
+};
+
+const WidgetTitleBar = ({
+  widgetId,
+  pinned,
+  setPinned,
+  onOpenSettings,
+  onCollapse,
+  onRevealChange,
+}: {
+  widgetId: string;
+  pinned: boolean;
+  setPinned: (pinned: boolean) => void;
+  onOpenSettings: () => void;
+  onCollapse: () => void;
+  /** Notifies the shell when the title bar is hovered/focused so it can reveal
+   * its own background and border in step with the title bar. */
+  onRevealChange: (revealed: boolean) => void;
+}) => {
+  const { hasPro } = useEntitlements();
+  const [hovering, setHovering] = useState(false);
+  const [focusing, setFocusing] = useState(false);
+  // An unpinned widget is "in arrangement mode": keep its background and title
+  // bar visible so it's easy to spot and grab. Once pinned, it settles in and
+  // only reveals its chrome on hover/focus.
+  const revealed = !pinned || hovering || focusing;
+
+  useEffect(() => {
+    onRevealChange(revealed);
+  }, [revealed, onRevealChange]);
+
   const togglePinned = async () => {
     const nextPinned = !pinned;
     setPinned(nextPinned);
@@ -132,7 +191,7 @@ const WidgetTitleBar = ({
   return (
     <header
       className={cn(
-        "absolute inset-x-0 top-0 z-10 flex flex-row items-center justify-end gap-1 px-2 text-foreground",
+        "absolute inset-x-0 top-0 z-10 flex flex-row items-center justify-between gap-1 px-2 text-foreground",
         "transition-opacity",
         revealed ? "opacity-100" : "opacity-0",
         pinned ? "cursor-default" : "cursor-grab",
@@ -155,14 +214,14 @@ const WidgetTitleBar = ({
         ) {
           return;
         }
-        void getCurrentWindow()
-          .startDragging()
-          .finally(() =>
-            invoke("save-widget-bounds", { widgetId }).catch(() => undefined),
-          );
+        // The backend persists the new spot once the move settles; on Windows
+        // this promise resolves as the drag begins, too early to save from.
+        void getCurrentWindow().startDragging();
       }}
     >
       <TooltipProvider>
+        {/* The widget's own tools on the left, the window's on the right in
+            the order a title bar has them; the gap between is the drag handle. */}
         <div className="flex items-center gap-0.5">
           {/* Pinning is Pro, and this window has no room to sell it, so Free
               leaves the button out. Unpinning is always offered. */}
@@ -178,6 +237,11 @@ const WidgetTitleBar = ({
           ) : null}
           <TitleBarButton label="Widget settings" onClick={onOpenSettings}>
             <Settings size={15} />
+          </TitleBarButton>
+        </div>
+        <div className="flex items-center gap-0.5">
+          <TitleBarButton label="Collapse widget" onClick={onCollapse}>
+            <Minimize2 size={15} />
           </TitleBarButton>
           <TitleBarButton
             label="Close widget"
@@ -298,6 +362,157 @@ const ControlList = ({
   );
 };
 
+/**
+ * The collapsed widget: a slim pill with the widget's title, or a round icon
+ * bubble. A click expands it; a press that travels drags it, unless pinned.
+ * Its rendered size is what the window shrinks to, so it reports that size
+ * whenever it changes.
+ */
+export const CollapsedWidget = ({
+  mode,
+  mascotStyle = "celShaded",
+  mascotAnimated = true,
+  title,
+  pinned,
+  style,
+  probe = false,
+  ghost = false,
+  onMeasure,
+  onExpand,
+  onHoverChange,
+}: {
+  mode: WidgetCollapseMode;
+  mascotStyle?: WidgetMascotStyle;
+  mascotAnimated?: boolean;
+  title: string;
+  pinned: boolean;
+  style: React.CSSProperties;
+  /** An invisible copy the expanded widget measures to know what to shrink
+   * into. It takes no input and reports nothing. */
+  probe?: boolean;
+  /** The pill's contents only, drawn over the folding shell so the icon is
+   * already there when the real pill takes over. Takes no input. */
+  ghost?: boolean;
+  onMeasure?: (width: number, height: number) => void;
+  onExpand?: () => void;
+  onHoverChange?: (hovering: boolean) => void;
+}) => {
+  const ref = useRef<HTMLButtonElement>(null);
+  const pressRef = useRef<{ x: number; y: number } | null>(null);
+  const draggedRef = useRef(false);
+  // Drive the mascot's hover and press poses.
+  const [hovering, setHovering] = useState(false);
+  const [pressed, setPressed] = useState(false);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element || !onMeasure) return;
+    // The border box, not the bounding rect: the pill can be held scaled
+    // while the window changes zoom, and a transform must not change the size
+    // the window is fitted to. The observer reports once on observe.
+    const observer = new ResizeObserver(([entry]) => {
+      const box = entry.borderBoxSize[0];
+      onMeasure(Math.ceil(box.inlineSize), Math.ceil(box.blockSize));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [mode, mascotStyle, title, onMeasure]);
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      aria-label={`Expand ${title}`}
+      aria-hidden={probe || ghost || undefined}
+      tabIndex={probe || ghost ? -1 : undefined}
+      className={cn(
+        "flex shrink-0 items-center text-foreground",
+        "transition-[filter] hover:brightness-110 focus-visible:outline-none",
+        mode === "pill" && "h-10 max-w-80 gap-2 pl-3 pr-4",
+        mode === "bubble" && "size-11 justify-center",
+        // Padded so the moth's float, flutter and glow stay inside the
+        // window, which is cut square to this box. Only the moth itself
+        // takes the pointer (see the hit circle below), not the padding.
+        mode === "mascot"
+          ? "pointer-events-none relative size-24 justify-center p-5"
+          : "border border-border/20",
+        probe && "pointer-events-none invisible absolute left-0 top-0",
+        ghost && "pointer-events-none",
+      )}
+      // The shell's own background, so the shell shrinking into the pill and
+      // the pill replacing it look the same. The mascot stands on its own.
+      style={mode === "mascot" ? undefined : { ...style, borderRadius: 9999 }}
+      onMouseEnter={() => {
+        setHovering(true);
+        onHoverChange?.(true);
+      }}
+      onMouseLeave={() => {
+        setHovering(false);
+        setPressed(false);
+        onHoverChange?.(false);
+      }}
+      onMouseDown={(event) => {
+        if (event.button !== 0) return;
+        pressRef.current = { x: event.clientX, y: event.clientY };
+        draggedRef.current = false;
+        setPressed(true);
+      }}
+      onMouseMove={(event) => {
+        const press = pressRef.current;
+        if (!press || pinned) return;
+        const travelled = Math.hypot(
+          event.clientX - press.x,
+          event.clientY - press.y,
+        );
+        if (travelled < COLLAPSED_DRAG_THRESHOLD) return;
+        pressRef.current = null;
+        draggedRef.current = true;
+        setPressed(false);
+        void getCurrentWindow().startDragging();
+      }}
+      onMouseUp={() => {
+        pressRef.current = null;
+        setPressed(false);
+      }}
+      onClick={() => {
+        if (draggedRef.current) {
+          draggedRef.current = false;
+          return;
+        }
+        onExpand?.();
+      }}
+    >
+      {mode === "mascot" ? (
+        <>
+          {/* Pointer events land here and bubble to the button, so hovering
+            and clicking start on the moth's body rather than its box. */}
+          {!probe && !ghost ? (
+            <span className="pointer-events-auto absolute left-1/2 top-1/2 size-12 -translate-x-1/2 -translate-y-1/2 rounded-full" />
+          ) : null}
+          <MascotSprite
+            style={mascotStyle}
+            hovering={hovering}
+            pressed={pressed}
+            // The measuring copy and the fading-in copy hold still, so the real
+            // one takes over from them without a jump.
+            animated={mascotAnimated && !probe && !ghost}
+          />
+        </>
+      ) : (
+        <img
+          src={appLogo}
+          alt=""
+          draggable={false}
+          className={cn("shrink-0", mode === "pill" ? "size-5" : "size-6")}
+        />
+      )}
+      {mode === "pill" ? (
+        <span className="truncate text-sm font-semibold">{title}</span>
+      ) : null}
+    </button>
+  );
+};
+
 export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   const {
     controls,
@@ -306,7 +521,48 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     cornerMode,
     backgroundMode,
     tileOpacity,
+    title,
+    collapseMode,
+    mascotStyle,
+    mascotAnimated,
+    scale,
+    collapsedScale,
+    collapseCorner,
+    setCollapseCorner,
+    autoCollapseSeconds,
+    collapsed,
+    setCollapsed,
   } = useWidgetControls(widgetId);
+  const [pinned, setPinned] = useWidgetPinned(widgetId);
+  const reduceMotion = useReducedMotion();
+  // Set while the widget folds or unfolds, so nothing resizes the window
+  // underneath the animation.
+  const [transition, setTransition] = useState<
+    "none" | "collapsing" | "expanding"
+  >("none");
+  // Read by handlers and timers, which may hold an older render's closure;
+  // updated at once so a second click can't start a second fold.
+  const transitionRef = useRef(transition);
+  const changeTransition = (next: typeof transition) => {
+    transitionRef.current = next;
+    setTransition(next);
+  };
+  const shellRef = useRef<HTMLElement>(null);
+  const fadeRef = useRef<HTMLDivElement>(null);
+  const probeRef = useRef<HTMLDivElement>(null);
+  const ghostRef = useRef<HTMLDivElement>(null);
+  const collapsedRef = useRef<HTMLElement>(null);
+  // The window always runs at the open zoom, so nothing changes size mid-fold.
+  // The pill is drawn scaled by this to reach the collapsed size, and its
+  // window is sized for that.
+  const pillRatio = scale > 0 ? collapsedScale / scale : 1;
+  const pillSizeRef = useRef({ width: 0, height: 0 });
+  // Whether the window has been fitted to the pill since it last expanded.
+  const fittedRef = useRef(false);
+  const expandFromRef = useRef<{ width: number; height: number } | null>(null);
+  // The shell keeps its background while the pointer is anywhere on it, not
+  // only over the title bar, which a fold rebuilds and so forgets was hovered.
+  const [pointerOver, setPointerOver] = useState(false);
   const sizeMetrics = WIDGET_SIZE_METRICS[sizeMode];
   const hasLoaded = useHueResourcesStore((state) => state.hasLoaded);
   const [shellRevealed, setShellRevealed] = useState(false);
@@ -393,7 +649,14 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
 
   const syncWidgetLayout = useCallback(() => {
     const content = contentRef.current;
-    if (!content || !("__TAURI_INTERNALS__" in window)) return;
+    if (
+      !content ||
+      collapsed ||
+      transition !== "none" ||
+      !("__TAURI_INTERNALS__" in window)
+    ) {
+      return;
+    }
 
     // `contentRef` wraps the cards (it is *not* stretched to the window), so its
     // height is the controls' true intrinsic height at the current width. Adding
@@ -424,7 +687,13 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       minHeight: height,
       autoFit,
     }).catch(() => undefined);
-  }, [sizeMetrics.cardBasis, sizeMetrics.edgePadding, widgetId]);
+  }, [
+    collapsed,
+    transition,
+    sizeMetrics.cardBasis,
+    sizeMetrics.edgePadding,
+    widgetId,
+  ]);
 
   // The content only mounts once the bridge has loaded, so both re-run then.
   useLayoutEffect(() => {
@@ -475,6 +744,293 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   const openSettings = () =>
     void invoke("open-widget-settings", { widgetId }).catch(() => undefined);
 
+  const duration = reduceMotion ? 0 : COLLAPSE_DURATION;
+  // Read when a fold runs; `shellStyle` is declared further down.
+  const shellRadius = () => Number(shellStyle.borderRadius ?? 0);
+
+  // Size and corners run off one progress value so they stay in step. The
+  // radius never passes half the height, so the corners stay round.
+  const morphShell = (
+    shell: HTMLElement,
+    from: { width: number; height: number; radius: number },
+    to: { width: number; height: number; radius: number },
+  ) =>
+    animate(0, 1, {
+      ...(reduceMotion ? { duration: 0 } : COLLAPSE_TRANSITION),
+      onUpdate: (progress) => {
+        const width = from.width + (to.width - from.width) * progress;
+        const height = from.height + (to.height - from.height) * progress;
+        const radius = Math.min(
+          from.radius + (to.radius - from.radius) * progress,
+          height / 2,
+        );
+        shell.style.width = `${width}px`;
+        shell.style.height = `${height}px`;
+        shell.style.borderRadius = `${radius}px`;
+      },
+    });
+
+  // The shell shrinks into its collapse corner inside the still
+  // full-size window; the window itself only shrinks once the pill has taken
+  // over (see `fitCollapsed`), in one step, so nothing jumps.
+  const collapse = async () => {
+    const shell = shellRef.current;
+    const fade = fadeRef.current;
+    const probe = probeRef.current?.firstElementChild;
+    if (transitionRef.current !== "none") return;
+    if (!shell || !fade || !probe) {
+      setCollapsed(true);
+      return;
+    }
+    const target = probe.getBoundingClientRect();
+    const width = Math.ceil(target.width * pillRatio);
+    const height = Math.ceil(target.height * pillRatio);
+    changeTransition("collapsing");
+    const start = shell.getBoundingClientRect();
+    const ghost = ghostRef.current;
+    await Promise.all([
+      animate(fade, { opacity: 0 }, { duration: duration * 0.5 }),
+      ghost &&
+        animate(
+          ghost,
+          { opacity: 1 },
+          // The moth arrives as the shell leaves, so the corner is never
+          // empty between them; the pill waits for the shell to reach it.
+          collapseMode === "mascot"
+            ? { duration: duration * 0.45, delay: duration * 0.15 }
+            : { duration: duration * 0.5, delay: duration * 0.4 },
+        ),
+      // The moth has no background, so the shell leaves rather than becoming
+      // it, and is gone before it is small enough to read as a disc behind it.
+      collapseMode === "mascot" &&
+        animate(shell, { opacity: 0 }, { duration: duration * 0.35 }),
+      morphShell(
+        shell,
+        { width: start.width, height: start.height, radius: shellRadius() },
+        { width, height, radius: height / 2 },
+      ),
+    ]);
+    setCollapsed(true);
+    changeTransition("none");
+  };
+
+  // The window grows first, with the pill held in its top-left corner, and
+  // the shell then unfolds out of the pill (see the layout effect below).
+  const expand = async () => {
+    if (transitionRef.current !== "none") return;
+    changeTransition("expanding");
+    // The next collapse has to fit the window again, even at the same size.
+    fittedRef.current = false;
+    // The window grows and moves in separate steps, and the pill may switch
+    // corners, so it would flash somewhere else for a frame. It is hidden,
+    // and painted hidden, first; the ghost stands in for it once the shell
+    // starts unfolding.
+    const pill = collapsedRef.current;
+    if (pill) {
+      pill.style.visibility = "hidden";
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    }
+    try {
+      // The backend picks the corner to unfold from: the preferred direction,
+      // flipped on an axis with no room.
+      const state = await invoke<WidgetState>("set-widget-collapsed", {
+        widgetId,
+        collapsed: false,
+      });
+      if (state?.collapseCorner) setCollapseCorner(state.collapseCorner);
+    } catch {
+      if (pill) pill.style.visibility = "";
+      changeTransition("none");
+      return;
+    }
+    const from = {
+      width: pillSizeRef.current.width * pillRatio,
+      height: pillSizeRef.current.height * pillRatio,
+    };
+    await waitForViewportWider(from.width);
+    expandFromRef.current = from;
+    setCollapsed(false);
+  };
+
+  useLayoutEffect(() => {
+    const from = expandFromRef.current;
+    const shell = shellRef.current;
+    const fade = fadeRef.current;
+    if (collapsed || !from) return;
+    expandFromRef.current = null;
+    if (!shell || !fade) {
+      changeTransition("none");
+      return;
+    }
+    // React owns the radius through `style`; the animation ends on the same
+    // value so handing it back changes nothing.
+    const radius = `${shellRadius()}px`;
+    shell.style.width = `${from.width}px`;
+    shell.style.height = `${from.height}px`;
+    shell.style.borderRadius = `${from.height / 2}px`;
+    fade.style.opacity = "0";
+    const ghost = ghostRef.current;
+    if (ghost) {
+      ghost.style.opacity = "1";
+      void animate(ghost, { opacity: 0 }, { duration: duration * 0.4 });
+    }
+    if (collapseMode === "mascot") {
+      // Held back until the shell has grown well past the moth, so it never
+      // shows as a disc around it.
+      shell.style.opacity = "0";
+      void animate(
+        shell,
+        { opacity: 1 },
+        { duration: duration * 0.4, delay: duration * 0.35 },
+      ).then(() => {
+        shell.style.opacity = "";
+      });
+    }
+    void Promise.all([
+      morphShell(
+        shell,
+        { ...from, radius: from.height / 2 },
+        {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          radius: shellRadius(),
+        },
+      ),
+      animate(
+        fade,
+        { opacity: 1 },
+        { duration: duration * 0.6, delay: duration * 0.4 },
+      ),
+    ]).then(() => {
+      shell.style.width = "";
+      shell.style.height = "";
+      shell.style.borderRadius = radius;
+      fade.style.opacity = "";
+      changeTransition("none");
+    });
+    // Runs on the flip to expanded only; the other values are read as they are.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapsed]);
+
+  // Also runs for a widget that opens collapsed, placing it again at the
+  // freshly measured size.
+  const fitCollapsed = useCallback(
+    (width: number, height: number) => {
+      // The pill reports its size on mount and again from its observer. A
+      // late report landing after an expand began would shrink the window
+      // back around the opened widget, so once one starts the pill is ignored;
+      // and a size already sent isn't sent twice.
+      if (transitionRef.current === "expanding") return;
+      const last = pillSizeRef.current;
+      if (fittedRef.current && last.width === width && last.height === height) {
+        return;
+      }
+      fittedRef.current = true;
+      pillSizeRef.current = { width, height };
+      void invoke("set-widget-collapsed", {
+        widgetId,
+        collapsed: true,
+        width,
+        height,
+      }).catch(() => undefined);
+    },
+    [widgetId],
+  );
+
+  // Expanded from elsewhere ("Reset position" in Settings brings a widget back
+  // expanded). The widget's own folds also echo here, every target hears an
+  // emit, so a change only applies while nothing is animating.
+  useEffect(() => {
+    const unlisten = listen<{ widgetId: string; collapsed?: boolean }>(
+      "widget-settings-changed",
+      (event) => {
+        if (event.payload.widgetId !== widgetId) return;
+        if (event.payload.collapsed !== false) return;
+        if (transitionRef.current !== "none") return;
+        setCollapsed(false);
+      },
+    );
+    return () => {
+      void unlisten.then((dispose) => dispose());
+    };
+  }, [setCollapsed, widgetId]);
+
+  // A safety net under the folds: once nothing is animating, the window's size
+  // has to match the state. An opened widget squeezed into a pill-sized window,
+  // or a pill left in a full-size one, means a resize request lost a race, so
+  // the right one is sent again instead of leaving it stuck.
+  const healWindowRef = useRef(() => {});
+  healWindowRef.current = () => {
+    if (transitionRef.current !== "none") return;
+    const pill = pillSizeRef.current;
+    // Height tells them apart: a pill is ~40px tall, an open widget never
+    // less than its minimum.
+    if (!collapsed && window.innerHeight < WIDGET_MIN_HEIGHT - 8) {
+      void invoke("set-widget-collapsed", { widgetId, collapsed: false }).catch(
+        () => undefined,
+      );
+    } else if (
+      collapsed &&
+      pill.width > 0 &&
+      // Too big leaves glass around the pill; too small cuts it off. A
+      // couple of pixels is the zoom's rounding, not a wrong size.
+      (Math.abs(window.innerWidth - pill.width * pillRatio) > 2 ||
+        Math.abs(window.innerHeight - pill.height * pillRatio) > 2)
+    ) {
+      fittedRef.current = false;
+      fitCollapsed(pill.width, pill.height);
+    }
+  };
+  useEffect(() => {
+    let timer: number | undefined;
+    const check = () => {
+      window.clearTimeout(timer);
+      // Lets an in-flight resize land before judging the size.
+      timer = window.setTimeout(() => healWindowRef.current(), 250);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("resize", check);
+    };
+  }, [collapsed, transition]);
+
+  // Auto collapse: once the pointer has been off the open widget for the set
+  // time, it folds into its pill. Coming back restarts the wait, and so does
+  // a press still held (a slider dragged past the edge) until it's let go.
+  const [pressing, setPressing] = useState(false);
+  useEffect(() => {
+    const down = () => setPressing(true);
+    const up = () => setPressing(false);
+    window.addEventListener("pointerdown", down);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    return () => {
+      window.removeEventListener("pointerdown", down);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+  }, []);
+  const collapseRef = useRef(collapse);
+  collapseRef.current = collapse;
+  useEffect(() => {
+    if (
+      autoCollapseSeconds <= 0 ||
+      collapsed ||
+      transition !== "none" ||
+      pointerOver ||
+      pressing
+    ) {
+      return;
+    }
+    const timer = window.setTimeout(
+      () => void collapseRef.current(),
+      autoCollapseSeconds * 1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [autoCollapseSeconds, collapsed, transition, pointerOver, pressing]);
+
   const shellStyle = useMemo(
     () =>
       ({
@@ -488,51 +1044,130 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   // While we're still connecting to the bridge there's nothing to grab onto, so
   // keep the shell opaque (the same chrome an unpinned widget shows) instead of
   // leaving a transparent window floating with a lone line of text.
-  const showShell = shellRevealed || !hasLoaded;
+  // Folding shows the shell's background, so the shell and the pill it turns
+  // into match even on a pinned widget whose chrome is hidden.
+  const folding = transition !== "none";
+  const showShell = shellRevealed || pointerOver || !hasLoaded || folding;
+  const pillTitle = title?.trim() || "Lights";
+
+  if (collapsed) {
+    return (
+      // Held to the collapse corner, the one the window folds toward, so the
+      // pill sits where the shell shrank to in both window sizes. Keyed apart
+      // from the expanded shell so the animated element isn't reused.
+      <main
+        key="collapsed"
+        ref={collapsedRef}
+        className={cn(
+          "flex h-screen w-screen overflow-hidden bg-transparent",
+          collapseCorner.startsWith("bottom") ? "items-end" : "items-start",
+          collapseCorner.endsWith("Right") ? "justify-end" : "justify-start",
+        )}
+      >
+        <HueResourcesStoreEffects />
+        <EntertainmentStoreEffects />
+        {/* Scaled from its corner to the collapsed size: the window runs at the
+          open zoom, and is sized for the pill at this scale. The pill measures
+          its unscaled box, so the scale never feeds back into its size. */}
+        <div
+          style={
+            pillRatio !== 1
+              ? {
+                  transform: `scale(${pillRatio})`,
+                  transformOrigin: cornerOrigin(collapseCorner),
+                }
+              : undefined
+          }
+        >
+          <CollapsedWidget
+            mode={collapseMode}
+            mascotStyle={mascotStyle}
+            mascotAnimated={mascotAnimated}
+            title={pillTitle}
+            pinned={pinned}
+            style={shellStyle}
+            onMeasure={fitCollapsed}
+            onExpand={() => void expand()}
+            // The pointer is still on the widget when it opens under it.
+            onHoverChange={setPointerOver}
+          />
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main
-      className={cn(
-        "group/widget relative h-screen w-screen overflow-hidden border text-foreground transition-colors",
-        showShell ? "border-border/20 shadow-2xl" : "border-transparent",
-        flashing && "bg-primary/35",
-      )}
-      data-tile-background={backgroundMode}
-      style={
-        showShell
-          ? shellStyle
-          : { ...shellStyle, backgroundColor: "transparent" }
-      }
-    >
-      <HueResourcesStoreEffects />
-      <EntertainmentStoreEffects />
-      <WidgetTitleBar
-        widgetId={widgetId}
-        onOpenSettings={openSettings}
-        onRevealChange={setShellRevealed}
-      />
-
-      {!hasLoaded ? (
-        // Center the connecting state on the whole window (not the content
-        // wrapper) with a spinner and the shimmering title we use elsewhere.
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
-          <Loader2 className="size-5 animate-spin text-muted-foreground" />
-          <p className="text-shimmer font-heading text-sm font-semibold">
-            Connecting to your bridge…
-          </p>
-          {connectStalled && (
-            <Button
-              type="button"
-              size="sm"
-              variant="secondary"
-              onClick={() => void useHueResourcesStore.getState().loadAll()}
-            >
-              Retry
-            </Button>
-          )}
+    <>
+      <main
+        key="expanded"
+        ref={shellRef}
+        className={cn(
+          "group/widget absolute h-screen w-screen overflow-hidden border text-foreground transition-colors",
+          cornerClasses(collapseCorner),
+          showShell ? "border-border/20" : "border-transparent",
+          showShell && !folding && "shadow-2xl",
+          flashing && "bg-primary/35",
+        )}
+        data-tile-background={backgroundMode}
+        style={
+          showShell
+            ? shellStyle
+            : { ...shellStyle, backgroundColor: "transparent" }
+        }
+        onMouseEnter={() => setPointerOver(true)}
+        onMouseLeave={() => setPointerOver(false)}
+      >
+        <HueResourcesStoreEffects />
+        <EntertainmentStoreEffects />
+        <div ref={probeRef} aria-hidden>
+          <CollapsedWidget
+            mode={collapseMode}
+            mascotStyle={mascotStyle}
+            title={pillTitle}
+            pinned={pinned}
+            style={shellStyle}
+            probe
+          />
         </div>
-      ) : (
-        /* Fill the window and pad the top by the title-bar height (so the
+        {/* Faded as one while folding. The content keeps the window's full size
+          inside it, so it clips rather than reflowing as the shell shrinks. */}
+        <div
+          ref={fadeRef}
+          className={cn(
+            "absolute h-[calc(100vh-2px)] w-[calc(100vw-2px)]",
+            cornerClasses(collapseCorner),
+          )}
+        >
+          <WidgetTitleBar
+            widgetId={widgetId}
+            pinned={pinned}
+            setPinned={setPinned}
+            onOpenSettings={openSettings}
+            onCollapse={collapse}
+            onRevealChange={setShellRevealed}
+          />
+
+          {!hasLoaded ? (
+            // Center the connecting state on the whole window (not the content
+            // wrapper) with a spinner and the shimmering title we use elsewhere.
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              <p className="text-shimmer font-heading text-sm font-semibold">
+                Connecting to your bridge…
+              </p>
+              {connectStalled && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => void useHueResourcesStore.getState().loadAll()}
+                >
+                  Retry
+                </Button>
+              )}
+            </div>
+          ) : (
+            /* Fill the window and pad the top by the title-bar height (so the
            overlaid title bar never covers the controls) and the other edges by
            the tighter side inset, so the cards sit close to the window edges.
            The cards reflow to whatever width the user picks. The inner wrapper
@@ -540,24 +1175,57 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
            measured height is the controls' true content height — that's what
            `syncWidgetLayout` reads to set a min height the window can still
            shrink back down to. */
-        <section
-          className="h-full w-full overflow-hidden"
+            <section
+              className="h-[calc(100vh-2px)] w-[calc(100vw-2px)] overflow-hidden"
+              style={{
+                paddingTop: sizeMetrics.edgePadding,
+                paddingLeft: WIDGET_SIDE_PADDING,
+                paddingRight: WIDGET_SIDE_PADDING,
+                paddingBottom: WIDGET_SIDE_PADDING,
+              }}
+            >
+              <div ref={contentRef}>
+                <ControlList
+                  controls={controls}
+                  sizeMode={sizeMode}
+                  onOpenSettings={openSettings}
+                />
+              </div>
+            </section>
+          )}
+        </div>
+      </main>
+      {/* The pill's icon and title, faded in where the pill will be. Outside the
+        shell, so the shell's corners can't clip it. */}
+      <div
+        ref={ghostRef}
+        aria-hidden
+        className={cn(
+          "pointer-events-none fixed z-10 opacity-0",
+          cornerClasses(collapseCorner),
+        )}
+        // The theme's tokens for the title, without the shell's background;
+        // scaled to the collapsed size the pill will have.
+        style={{
+          ...shellStyle,
+          backgroundColor: "transparent",
+          transform: pillRatio !== 1 ? `scale(${pillRatio})` : undefined,
+          transformOrigin: cornerOrigin(collapseCorner),
+        }}
+      >
+        <CollapsedWidget
+          mode={collapseMode}
+          mascotStyle={mascotStyle}
+          mascotAnimated={mascotAnimated}
+          title={pillTitle}
+          pinned={pinned}
           style={{
-            paddingTop: sizeMetrics.edgePadding,
-            paddingLeft: WIDGET_SIDE_PADDING,
-            paddingRight: WIDGET_SIDE_PADDING,
-            paddingBottom: WIDGET_SIDE_PADDING,
+            backgroundColor: "transparent",
+            borderColor: "transparent",
           }}
-        >
-          <div ref={contentRef}>
-            <ControlList
-              controls={controls}
-              sizeMode={sizeMode}
-              onOpenSettings={openSettings}
-            />
-          </div>
-        </section>
-      )}
-    </main>
+          ghost
+        />
+      </div>
+    </>
   );
 };

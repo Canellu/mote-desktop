@@ -107,7 +107,7 @@ export const ControlPicker = ({
     matchedLights.length === 0;
 
   return (
-    <div className="grid gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <div className="relative">
         <Search
           size={15}
@@ -121,7 +121,7 @@ export const ControlPicker = ({
         />
       </div>
 
-      <ScrollArea fade className="max-h-80" viewportClassName="pr-2">
+      <ScrollArea fade className="min-h-0 flex-1" viewportClassName="pr-2">
         {empty ? (
           <p className="px-1 py-6 text-center text-sm text-muted-foreground">
             Nothing matches “{query.trim()}”.

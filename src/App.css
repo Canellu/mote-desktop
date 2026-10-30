@@ -411,7 +411,8 @@
 }
 
 .tile-surface-scene {
-  border-radius: 64px;
+  /* A widget shell sets --widget-tile-radius from its corner style. */
+  border-radius: var(--widget-tile-radius, 64px);
   corner-shape: squircle;
 }
 

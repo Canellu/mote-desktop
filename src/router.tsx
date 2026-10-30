@@ -116,7 +116,7 @@ const widgetWizardRoute = createRoute({
       import.meta.env.DEV &&
       Number.isInteger(rawStep) &&
       rawStep >= 0 &&
-      rawStep <= 2
+      rawStep <= 3
         ? rawStep
         : undefined;
     return step === undefined ? {} : { step };

@@ -64,6 +64,9 @@ export function SegmentedControl<T extends string>({
                 {selected && (
                   <motion.span
                     layoutId={layoutId}
+                    // Only a new selection slides the pill; content above or
+                    // below resizing must not animate it into its new spot.
+                    layoutDependency={value}
                     className="absolute inset-0 rounded-full border border-foreground/12 bg-background dark:border-foreground/10 dark:bg-foreground/12"
                     transition={{ type: "spring", stiffness: 520, damping: 42 }}
                   />

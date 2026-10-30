@@ -153,6 +153,9 @@ const WIDGET_DARK_TOKENS = {
  * background stays mostly transparent). Self-contained so it renders identically
  * in the live widget window and in the settings preview.
  */
+/** Scene tiles' radius at the Rounded style, mirrored from App.css. */
+const SCENE_TILE_RADIUS = 64;
+
 export const widgetShellStyle = (
   theme: "light" | "dark" = "dark",
   sizeMode: WidgetSizeMode = "default",
@@ -165,6 +168,15 @@ export const widgetShellStyle = (
   return {
     ...(dark ? WIDGET_DARK_TOKENS : WIDGET_LIGHT_TOKENS),
     "--radius": `${APP_RADIUS_REM * cornerScale}rem`,
+    // Pill-shaped parts (power switches, sliders) and scene/toggle tiles
+    // follow the corner style too, so Square doesn't leave round ones behind.
+    "--widget-pill-radius":
+      cornerScale === 0 ? "0px" : cornerScale < 1 ? "0.5rem" : "9999px",
+    // The slider is thinner than the switch, so Soft needs less to read as
+    // rounded rather than round.
+    "--widget-slider-radius":
+      cornerScale === 0 ? "0px" : cornerScale < 1 ? "0.25rem" : "9999px",
+    "--widget-tile-radius": `${SCENE_TILE_RADIUS * cornerScale}px`,
     borderRadius: WIDGET_SIZE_METRICS[sizeMode].cornerRadius * cornerScale,
     fontSize: WIDGET_SIZE_METRICS[sizeMode].fontSize,
     backgroundColor: `color-mix(in srgb, ${tint} ${tintStrength}%, transparent)`,

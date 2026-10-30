@@ -16,7 +16,11 @@ import { type LightShortcut, shortcutLabel } from "@/features/shortcuts/model";
 import { saveShortcut, useShortcutStore } from "@/features/shortcuts/store";
 import { useEntitlements } from "@/context/EntitlementContext";
 import { ProSetupBanner } from "../components/ProSetupBanner";
-import { SettingsSection, SettingsStack } from "../components/SettingsList";
+import {
+  SettingsReveal,
+  SettingsSection,
+  SettingsStack,
+} from "../components/SettingsList";
 import { ShortcutTargetPicker } from "../components/ShortcutTargetPicker";
 import { sceneBubbleCss } from "@/features/space-screen/utils/color-state";
 
@@ -315,7 +319,11 @@ export function ShortcutsTab() {
                 }}
               />
             </div>
-            {draft.targetKind !== "scene" && (
+            <SettingsReveal
+              open={draft.targetKind !== "scene"}
+              className="-mt-5"
+              spacingClassName="pt-5"
+            >
               <div className="grid gap-2">
                 <label
                   id="shortcut-action-label"
@@ -349,8 +357,12 @@ export function ShortcutsTab() {
                   </SelectContent>
                 </Select>
               </div>
-            )}
-            {draft.action === "brightness" && (
+            </SettingsReveal>
+            <SettingsReveal
+              open={draft.action === "brightness"}
+              className="-mt-5"
+              spacingClassName="pt-5"
+            >
               <div className="grid gap-2">
                 <label
                   htmlFor="shortcut-brightness"
@@ -369,7 +381,7 @@ export function ShortcutsTab() {
                   }
                 />
               </div>
-            )}
+            </SettingsReveal>
             <div className="grid gap-2">
               <label htmlFor="shortcut-key" className="text-sm font-medium">
                 Key combination

@@ -1,6 +1,30 @@
+import { Reveal } from "@/components/ui/expandable-row";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { Children, Fragment } from "react";
+
+/**
+ * A setting that only applies while another is set a certain way. It slides
+ * open and shut under that setting instead of popping in, and its spacing sits
+ * inside the slide, so the gap above it grows with it rather than jumping.
+ * Group it with the row it depends on, so a section draws no separator for it.
+ */
+export const SettingsReveal = ({
+  open,
+  className,
+  spacingClassName = "pt-4",
+  children,
+}: {
+  open: boolean;
+  /** Pulls it up over a parent's gap, which would otherwise jump. */
+  className?: string;
+  spacingClassName?: string;
+  children: React.ReactNode;
+}) => (
+  <Reveal open={open} className={className}>
+    <div className={spacingClassName}>{children}</div>
+  </Reveal>
+);
 
 export const SettingsStack = ({ children }: { children: React.ReactNode }) => (
   <div className="grid min-w-0 grid-cols-1 gap-10">{children}</div>
@@ -40,7 +64,7 @@ export const SettingsRow = ({
   keepControlInline = false,
   children,
 }: {
-  title: string;
+  title: React.ReactNode;
   description?: React.ReactNode;
   alignControlWithDescription?: boolean;
   keepControlInline?: boolean;
@@ -61,7 +85,9 @@ export const SettingsRow = ({
         !keepControlInline && "flex-1 basis-64",
       )}
     >
-      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="flex items-center gap-2 text-sm font-medium text-foreground">
+        {title}
+      </p>
       {description && (
         <div className="max-w-prose text-sm leading-5 text-muted-foreground">
           {description}

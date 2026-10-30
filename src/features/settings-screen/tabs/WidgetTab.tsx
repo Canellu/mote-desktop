@@ -1,4 +1,7 @@
 import { useEntitlements } from "@/context/EntitlementContext";
+import { cn } from "@/lib/utils";
+import { MonitorSmartphone } from "lucide-react";
+import { useEffect, useState } from "react";
 import type {
   WidgetConfigDraft,
   WidgetSummary,
@@ -6,7 +9,8 @@ import type {
 import { Panel } from "../components/Panel";
 import { ProSetupBanner } from "../components/ProSetupBanner";
 import { SettingsStack } from "../components/SettingsList";
-import { WidgetCard } from "../components/WidgetCard";
+import { SegmentedControl } from "../components/SegmentedControl";
+import { WidgetSettings } from "../components/WidgetSettings";
 
 interface WidgetTabProps {
   widgets: WidgetSummary[];
@@ -17,7 +21,7 @@ interface WidgetTabProps {
   onRemove: (id: string) => Promise<void>;
   onSetPinned: (id: string, pinned: boolean) => void;
   onSetAlwaysOnTop: (id: string, alwaysOnTop: boolean) => void;
-  onSetConfig: (id: string, config: WidgetConfigDraft) => void;
+  onSetConfig: (id: string, config: Partial<WidgetConfigDraft>) => void;
 }
 
 export const WidgetTab = ({
@@ -37,6 +41,14 @@ export const WidgetTab = ({
   const sorted = [...widgets].sort(
     (a, b) => Number(b.enabled) - Number(a.enabled),
   );
+  const [selectedId, setSelectedId] = useState(focusedWidgetId);
+
+  // Opening a widget from elsewhere (its window, a shortcut) selects it here.
+  useEffect(() => {
+    if (focusRequest !== undefined && focusedWidgetId !== undefined) {
+      setSelectedId(focusedWidgetId);
+    }
+  }, [focusRequest, focusedWidgetId]);
 
   // Free is one widget with one room, zone, or light, so say so before anybody
   // builds past it. The Rust gates are the boundary; this only explains it.
@@ -69,27 +81,71 @@ export const WidgetTab = ({
     );
   }
 
+  const selected =
+    sorted.find((widget) => widget.widgetId === selectedId) ?? sorted[0];
+  const count = selected.controls.length;
+
   return (
     <SettingsStack>
       {banner}
-      {/* Cards sit straight on the page; their own surface sets them apart. */}
-      <div className="space-y-3">
-        {sorted.map((widget) => (
-          <WidgetCard
-            key={widget.widgetId}
-            widget={widget}
-            openRequest={
-              widget.widgetId === focusedWidgetId ? focusRequest : undefined
-            }
-            onReopen={onReopen}
-            onClose={onClose}
-            onRemove={onRemove}
-            onSetPinned={onSetPinned}
-            onSetAlwaysOnTop={onSetAlwaysOnTop}
-            onSetConfig={onSetConfig}
+      <div className="grid gap-4">
+        {/* One widget's settings at a time; with several, pick which here. */}
+        {sorted.length > 1 ? (
+          <SegmentedControl
+            value={selected.widgetId}
+            onValueChange={setSelectedId}
+            ariaLabel="Widget"
+            options={sorted.map((widget) => ({
+              value: widget.widgetId,
+              label: widget.title ?? "Hue Widget",
+              icon: MonitorSmartphone,
+            }))}
+            layoutId="widget-picker-pill"
           />
-        ))}
+        ) : null}
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-lg font-semibold">
+              {selected.title ?? "Hue Widget"}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              {count === 0
+                ? "No controls"
+                : `${count} control${count > 1 ? "s" : ""}`}
+            </p>
+          </div>
+          <span
+            className={cn(
+              "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+              selected.enabled
+                ? "bg-(--success-surface) text-(--success-text)"
+                : "bg-muted text-muted-foreground",
+            )}
+          >
+            <span
+              className={cn(
+                "size-1.5 rounded-full",
+                selected.enabled ? "bg-success" : "bg-muted-foreground",
+              )}
+            />
+            {selected.enabled
+              ? "Active"
+              : selected.locked
+                ? "Needs Pro"
+                : "Inactive"}
+          </span>
+        </div>
       </div>
+      <WidgetSettings
+        key={selected.widgetId}
+        widget={selected}
+        onReopen={onReopen}
+        onClose={onClose}
+        onRemove={onRemove}
+        onSetPinned={onSetPinned}
+        onSetAlwaysOnTop={onSetAlwaysOnTop}
+        onSetConfig={onSetConfig}
+      />
     </SettingsStack>
   );
 };

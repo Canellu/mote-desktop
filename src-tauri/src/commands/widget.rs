@@ -3,9 +3,10 @@ use std::{
     collections::HashSet,
     fs,
     path::PathBuf,
+    sync::{Arc, Mutex},
     thread,
     time::Duration,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,8 @@ const DEFAULT_WIDGET_WIDTH: f64 = 360.0;
 const DEFAULT_WIDGET_HEIGHT: f64 = 136.0;
 const MIN_WIDGET_WIDTH: u32 = 360;
 const MIN_WIDGET_HEIGHT: u32 = 136;
+/// How long a widget must sit still after moving before its spot is saved.
+const MOVE_SAVE_DELAY: Duration = Duration::from_millis(400);
 
 /// The kinds of Hue resource a control can target.
 const CONTROL_TARGET_KINDS: [&str; 3] = ["room", "zone", "light"];
@@ -172,6 +175,128 @@ impl Default for WidgetCornerMode {
     }
 }
 
+/// What a widget turns into when collapsed: a slim pill with its title, a
+/// round icon bubble, or the moth mascot on its own.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WidgetCollapseMode {
+    Pill,
+    Bubble,
+    Mascot,
+}
+
+/// Which drawing of the moth the `Mascot` collapse mode shows.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WidgetMascotStyle {
+    #[default]
+    CelShaded,
+    LowPoly,
+    PixelArt,
+    PaperCutout,
+    Watercolor,
+}
+
+impl Default for WidgetCollapseMode {
+    fn default() -> Self {
+        Self::Mascot
+    }
+}
+
+/// The corner a widget folds into and unfolds from. It follows where the pill
+/// was last expanded from, so the widget always opens away from the screen
+/// edges it sits against.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WidgetCollapseCorner {
+    TopLeft,
+    TopRight,
+    BottomLeft,
+    BottomRight,
+}
+
+impl Default for WidgetCollapseCorner {
+    fn default() -> Self {
+        Self::TopLeft
+    }
+}
+
+impl WidgetCollapseCorner {
+    fn from_sides(right: bool, bottom: bool) -> Self {
+        match (right, bottom) {
+            (false, false) => Self::TopLeft,
+            (true, false) => Self::TopRight,
+            (false, true) => Self::BottomLeft,
+            (true, true) => Self::BottomRight,
+        }
+    }
+
+    fn is_right(&self) -> bool {
+        matches!(self, Self::TopRight | Self::BottomRight)
+    }
+
+    fn is_bottom(&self) -> bool {
+        matches!(self, Self::BottomLeft | Self::BottomRight)
+    }
+}
+
+/// Which way a collapsed widget prefers to open, vertically. A preference, not
+/// a rule: with no room that way, it opens the other way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WidgetExpandVertical {
+    Up,
+    Down,
+}
+
+impl Default for WidgetExpandVertical {
+    fn default() -> Self {
+        Self::Up
+    }
+}
+
+/// Which way a collapsed widget prefers to open, horizontally. Falls back the
+/// same way as [`WidgetExpandVertical`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WidgetExpandHorizontal {
+    Left,
+    Right,
+}
+
+impl Default for WidgetExpandHorizontal {
+    fn default() -> Self {
+        Self::Right
+    }
+}
+
+/// Whether to grow toward the preferred side along one axis: yes when the
+/// widget fits there, and also when it fits neither way but the preferred side
+/// still has the more room.
+fn prefer_side(preferred_room: i32, other_room: i32, size: i32) -> bool {
+    preferred_room >= size || (other_room < size && preferred_room >= other_room)
+}
+
+/// Where a collapsed widget sits. The position is physical, like
+/// `StoredWidgetBounds`; the size is logical, because the frontend measures it
+/// in CSS pixels and it has to stay the same on any display scale.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct StoredCollapsedBounds {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    /// The pill's size as measured, before the zoom. A new scale sizes the
+    /// window from these: scaling the rounded logical size step by step
+    /// rounded a small pill back to where it was, so it fell behind the zoom
+    /// and was cut off. Zero for a pill stored before they existed.
+    #[serde(default)]
+    css_width: u32,
+    #[serde(default)]
+    css_height: u32,
+}
+
 /// What the widget's tiles are painted on. `Translucent` lets the desktop show
 /// through them.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,6 +327,59 @@ fn clamp_tile_opacity(value: u8) -> u8 {
     value.clamp(MIN_TILE_OPACITY, MAX_TILE_OPACITY)
 }
 
+/// How large the whole widget is drawn, in percent, applied as the window's
+/// webview zoom so every part scales together.
+const DEFAULT_WIDGET_SCALE: u16 = 100;
+const MIN_WIDGET_SCALE: u16 = 70;
+const MAX_WIDGET_SCALE: u16 = 130;
+/// Collapsed, the widget is a single pill or moth, so it may grow much further.
+const MAX_COLLAPSED_WIDGET_SCALE: u16 = 300;
+const WIDGET_SCALE_STEP: u16 = 1;
+
+fn default_widget_scale() -> u16 {
+    DEFAULT_WIDGET_SCALE
+}
+
+fn default_mascot_animated() -> bool {
+    true
+}
+
+/// How long an open widget waits, with the pointer off it, before collapsing
+/// on its own. Zero turns it off. Seconds, not minutes: a widget meant to get
+/// out of the way should do it soon after it was last used.
+const MIN_AUTO_COLLAPSE_SECONDS: u16 = 1;
+const MAX_AUTO_COLLAPSE_SECONDS: u16 = 30;
+
+fn clamp_auto_collapse_seconds(value: u16) -> u16 {
+    if value == 0 {
+        0
+    } else {
+        value.clamp(MIN_AUTO_COLLAPSE_SECONDS, MAX_AUTO_COLLAPSE_SECONDS)
+    }
+}
+
+/// Snaps to the nearest step within the open range.
+fn clamp_widget_scale(value: u16) -> u16 {
+    snap_widget_scale(value, MAX_WIDGET_SCALE)
+}
+
+/// Snaps to the nearest step within the collapsed range.
+fn clamp_collapsed_widget_scale(value: u16) -> u16 {
+    snap_widget_scale(value, MAX_COLLAPSED_WIDGET_SCALE)
+}
+
+fn snap_widget_scale(value: u16, max: u16) -> u16 {
+    // Snapped while wide, so a value near u16::MAX can't overflow.
+    let step = WIDGET_SCALE_STEP as u32;
+    let snapped = (value as u32 + step / 2) / step * step;
+    snapped.clamp(MIN_WIDGET_SCALE as u32, max as u32) as u16
+}
+
+/// Free draws the widget at its standard size; any other scale is Pro.
+fn exceeds_free_scale(scale: u16) -> bool {
+    scale != DEFAULT_WIDGET_SCALE
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct StoredWidget {
@@ -223,11 +401,37 @@ struct StoredWidget {
     background_mode: WidgetBackgroundMode,
     #[serde(default = "default_tile_opacity")]
     tile_opacity: u8,
+    #[serde(default = "default_widget_scale")]
+    scale: u16,
+    /// The scale while collapsed, sized apart from the open widget. Zero in a
+    /// widget stored before it existed, which takes `scale` on load.
+    #[serde(default)]
+    collapsed_scale: u16,
     /// Keeps the widget window floating above other windows. Fully independent
     /// of `pinned`: pinning only locks the widget's position, it does not affect
     /// stacking, and a widget can be on-top without being pinned.
     #[serde(default)]
     always_on_top: bool,
+    #[serde(default)]
+    collapse_mode: WidgetCollapseMode,
+    #[serde(default)]
+    mascot_style: WidgetMascotStyle,
+    /// Plays the mascot's sprite animations. Off holds it still.
+    #[serde(default = "default_mascot_animated")]
+    mascot_animated: bool,
+    #[serde(default)]
+    expand_vertical: WidgetExpandVertical,
+    #[serde(default)]
+    expand_horizontal: WidgetExpandHorizontal,
+    /// Off at zero. See [`clamp_auto_collapse_seconds`].
+    #[serde(default)]
+    auto_collapse_seconds: u16,
+    #[serde(default)]
+    collapse_corner: WidgetCollapseCorner,
+    /// Set while the widget is collapsed. `bounds` keeps the expanded window's
+    /// size meanwhile, so expanding brings it back as it was.
+    #[serde(default)]
+    collapsed: Option<StoredCollapsedBounds>,
     #[serde(default)]
     controls: Vec<StoredWidgetControl>,
 }
@@ -262,6 +466,8 @@ impl StoredWidget {
             widget.size_mode = WidgetSizeMode::Default;
             widget.corner_mode = WidgetCornerMode::Rounded;
             widget.background_mode = WidgetBackgroundMode::Solid;
+            widget.scale = DEFAULT_WIDGET_SCALE;
+            widget.collapsed_scale = DEFAULT_WIDGET_SCALE;
             widget.controls = free_composition(&self.controls);
         }
         widget
@@ -377,6 +583,16 @@ pub struct WidgetState {
     corner_mode: WidgetCornerMode,
     background_mode: WidgetBackgroundMode,
     tile_opacity: u8,
+    scale: u16,
+    collapsed_scale: u16,
+    collapse_mode: WidgetCollapseMode,
+    mascot_style: WidgetMascotStyle,
+    mascot_animated: bool,
+    expand_vertical: WidgetExpandVertical,
+    expand_horizontal: WidgetExpandHorizontal,
+    auto_collapse_seconds: u16,
+    collapse_corner: WidgetCollapseCorner,
+    collapsed: bool,
     controls: Vec<StoredWidgetControl>,
     /// Held back by the Free allowance of one widget. Only the Settings list
     /// reports it, through `StoredWidgetSettings::state_of`.
@@ -399,6 +615,16 @@ impl WidgetState {
             corner_mode: widget.corner_mode.clone(),
             background_mode: widget.background_mode.clone(),
             tile_opacity: widget.tile_opacity,
+            scale: widget.scale,
+            collapsed_scale: widget.collapsed_scale,
+            collapse_mode: widget.collapse_mode.clone(),
+            mascot_style: widget.mascot_style.clone(),
+            mascot_animated: widget.mascot_animated,
+            expand_vertical: widget.expand_vertical,
+            expand_horizontal: widget.expand_horizontal,
+            auto_collapse_seconds: widget.auto_collapse_seconds,
+            collapse_corner: widget.collapse_corner.clone(),
+            collapsed: widget.collapsed.is_some(),
             controls: widget.controls.clone(),
             locked: false,
         }
@@ -418,6 +644,16 @@ impl WidgetState {
             corner_mode: WidgetCornerMode::default(),
             background_mode: WidgetBackgroundMode::default(),
             tile_opacity: default_tile_opacity(),
+            scale: DEFAULT_WIDGET_SCALE,
+            collapsed_scale: DEFAULT_WIDGET_SCALE,
+            collapse_mode: WidgetCollapseMode::default(),
+            mascot_style: WidgetMascotStyle::default(),
+            mascot_animated: default_mascot_animated(),
+            expand_vertical: WidgetExpandVertical::default(),
+            expand_horizontal: WidgetExpandHorizontal::default(),
+            auto_collapse_seconds: 0,
+            collapse_corner: WidgetCollapseCorner::default(),
+            collapsed: false,
             controls: Vec::new(),
             locked: false,
         }
@@ -434,6 +670,15 @@ pub fn open_widget_window(
     size_mode: Option<WidgetSizeMode>,
     corner_mode: Option<WidgetCornerMode>,
     background_mode: Option<WidgetBackgroundMode>,
+    tile_opacity: Option<u8>,
+    scale: Option<u16>,
+    collapsed_scale: Option<u16>,
+    collapse_mode: Option<WidgetCollapseMode>,
+    mascot_style: Option<WidgetMascotStyle>,
+    mascot_animated: Option<bool>,
+    expand_vertical: Option<WidgetExpandVertical>,
+    expand_horizontal: Option<WidgetExpandHorizontal>,
+    auto_collapse_seconds: Option<u16>,
 ) -> Result<OpenWidgetResult, String> {
     let mut settings = read_widget_settings(&app)?;
     let sanitized_controls = controls.map(sanitize_controls);
@@ -475,12 +720,16 @@ pub fn open_widget_window(
         let corner_mode = corner_mode.unwrap_or_default();
         let background_mode = background_mode.unwrap_or_default();
         let controls = sanitized_controls.unwrap_or_default();
+        let scale = scale.map(clamp_widget_scale).unwrap_or(DEFAULT_WIDGET_SCALE);
+        let collapsed_scale = collapsed_scale.map(clamp_collapsed_widget_scale).unwrap_or(scale);
         // Free holds one widget, built within the Free composition and
         // appearance. A second widget, or one built past either, is Pro.
         if !settings.widgets.is_empty()
             || exceeds_free_composition(&controls)
             || exceeds_free_appearance(&theme_mode, &size_mode, &corner_mode)
             || exceeds_free_background(&background_mode)
+            || exceeds_free_scale(scale)
+            || exceeds_free_scale(collapsed_scale)
         {
             crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
         }
@@ -495,8 +744,23 @@ pub fn open_widget_window(
             size_mode,
             corner_mode,
             background_mode,
-            tile_opacity: default_tile_opacity(),
+            tile_opacity: tile_opacity
+                .map(clamp_tile_opacity)
+                .unwrap_or_else(default_tile_opacity),
+            scale,
+            collapsed_scale,
             always_on_top: false,
+            // Not gated, as in set-widget-config.
+            collapse_mode: collapse_mode.unwrap_or_default(),
+            mascot_style: mascot_style.unwrap_or_default(),
+            mascot_animated: mascot_animated.unwrap_or_else(default_mascot_animated),
+            expand_vertical: expand_vertical.unwrap_or_default(),
+            expand_horizontal: expand_horizontal.unwrap_or_default(),
+            auto_collapse_seconds: auto_collapse_seconds
+                .map(clamp_auto_collapse_seconds)
+                .unwrap_or_default(),
+            collapse_corner: WidgetCollapseCorner::default(),
+            collapsed: None,
             controls,
         };
         settings.widgets.push(widget.clone());
@@ -601,6 +865,10 @@ pub fn save_widget_bounds(
             .iter_mut()
             .find(|widget| widget.id == target_id)
         {
+            // The window is the pill or bubble; `bounds` holds the expanded size.
+            if widget.collapsed.is_some() {
+                continue;
+            }
             widget.bounds = read_window_bounds(&window).or(widget.bounds);
             if let Some(user_sized) = user_sized {
                 widget.user_sized = user_sized;
@@ -625,14 +893,24 @@ pub fn sync_widget_layout(
         .get_webview_window(&label)
         .ok_or_else(|| "Widget window is not available.".to_string())?;
 
-    let min_width = min_width.max(MIN_WIDGET_WIDTH);
-    let min_height = min_height.max(MIN_WIDGET_HEIGHT);
-    let min_size = LogicalSize::new(min_width as f64, min_height as f64);
+    let stored = read_widget_settings(&app)?;
+    let stored = stored.widgets.iter().find(|widget| widget.id == widget_id);
+    // Sizing a collapsed window to the controls would undo the collapse.
+    if let Some(widget) = stored.filter(|widget| widget.collapsed.is_some()) {
+        return Ok(WidgetState::from_stored(widget));
+    }
+    // The frontend measures in CSS pixels; the zoom turns them into the
+    // window's logical pixels.
+    let zoom = stored.map(widget_zoom).unwrap_or(1.0);
+
+    let min_width = (min_width.max(MIN_WIDGET_WIDTH) as f64 * zoom).ceil();
+    let min_height = (min_height.max(MIN_WIDGET_HEIGHT) as f64 * zoom).ceil();
+    let min_size = LogicalSize::new(min_width, min_height);
     window
         .set_min_size(Some(min_size))
         .map_err(|error| error.to_string())?;
     // The height follows the content, so dragging only changes the width.
-    let _ = window.set_max_size(Some(LogicalSize::new(100_000.0, min_height as f64)));
+    let _ = window.set_max_size(Some(LogicalSize::new(100_000.0, min_height)));
 
     let mut settings = read_widget_settings(&app)?;
     let widget = settings
@@ -686,6 +964,7 @@ pub fn widget_frontend_ready(
         return Ok(WidgetState::from_stored(&widget));
     };
 
+    apply_widget_zoom(&window, &widget);
     apply_widget_bounds(&window, &widget);
     let _ = window.set_always_on_top(widget.keeps_on_top());
     if (widget.enabled || widget.pinned) && settings.may_run(&widget.id) {
@@ -733,6 +1012,7 @@ fn show_widget_window(
     let label = widget_label(&widget.id);
 
     if let Some(window) = app.get_webview_window(&label) {
+        apply_widget_zoom(&window, widget);
         apply_widget_bounds(&window, widget);
         let _ = window.set_always_on_top(widget.keeps_on_top());
         let _ = window.show();
@@ -751,7 +1031,10 @@ fn show_widget_window(
         WebviewWindowBuilder::new(app, label.clone(), WebviewUrl::App(widget_url.into()))
             .title("Hue Widget")
             .inner_size(DEFAULT_WIDGET_WIDTH, DEFAULT_WIDGET_HEIGHT)
-            .min_inner_size(MIN_WIDGET_WIDTH as f64, MIN_WIDGET_HEIGHT as f64)
+            .min_inner_size(
+                MIN_WIDGET_WIDTH as f64 * open_zoom(widget),
+                MIN_WIDGET_HEIGHT as f64 * open_zoom(widget),
+            )
             .decorations(false)
             .resizable(true)
             .always_on_top(widget.keeps_on_top())
@@ -759,18 +1042,23 @@ fn show_widget_window(
             .skip_taskbar(true)
             // Let the webview receive HTML5 drag-and-drop so the settings panel
             // can accept dropped image files; the OS handler would swallow them.
-            .disable_drag_drop_handler()
-            .visible(true);
+            .disable_drag_drop_handler();
 
-    if let Some(bounds) = widget.bounds.filter(valid_bounds) {
-        builder = builder
-            .position(bounds.x as f64, bounds.y as f64)
-            .inner_size(bounds.width as f64, bounds.height as f64);
-    }
+    // The builder takes logical units but stored bounds are physical, so a
+    // placed widget opened at the wrong spot and size on a scaled display.
+    // Build it hidden instead, then place it in physical units before showing.
+    let placed =
+        widget.collapsed.is_some() || widget.bounds.is_some_and(|bounds| valid_bounds(&bounds));
+    builder = builder.visible(!placed);
 
     let window = builder
         .build()
         .map_err(|error| format!("failed to build widget window: {error}"))?;
+    apply_widget_zoom(&window, widget);
+    if placed {
+        apply_widget_bounds(&window, widget);
+        let _ = window.show();
+    }
     install_widget_close_handler(&window, app.clone(), widget.id.clone());
 
     // The widget window is transparent so its content shell can render rounded
@@ -819,10 +1107,12 @@ pub fn set_widget_pinned(
     // Pinning locks the widget to its current spot so it reopens there on the
     // next launch; unpinning forgets that spot and frees the window to move.
     // Stacking is left to the independent always-on-top toggle.
-    widget.bounds = if pinned {
-        read_window_bounds(&window).or(widget.bounds)
-    } else {
+    widget.bounds = if !pinned {
         None
+    } else if widget.collapsed.is_some() {
+        widget.bounds
+    } else {
+        read_window_bounds(&window).or(widget.bounds)
     };
     let next_state = WidgetState::from_stored(widget);
     write_widget_settings(&app, &settings)?;
@@ -961,6 +1251,14 @@ pub fn preview_widget_config(
     corner_mode: Option<WidgetCornerMode>,
     background_mode: Option<WidgetBackgroundMode>,
     tile_opacity: Option<u8>,
+    scale: Option<u16>,
+    collapsed_scale: Option<u16>,
+    collapse_mode: Option<WidgetCollapseMode>,
+    mascot_style: Option<WidgetMascotStyle>,
+    mascot_animated: Option<bool>,
+    expand_vertical: Option<WidgetExpandVertical>,
+    expand_horizontal: Option<WidgetExpandHorizontal>,
+    auto_collapse_seconds: Option<u16>,
 ) -> Result<(), String> {
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let settings = read_widget_settings(&app)?;
@@ -982,6 +1280,30 @@ pub fn preview_widget_config(
     if let Some(tile_opacity) = tile_opacity {
         preview.tile_opacity = clamp_tile_opacity(tile_opacity);
     }
+    if let Some(scale) = scale {
+        preview.scale = clamp_widget_scale(scale);
+    }
+    if let Some(collapsed_scale) = collapsed_scale {
+        preview.collapsed_scale = clamp_collapsed_widget_scale(collapsed_scale);
+    }
+    if let Some(collapse_mode) = collapse_mode {
+        preview.collapse_mode = collapse_mode;
+    }
+    if let Some(mascot_style) = mascot_style {
+        preview.mascot_style = mascot_style;
+    }
+    if let Some(mascot_animated) = mascot_animated {
+        preview.mascot_animated = mascot_animated;
+    }
+    if let Some(expand_vertical) = expand_vertical {
+        preview.expand_vertical = expand_vertical;
+    }
+    if let Some(expand_horizontal) = expand_horizontal {
+        preview.expand_horizontal = expand_horizontal;
+    }
+    if let Some(seconds) = auto_collapse_seconds {
+        preview.auto_collapse_seconds = clamp_auto_collapse_seconds(seconds);
+    }
     let next_state = WidgetState::from_stored(&preview);
 
     let label = widget_label(&widget_id);
@@ -992,18 +1314,34 @@ pub fn preview_widget_config(
     Ok(())
 }
 
+/// Saves the parts of a widget's setup that were sent; anything left out stays
+/// as it is.
+///
+/// Partial on purpose. Under Free, the settings page sees each widget as it
+/// may run (its first control, the standard look), and sending that whole view
+/// back with every change wrote it over the setup saved under Pro, losing
+/// controls for good. Only what changed is sent now, and only that is checked
+/// against the Free allowance, so changing one Free setting is never refused
+/// over a Pro one left untouched.
 #[tauri::command(rename = "set-widget-config")]
 pub fn set_widget_config(
     app: tauri::AppHandle,
     widget_id: Option<String>,
-    controls: Vec<StoredWidgetControl>,
-    theme_mode: WidgetThemeMode,
-    size_mode: WidgetSizeMode,
-    // Optional so a caller that predates corners leaves them as they are.
+    controls: Option<Vec<StoredWidgetControl>>,
+    theme_mode: Option<WidgetThemeMode>,
+    size_mode: Option<WidgetSizeMode>,
     corner_mode: Option<WidgetCornerMode>,
-    // Optional for the same reason.
     background_mode: Option<WidgetBackgroundMode>,
     tile_opacity: Option<u8>,
+    scale: Option<u16>,
+    collapsed_scale: Option<u16>,
+    // Not gated: collapsing is how a widget gets out of the way, Free or Pro.
+    collapse_mode: Option<WidgetCollapseMode>,
+    mascot_style: Option<WidgetMascotStyle>,
+    mascot_animated: Option<bool>,
+    expand_vertical: Option<WidgetExpandVertical>,
+    expand_horizontal: Option<WidgetExpandHorizontal>,
+    auto_collapse_seconds: Option<u16>,
 ) -> Result<(), String> {
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let mut settings = read_widget_settings(&app)?;
@@ -1012,33 +1350,129 @@ pub fn set_widget_config(
         .iter_mut()
         .find(|widget| widget.id == widget_id)
         .ok_or_else(|| "Widget settings are not available.".to_string())?;
-    let controls = sanitize_controls(controls);
-    let corner_mode = corner_mode.unwrap_or_else(|| widget.corner_mode.clone());
-    let background_mode = background_mode.unwrap_or_else(|| widget.background_mode.clone());
-    // The same composition gate as `set-widget-controls`. Without it, saving
-    // from the settings panel was a way round the Free allowance.
-    if exceeds_free_composition(&controls)
-        || exceeds_free_appearance(&theme_mode, &size_mode, &corner_mode)
-        || exceeds_free_background(&background_mode)
+    let controls = controls.map(sanitize_controls);
+    let scale = scale.map(clamp_widget_scale);
+    let collapsed_scale = collapsed_scale.map(clamp_collapsed_widget_scale);
+    // The same gates as everywhere else, on what was sent. A field left out
+    // reads as its Free value here, so it never trips the check by itself.
+    let sent_appearance = theme_mode.is_some() || size_mode.is_some() || corner_mode.is_some();
+    if controls.as_deref().is_some_and(exceeds_free_composition)
+        || (sent_appearance
+            && exceeds_free_appearance(
+                theme_mode.as_ref().unwrap_or(&WidgetThemeMode::System),
+                size_mode.as_ref().unwrap_or(&WidgetSizeMode::Default),
+                corner_mode.as_ref().unwrap_or(&WidgetCornerMode::Rounded),
+            ))
+        || background_mode.as_ref().is_some_and(exceeds_free_background)
+        || scale.is_some_and(exceeds_free_scale)
+        || collapsed_scale.is_some_and(exceeds_free_scale)
     {
         crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
     }
-    widget.controls = controls;
-    widget.theme_mode = theme_mode;
-    widget.size_mode = size_mode;
-    widget.corner_mode = corner_mode;
-    widget.background_mode = background_mode;
+    if let Some(controls) = controls {
+        widget.controls = controls;
+    }
+    if let Some(theme_mode) = theme_mode {
+        widget.theme_mode = theme_mode;
+    }
+    if let Some(size_mode) = size_mode {
+        widget.size_mode = size_mode;
+    }
+    if let Some(corner_mode) = corner_mode {
+        widget.corner_mode = corner_mode;
+    }
+    if let Some(background_mode) = background_mode {
+        widget.background_mode = background_mode;
+    }
     if let Some(tile_opacity) = tile_opacity {
         widget.tile_opacity = clamp_tile_opacity(tile_opacity);
+    }
+    let previous = WidgetZooms::of(widget);
+    if let Some(scale) = scale {
+        widget.scale = scale;
+    }
+    if let Some(collapsed_scale) = collapsed_scale {
+        widget.collapsed_scale = collapsed_scale;
+    }
+    if let Some(collapse_mode) = collapse_mode {
+        widget.collapse_mode = collapse_mode;
+    }
+    if let Some(mascot_style) = mascot_style {
+        widget.mascot_style = mascot_style;
+    }
+    if let Some(mascot_animated) = mascot_animated {
+        widget.mascot_animated = mascot_animated;
+    }
+    if let Some(expand_vertical) = expand_vertical {
+        widget.expand_vertical = expand_vertical;
+    }
+    if let Some(expand_horizontal) = expand_horizontal {
+        widget.expand_horizontal = expand_horizontal;
+    }
+    if let Some(seconds) = auto_collapse_seconds {
+        widget.auto_collapse_seconds = clamp_auto_collapse_seconds(seconds);
+    }
+    let label = widget_label(&widget_id);
+    if let Some(window) = app.get_webview_window(&label) {
+        rescale_widget_window(&window, widget, previous);
     }
     let next_state = WidgetState::from_stored(widget);
     write_widget_settings(&app, &settings)?;
 
-    let label = widget_label(&widget_id);
     if app.get_webview_window(&label).is_some() {
         let _ = app.emit_to(&label, WIDGET_SETTINGS_CHANGED_EVENT, &next_state);
     }
 
+    Ok(())
+}
+
+/// Sets just one scale, for a size slider to call while it is dragged, so the
+/// widget resizes live. Lighter than `set-widget-config`: nothing else is sent,
+/// and no settings-changed event goes out on every step. `collapsed` picks the
+/// collapsed scale over the open one.
+#[tauri::command(rename = "set-widget-scale")]
+pub fn set_widget_scale(
+    app: tauri::AppHandle,
+    widget_id: Option<String>,
+    scale: u16,
+    collapsed: Option<bool>,
+) -> Result<(), String> {
+    let widget_id = resolve_widget_id(&app, widget_id)?;
+    let collapsed = collapsed.unwrap_or(false);
+    let scale = if collapsed {
+        clamp_collapsed_widget_scale(scale)
+    } else {
+        clamp_widget_scale(scale)
+    };
+    if exceeds_free_scale(scale) {
+        crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
+    }
+    let mut settings = read_widget_settings(&app)?;
+    let widget = settings
+        .widgets
+        .iter_mut()
+        .find(|widget| widget.id == widget_id)
+        .ok_or_else(|| "Widget settings are not available.".to_string())?;
+    let previous = WidgetZooms::of(widget);
+    let target = if collapsed {
+        &mut widget.collapsed_scale
+    } else {
+        &mut widget.scale
+    };
+    if *target == scale {
+        return Ok(());
+    }
+    *target = scale;
+    let label = widget_label(&widget_id);
+    if let Some(window) = app.get_webview_window(&label) {
+        rescale_widget_window(&window, widget, previous);
+    }
+    let next_state = WidgetState::from_stored(widget);
+    write_widget_settings(&app, &settings)?;
+    // Only to the widget itself, not the main window: the widget draws its pill
+    // at collapsed over open, so it needs each step to keep the pill filling
+    // its window while the slider moves.
+    let _ = app.emit_to(&label, WIDGET_SETTINGS_CHANGED_EVENT, &next_state);
     Ok(())
 }
 
@@ -1170,6 +1604,7 @@ fn remove_window_border(_window: &WebviewWindow) {}
 
 fn install_widget_close_handler(window: &WebviewWindow, app: tauri::AppHandle, widget_id: String) {
     let window_for_handler = window.clone();
+    let pending_save = Arc::new(Mutex::new(PendingBoundsSave::default()));
     window.on_window_event(move |event| match event {
         WindowEvent::CloseRequested { api, .. } => {
             api.prevent_close();
@@ -1183,21 +1618,113 @@ fn install_widget_close_handler(window: &WebviewWindow, app: tauri::AppHandle, w
         // into the Settings "Position" preview live. We read the full bounds (not
         // just the event's position) so the preview rectangle stays the right
         // size, and only emit when the main window is around to receive it.
+        //
+        // The spot is also persisted here, once the moves settle. The frontend
+        // can't do it: on Windows `startDragging` resolves as the drag begins,
+        // so anything it saves afterwards is the pre-drag position.
         WindowEvent::Moved(_) => {
-            if app.get_webview_window("main").is_some() {
-                if let Some(bounds) = read_window_bounds(&window_for_handler) {
-                    let _ = app.emit_to(
-                        "main",
-                        WIDGET_MOVED_EVENT,
-                        WidgetMovedEvent {
-                            widget_id: widget_id.clone(),
-                            bounds,
-                        },
-                    );
-                }
+            schedule_bounds_save(&app, &widget_id, &window_for_handler, &pending_save);
+            emit_widget_moved(&app, &widget_id, &window_for_handler);
+        }
+        // Collapsing and expanding resize the window, often without moving
+        // it, and the preview has to change shape with it.
+        WindowEvent::Resized(_) => emit_widget_moved(&app, &widget_id, &window_for_handler),
+        _ => {}
+    });
+}
+
+fn emit_widget_moved(app: &tauri::AppHandle, widget_id: &str, window: &WebviewWindow) {
+    if app.get_webview_window("main").is_none() {
+        return;
+    }
+    if let Some(bounds) = read_window_rect(window) {
+        let _ = app.emit_to(
+            "main",
+            WIDGET_MOVED_EVENT,
+            WidgetMovedEvent {
+                widget_id: widget_id.to_string(),
+                bounds,
+            },
+        );
+    }
+}
+
+/// Tracks a widget's in-flight move so a drag persists once, after it settles,
+/// instead of on every `Moved` event.
+#[derive(Default)]
+struct PendingBoundsSave {
+    last_move: Option<Instant>,
+    scheduled: bool,
+}
+
+fn schedule_bounds_save(
+    app: &tauri::AppHandle,
+    widget_id: &str,
+    window: &WebviewWindow,
+    pending: &Arc<Mutex<PendingBoundsSave>>,
+) {
+    let Ok(mut state) = pending.lock() else {
+        return;
+    };
+    state.last_move = Some(Instant::now());
+    if state.scheduled {
+        return;
+    }
+    state.scheduled = true;
+    drop(state);
+
+    let app = app.clone();
+    let widget_id = widget_id.to_string();
+    let window = window.clone();
+    let pending = Arc::clone(pending);
+    thread::spawn(move || {
+        loop {
+            thread::sleep(MOVE_SAVE_DELAY);
+            let Ok(mut state) = pending.lock() else {
+                return;
+            };
+            if state
+                .last_move
+                .is_some_and(|moved| moved.elapsed() >= MOVE_SAVE_DELAY)
+            {
+                state.scheduled = false;
+                break;
             }
         }
-        _ => {}
+        // Commands that write the settings file run on the main thread, so the
+        // save goes there too rather than racing them from this one.
+        let app_for_save = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            if !window.is_visible().unwrap_or(false) {
+                return;
+            }
+            let Ok(mut settings) = read_widget_settings(&app_for_save) else {
+                return;
+            };
+            let Some(widget) = settings
+                .widgets
+                .iter_mut()
+                .find(|widget| widget.id == widget_id)
+            else {
+                return;
+            };
+            if let Some(collapsed) = widget.collapsed.as_mut() {
+                if window.is_minimized().unwrap_or(false) {
+                    return;
+                }
+                let Ok(PhysicalPosition { x, y }) = window.outer_position() else {
+                    return;
+                };
+                collapsed.x = x;
+                collapsed.y = y;
+            } else {
+                let Some(bounds) = read_window_bounds(&window) else {
+                    return;
+                };
+                widget.bounds = Some(bounds);
+            }
+            let _ = write_widget_settings(&app_for_save, &settings);
+        });
     });
 }
 
@@ -1212,11 +1739,25 @@ fn mark_widget_closed(
         .find(|widget| widget.id == widget_id)
     {
         widget.enabled = false;
-        widget.bounds = read_window_bounds(window).or(widget.bounds);
+        if widget.collapsed.is_none() {
+            widget.bounds = read_window_bounds(window).or(widget.bounds);
+        }
     }
 }
 
 fn read_window_bounds(window: &WebviewWindow) -> Option<StoredWidgetBounds> {
+    read_window_rect(window).filter(valid_bounds)
+}
+
+/// Where the window is on screen right now, whatever it shows: the widget,
+/// or its pill while collapsed. For showing where it is, not for storing as
+/// the widget's size.
+fn read_window_rect(window: &WebviewWindow) -> Option<StoredWidgetBounds> {
+    // A minimized window reports Windows' parking spot (-32000, -32000), which
+    // would restore the widget off-screen.
+    if window.is_minimized().unwrap_or(false) {
+        return None;
+    }
     let PhysicalPosition { x, y } = window.outer_position().ok()?;
     let PhysicalSize { width, height } = window.inner_size().ok()?;
     Some(StoredWidgetBounds {
@@ -1225,18 +1766,369 @@ fn read_window_bounds(window: &WebviewWindow) -> Option<StoredWidgetBounds> {
         width,
         height,
     })
-    .filter(valid_bounds)
 }
 
+/// Rules out sizes no widget can have. Only a sanity floor: a widget drawn
+/// at 70% is smaller than the 100% minimum, and pills are kept apart by
+/// checking `collapsed`, not by size.
 fn valid_bounds(bounds: &StoredWidgetBounds) -> bool {
-    bounds.width >= MIN_WIDGET_WIDTH && bounds.height >= MIN_WIDGET_HEIGHT
+    bounds.width >= MIN_WIDGET_WIDTH / 2 && bounds.height >= MIN_WIDGET_HEIGHT / 2
+}
+
+/// The webview zoom a widget runs at: its open scale, or 100% while Free
+/// applies. It never changes on collapse: a zoom switch mid-fold drew a frame
+/// at the wrong size. The collapsed scale sizes the pill's window instead, and
+/// the frontend draws the pill scaled to fill it.
+fn open_zoom(widget: &StoredWidget) -> f64 {
+    widget.in_effect().scale as f64 / 100.0
+}
+
+/// How large the pill is drawn, as a zoom: the collapsed scale.
+fn collapsed_zoom(widget: &StoredWidget) -> f64 {
+    widget.in_effect().collapsed_scale as f64 / 100.0
+}
+
+fn widget_zoom(widget: &StoredWidget) -> f64 {
+    open_zoom(widget)
+}
+
+fn apply_widget_zoom(window: &WebviewWindow, widget: &StoredWidget) {
+    let _ = window.set_zoom(widget_zoom(widget));
+}
+
+/// Both zooms, taken before a scale changes.
+#[derive(Clone, Copy)]
+struct WidgetZooms {
+    open: f64,
+    collapsed: f64,
+}
+
+impl WidgetZooms {
+    fn of(widget: &StoredWidget) -> Self {
+        Self {
+            open: open_zoom(widget),
+            collapsed: collapsed_zoom(widget),
+        }
+    }
+}
+
+fn changed(next: f64, previous: f64) -> bool {
+    previous > 0.0 && (next - previous).abs() >= f64::EPSILON
+}
+
+/// Applies new scales to a widget.
+///
+/// Open, a new open scale grows or shrinks the window by the same ratio as
+/// the zoom, so the widget scales as a whole rather than its controls
+/// reflowing inside an unchanged frame. A new collapsed scale waits for the
+/// next collapse, which measures the pill afresh.
+///
+/// Collapsed, a new collapsed scale resizes the pill's window in place, and a
+/// new open scale changes the zoom and the stored open bounds with it; the
+/// pill keeps its size, since the frontend draws it at collapsed over open.
+fn rescale_widget_window(window: &WebviewWindow, widget: &mut StoredWidget, previous: WidgetZooms) {
+    let next = WidgetZooms::of(widget);
+    if let Some(collapsed) = widget.collapsed.as_mut() {
+        if changed(next.collapsed, previous.collapsed) {
+            if collapsed.css_width > 0 && collapsed.css_height > 0 {
+                collapsed.width = (collapsed.css_width as f64 * next.collapsed).round() as u32;
+                collapsed.height = (collapsed.css_height as f64 * next.collapsed).round() as u32;
+            } else {
+                let ratio = next.collapsed / previous.collapsed;
+                collapsed.width = (collapsed.width as f64 * ratio).round() as u32;
+                collapsed.height = (collapsed.height as f64 * ratio).round() as u32;
+            }
+            let pill = *collapsed;
+            apply_collapsed_bounds(window, &pill);
+        }
+        if changed(next.open, previous.open) {
+            let ratio = next.open / previous.open;
+            if let Some(bounds) = widget.bounds.as_mut() {
+                bounds.width = (bounds.width as f64 * ratio).round() as u32;
+                bounds.height = (bounds.height as f64 * ratio).round() as u32;
+            }
+        }
+        apply_widget_zoom(window, widget);
+        return;
+    }
+    if !changed(next.open, previous.open) {
+        apply_widget_zoom(window, widget);
+        return;
+    }
+    let ratio = next.open / previous.open;
+    // Growing, the window grows before the content does; shrinking, the
+    // content shrinks first. Either way no frame draws the content larger
+    // than its window, which showed as the controls cut off.
+    let growing = ratio > 1.0;
+    if !growing {
+        apply_widget_zoom(window, widget);
+    }
+    if let Ok(size) = window.inner_size() {
+        let width = (size.width as f64 * ratio).round() as u32;
+        let height = (size.height as f64 * ratio).round() as u32;
+        // Lift the old limits first, or they refuse the new size; the
+        // frontend's next layout sync sets them again for the new zoom.
+        let _ = window.set_max_size(None::<LogicalSize<f64>>);
+        let _ = window.set_min_size(None::<LogicalSize<f64>>);
+        let _ = window.set_size(PhysicalSize::new(width, height));
+        if let Some(bounds) = widget.bounds.as_mut() {
+            bounds.width = width;
+            bounds.height = height;
+        }
+    }
+    if growing {
+        apply_widget_zoom(window, widget);
+    }
 }
 
 fn apply_widget_bounds(window: &WebviewWindow, widget: &StoredWidget) {
-    if let Some(bounds) = widget.bounds.filter(valid_bounds) {
-        let _ = window.set_position(PhysicalPosition::new(bounds.x, bounds.y));
-        let _ = window.set_size(PhysicalSize::new(bounds.width, bounds.height));
+    if let Some(collapsed) = widget.collapsed {
+        apply_collapsed_bounds(window, &collapsed);
+        return;
     }
+    if let Some(bounds) = widget.bounds.filter(valid_bounds) {
+        set_window_bounds(window, bounds.x, bounds.y, bounds.width, bounds.height);
+    }
+}
+
+/// Moves and resizes a window in one step. Two calls paint a frame in between,
+/// which shows as a jump when a widget collapses or expands.
+#[cfg(target_os = "windows")]
+fn set_window_bounds(window: &WebviewWindow, x: i32, y: i32, width: u32, height: u32) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SetWindowPos, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SWP_NOZORDER,
+    };
+
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    unsafe {
+        SetWindowPos(
+            hwnd.0 as _,
+            std::ptr::null_mut(),
+            x,
+            y,
+            width as i32,
+            height as i32,
+            SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_NOACTIVATE,
+        );
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn set_window_bounds(window: &WebviewWindow, x: i32, y: i32, width: u32, height: u32) {
+    let _ = window.set_position(PhysicalPosition::new(x, y));
+    let _ = window.set_size(PhysicalSize::new(width, height));
+}
+
+/// The collapsed window's size bounds, in logical pixels. The frontend measures
+/// the pill or bubble; these only keep a bad measurement from making it vanish
+/// or sprawl.
+const MIN_COLLAPSED_SIZE: u32 = 32;
+const MAX_COLLAPSED_WIDTH: u32 = 360;
+const MAX_COLLAPSED_HEIGHT: u32 = 96;
+
+fn apply_collapsed_bounds(window: &WebviewWindow, collapsed: &StoredCollapsedBounds) {
+    let size = LogicalSize::new(collapsed.width as f64, collapsed.height as f64);
+    let physical = size.to_physical::<u32>(window.scale_factor().unwrap_or(1.0));
+    // Both limits come off before the resize and go back after it. Setting
+    // one first only worked shrinking: growing (the pill scaled up) ran into
+    // the old, smaller ceiling and the window kept the old size, cutting the
+    // pill off.
+    let _ = window.set_max_size(None::<LogicalSize<f64>>);
+    let _ = window.set_min_size(None::<LogicalSize<f64>>);
+    set_window_bounds(
+        window,
+        collapsed.x,
+        collapsed.y,
+        physical.width,
+        physical.height,
+    );
+    let _ = window.set_min_size(Some(size));
+    let _ = window.set_max_size(Some(size));
+    // The pill's size is fixed, so its edges shouldn't offer resize cursors.
+    let _ = window.set_resizable(false);
+}
+
+fn collapsed_physical_size(window: &WebviewWindow, collapsed: &StoredCollapsedBounds) -> (i32, i32) {
+    let scale_factor = window.scale_factor().unwrap_or(1.0);
+    (
+        (collapsed.width as f64 * scale_factor).round() as i32,
+        (collapsed.height as f64 * scale_factor).round() as i32,
+    )
+}
+
+/// Collapses a widget to its pill or bubble, or expands it back.
+///
+/// Both directions keep one corner where it is: the widget's `collapse_corner`.
+/// Expanding picks it from where the pill sits on its monitor, so a pill
+/// dragged to the bottom of the screen unfolds upwards and one at the right
+/// unfolds leftwards, and collapsing folds back into the same corner, so the
+/// pill returns to where it was. The frontend animates toward and away from
+/// that corner around the window resize.
+#[tauri::command(rename = "set-widget-collapsed")]
+pub fn set_widget_collapsed(
+    app: tauri::AppHandle,
+    widget_id: Option<String>,
+    collapsed: bool,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> Result<WidgetState, String> {
+    let widget_id = resolve_widget_id(&app, widget_id)?;
+    let window = app
+        .get_webview_window(&widget_label(&widget_id))
+        .ok_or_else(|| "Widget window is not available.".to_string())?;
+    let monitors = if collapsed {
+        Vec::new()
+    } else {
+        collect_monitors(&app).unwrap_or_default()
+    };
+    let mut settings = read_widget_settings(&app)?;
+    let widget = settings
+        .widgets
+        .iter_mut()
+        .find(|widget| widget.id == widget_id)
+        .ok_or_else(|| "Widget settings are not available.".to_string())?;
+
+    if collapsed {
+        let zoom = collapsed_zoom(widget);
+        // Measured in CSS pixels; stored and applied in logical ones.
+        let css_width = width
+            .unwrap_or(MIN_COLLAPSED_SIZE)
+            .clamp(MIN_COLLAPSED_SIZE, MAX_COLLAPSED_WIDTH);
+        let css_height = height
+            .unwrap_or(MIN_COLLAPSED_SIZE)
+            .clamp(MIN_COLLAPSED_SIZE, MAX_COLLAPSED_HEIGHT);
+        let width = (css_width as f64 * zoom).round() as u32;
+        let height = (css_height as f64 * zoom).round() as u32;
+        let scale_factor = window.scale_factor().unwrap_or(1.0);
+        let pill_width = (width as f64 * scale_factor).round() as i32;
+        let pill_height = (height as f64 * scale_factor).round() as i32;
+        // The rectangle the pill is fitted into, at the anchored corner: the
+        // expanded window, or the pill itself when it re-measures (its title or
+        // style changed), so it stays put.
+        let frame = match widget.collapsed {
+            Some(previous) => {
+                let (previous_width, previous_height) =
+                    collapsed_physical_size(&window, &previous);
+                Some((previous.x, previous.y, previous_width, previous_height))
+            }
+            None => {
+                widget.bounds = read_window_bounds(&window).or(widget.bounds);
+                widget.bounds.map(|bounds| {
+                    (bounds.x, bounds.y, bounds.width as i32, bounds.height as i32)
+                })
+            }
+        };
+        let (x, y) = match frame {
+            Some((frame_x, frame_y, frame_width, frame_height)) => {
+                let corner = &widget.collapse_corner;
+                (
+                    if corner.is_right() {
+                        frame_x + frame_width - pill_width
+                    } else {
+                        frame_x
+                    },
+                    if corner.is_bottom() {
+                        frame_y + frame_height - pill_height
+                    } else {
+                        frame_y
+                    },
+                )
+            }
+            None => window
+                .outer_position()
+                .map(|position| (position.x, position.y))
+                .unwrap_or_default(),
+        };
+        let next = StoredCollapsedBounds {
+            x,
+            y,
+            width,
+            height,
+            css_width,
+            css_height,
+        };
+        widget.collapsed = Some(next);
+        apply_collapsed_bounds(&window, &next);
+    } else if let Some(previous) = widget.collapsed.take() {
+        let zoom = open_zoom(widget);
+        if let Some(bounds) = widget.bounds.as_mut() {
+            let (pill_width, pill_height) = collapsed_physical_size(&window, &previous);
+            let center_x = previous.x + pill_width / 2;
+            let center_y = previous.y + pill_height / 2;
+            let monitor = monitors
+                .iter()
+                .find(|monitor| {
+                    center_x >= monitor.x
+                        && center_x < monitor.x + monitor.width as i32
+                        && center_y >= monitor.y
+                        && center_y < monitor.y + monitor.height as i32
+                })
+                .or_else(|| monitors.iter().find(|monitor| monitor.is_primary));
+            // Open toward the preferred sides, each axis flipping on its own
+            // when there is no room that way. The pill holds the opposite
+            // corner: growing up and left keeps it at the bottom right.
+            let mut grow_up = widget.expand_vertical == WidgetExpandVertical::Up;
+            let mut grow_left = widget.expand_horizontal == WidgetExpandHorizontal::Left;
+            if let Some(monitor) = monitor {
+                let work_right = monitor.work_x + monitor.work_width as i32;
+                let work_bottom = monitor.work_y + monitor.work_height as i32;
+                let room_up = previous.y + pill_height - monitor.work_y;
+                let room_down = work_bottom - previous.y;
+                let room_left = previous.x + pill_width - monitor.work_x;
+                let room_right = work_right - previous.x;
+                let height = bounds.height as i32;
+                let width = bounds.width as i32;
+                grow_up = if grow_up {
+                    prefer_side(room_up, room_down, height)
+                } else {
+                    !prefer_side(room_down, room_up, height)
+                };
+                grow_left = if grow_left {
+                    prefer_side(room_left, room_right, width)
+                } else {
+                    !prefer_side(room_right, room_left, width)
+                };
+            }
+            widget.collapse_corner = WidgetCollapseCorner::from_sides(grow_left, grow_up);
+            let corner = &widget.collapse_corner;
+            let mut x = if corner.is_right() {
+                previous.x + pill_width - bounds.width as i32
+            } else {
+                previous.x
+            };
+            let mut y = if corner.is_bottom() {
+                previous.y + pill_height - bounds.height as i32
+            } else {
+                previous.y
+            };
+            if let Some(monitor) = monitor {
+                let max_x = monitor.work_x + monitor.work_width as i32 - bounds.width as i32;
+                let max_y = monitor.work_y + monitor.work_height as i32 - bounds.height as i32;
+                x = x.min(max_x).max(monitor.work_x);
+                y = y.min(max_y).max(monitor.work_y);
+            }
+            bounds.x = x;
+            bounds.y = y;
+        }
+        // Lift the pill's fixed size in the same order as collapsing, mirrored.
+        // The frontend's next layout sync sets the real limits for the controls.
+        let _ = window.set_max_size(None::<LogicalSize<f64>>);
+        let _ = window.set_resizable(true);
+        apply_widget_bounds(&window, widget);
+        let _ = window.set_min_size(Some(LogicalSize::new(
+            MIN_WIDGET_WIDTH as f64 * zoom,
+            MIN_WIDGET_HEIGHT as f64 * zoom,
+        )));
+    }
+
+    let next_state = WidgetState::from_stored(widget);
+    write_widget_settings(&app, &settings)?;
+    if app.get_webview_window("main").is_some() {
+        let _ = app.emit_to("main", WIDGET_SETTINGS_CHANGED_EVENT, &next_state);
+    }
+    Ok(next_state)
 }
 
 /// Keeps the user's width (never below the minimum) and fits the height to the
@@ -1244,13 +2136,13 @@ fn apply_widget_bounds(window: &WebviewWindow, widget: &StoredWidget) {
 /// glass below them.
 fn clamped_widget_size(
     window: &WebviewWindow,
-    min_width: u32,
-    content_height: u32,
+    min_width: f64,
+    content_height: f64,
 ) -> Option<LogicalSize<f64>> {
     let scale_factor = window.scale_factor().ok()?;
     let current = window.inner_size().ok()?.to_logical::<f64>(scale_factor);
-    let width = current.width.max(min_width as f64).ceil();
-    let height = (content_height as f64).ceil();
+    let width = current.width.max(min_width).ceil();
+    let height = content_height.ceil();
 
     // A pixel of rounding either way is not worth a resize.
     (width > current.width || (height - current.height).abs() > 1.0)
@@ -1408,6 +2300,23 @@ fn sanitize_widget_settings(mut settings: StoredWidgetSettings) -> StoredWidgetS
         if !widget.bounds.is_some_and(|bounds| valid_bounds(&bounds)) {
             widget.bounds = None;
         }
+        // Small and Large were the size setting before the scale slider; each
+        // becomes the step nearest the size it drew at.
+        match widget.size_mode {
+            WidgetSizeMode::Small if widget.scale == DEFAULT_WIDGET_SCALE => {
+                widget.scale = 90;
+            }
+            WidgetSizeMode::Large if widget.scale == DEFAULT_WIDGET_SCALE => {
+                widget.scale = 110;
+            }
+            _ => {}
+        }
+        widget.size_mode = WidgetSizeMode::Default;
+        widget.scale = clamp_widget_scale(widget.scale);
+        if widget.collapsed_scale == 0 {
+            widget.collapsed_scale = widget.scale;
+        }
+        widget.collapsed_scale = clamp_collapsed_widget_scale(widget.collapsed_scale);
         widget.title = sanitize_widget_title(widget.title.clone());
         widget.controls = sanitize_controls(widget.controls.clone());
         true
@@ -1563,7 +2472,17 @@ fn legacy_widget_settings_from_value(value: &Value) -> StoredWidgetSettings {
             corner_mode: WidgetCornerMode::default(),
             background_mode: WidgetBackgroundMode::default(),
             tile_opacity: default_tile_opacity(),
+            scale: DEFAULT_WIDGET_SCALE,
+            collapsed_scale: DEFAULT_WIDGET_SCALE,
             always_on_top: false,
+            collapse_mode: WidgetCollapseMode::default(),
+            mascot_style: WidgetMascotStyle::default(),
+            mascot_animated: default_mascot_animated(),
+            expand_vertical: WidgetExpandVertical::default(),
+            expand_horizontal: WidgetExpandHorizontal::default(),
+            auto_collapse_seconds: 0,
+            collapse_corner: WidgetCollapseCorner::default(),
+            collapsed: None,
             controls: Vec::new(),
         }],
     }
@@ -1731,17 +2650,27 @@ fn current_widget_bounds(
     app: &tauri::AppHandle,
     widget_id: &str,
 ) -> Result<Option<StoredWidgetBounds>, String> {
+    // The live window as it is, so a collapsed widget shows as its pill.
     if let Some(window) = app.get_webview_window(&widget_label(widget_id)) {
-        if let Some(bounds) = read_window_bounds(&window) {
+        if let Some(bounds) = read_window_rect(&window) {
             return Ok(Some(bounds));
         }
     }
     let settings = read_widget_settings(app)?;
-    Ok(settings
-        .widgets
-        .iter()
-        .find(|widget| widget.id == widget_id)
-        .and_then(|widget| widget.bounds))
+    let Some(widget) = settings.widgets.iter().find(|widget| widget.id == widget_id) else {
+        return Ok(None);
+    };
+    // A closed collapsed widget reopens as its pill. Its size is stored in
+    // logical pixels, near enough for the preview with no window to ask.
+    Ok(match widget.collapsed {
+        Some(collapsed) => Some(StoredWidgetBounds {
+            x: collapsed.x,
+            y: collapsed.y,
+            width: collapsed.width,
+            height: collapsed.height,
+        }),
+        None => widget.bounds,
+    })
 }
 
 #[tauri::command(rename = "get-widget-placement")]
@@ -1784,13 +2713,26 @@ pub fn set_widget_position(
             .iter_mut()
             .find(|widget| widget.id == widget_id)
         {
-            widget.bounds = read_window_bounds(&window).or(widget.bounds);
+            // Placed while collapsed, it's the pill that moved; the widget
+            // opens from there when expanded.
+            match widget.collapsed.as_mut() {
+                Some(collapsed) => {
+                    collapsed.x = x;
+                    collapsed.y = y;
+                }
+                None => widget.bounds = read_window_bounds(&window).or(widget.bounds),
+            }
         }
     } else if let Some(widget) = settings
         .widgets
         .iter_mut()
         .find(|widget| widget.id == widget_id)
     {
+        if let Some(collapsed) = widget.collapsed.as_mut() {
+            collapsed.x = x;
+            collapsed.y = y;
+            return write_widget_settings(&app, &settings);
+        }
         let (width, height) = widget
             .bounds
             .map(|bounds| (bounds.width, bounds.height))
@@ -1828,8 +2770,23 @@ pub fn reset_widget_position(
 
     let mut settings = read_widget_settings(&app)?;
 
+    // Recovery always brings the widget back expanded, at its expanded size.
+    let expanded_size = settings
+        .widgets
+        .iter_mut()
+        .find(|widget| widget.id == widget_id)
+        .and_then(|widget| widget.collapsed.take().and(widget.bounds))
+        .map(|bounds| PhysicalSize::new(bounds.width, bounds.height));
+
     if let Some(window) = app.get_webview_window(&widget_label(&widget_id)) {
-        let size = window.inner_size().map_err(|error| error.to_string())?;
+        if expanded_size.is_some() {
+            let _ = window.set_max_size(None::<LogicalSize<f64>>);
+            let _ = window.set_resizable(true);
+        }
+        let size = match expanded_size {
+            Some(size) => size,
+            None => window.inner_size().map_err(|error| error.to_string())?,
+        };
         let width = size.width.clamp(MIN_WIDGET_WIDTH, max_width);
         let height = size.height.clamp(MIN_WIDGET_HEIGHT, max_height);
         // The layout synchronizer normally prevents the window from becoming
@@ -1841,7 +2798,7 @@ pub fn reset_widget_position(
                 MIN_WIDGET_HEIGHT.min(height),
             )))
             .map_err(|error| error.to_string())?;
-        if width != size.width || height != size.height {
+        if expanded_size.is_some() || width != size.width || height != size.height {
             window
                 .set_size(PhysicalSize::new(width, height))
                 .map_err(|error| error.to_string())?;
@@ -1981,6 +2938,61 @@ mod free_limit_tests {
             WidgetBackgroundMode::Solid
         ));
         assert_eq!(widget.tile_opacity, default_tile_opacity());
+    }
+
+    #[test]
+    fn auto_collapse_is_off_or_within_its_range() {
+        assert_eq!(clamp_auto_collapse_seconds(0), 0);
+        assert_eq!(clamp_auto_collapse_seconds(1), 1);
+        assert_eq!(clamp_auto_collapse_seconds(12), 12);
+        assert_eq!(clamp_auto_collapse_seconds(9_000), MAX_AUTO_COLLAPSE_SECONDS);
+    }
+
+    #[test]
+    fn a_scale_snaps_to_a_step_within_the_range() {
+        assert_eq!(clamp_widget_scale(100), 100);
+        assert_eq!(clamp_widget_scale(73), 73);
+        assert_eq!(clamp_widget_scale(125), 125);
+        assert_eq!(clamp_widget_scale(69), MIN_WIDGET_SCALE);
+        assert_eq!(clamp_widget_scale(0), MIN_WIDGET_SCALE);
+        assert_eq!(clamp_widget_scale(255), MAX_WIDGET_SCALE);
+        assert_eq!(clamp_collapsed_widget_scale(250), 250);
+        assert_eq!(clamp_collapsed_widget_scale(300), MAX_COLLAPSED_WIDGET_SCALE);
+        assert_eq!(clamp_collapsed_widget_scale(u16::MAX), MAX_COLLAPSED_WIDGET_SCALE);
+        assert!(!exceeds_free_scale(100));
+        assert!(exceeds_free_scale(90));
+    }
+
+    #[test]
+    fn small_and_large_widgets_become_a_scale() {
+        let settings: StoredWidgetSettings = serde_json::from_value(serde_json::json!({
+            "widgets": [
+                { "id": "small", "enabled": true, "pinned": false, "bounds": null, "sizeMode": "small" },
+                { "id": "large", "enabled": true, "pinned": false, "bounds": null, "sizeMode": "large" },
+                { "id": "plain", "enabled": true, "pinned": false, "bounds": null }
+            ]
+        }))
+        .unwrap();
+        let settings = sanitize_widget_settings(settings);
+        let scale_of = |id: &str| {
+            let widget = settings.widgets.iter().find(|w| w.id == id).unwrap();
+            assert!(matches!(widget.size_mode, WidgetSizeMode::Default));
+            widget.scale
+        };
+        assert_eq!(scale_of("small"), 90);
+        assert_eq!(scale_of("large"), 110);
+        assert_eq!(scale_of("plain"), DEFAULT_WIDGET_SCALE);
+    }
+
+    #[test]
+    fn a_widget_opens_the_preferred_way_unless_there_is_no_room() {
+        // Fits the preferred way.
+        assert!(prefer_side(500, 100, 300));
+        // No room that way, room the other: flip.
+        assert!(!prefer_side(100, 500, 300));
+        // Room neither way: the side with more room wins.
+        assert!(prefer_side(250, 200, 300));
+        assert!(!prefer_side(150, 200, 300));
     }
 
     #[test]

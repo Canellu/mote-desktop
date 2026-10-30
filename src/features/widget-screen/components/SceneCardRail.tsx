@@ -163,17 +163,21 @@ export const SelectableSceneCard = ({
   scene,
   selected,
   disabled,
+  fullWidth = false,
   onToggle,
 }: {
   scene: HueScene;
   selected: boolean;
   disabled: boolean;
+  /** Fill a grid cell instead of the rail's fixed width. */
+  fullWidth?: boolean;
   onToggle: () => void;
 }) => {
   const bubble = sceneBubbleCss(scene);
   return (
     <SceneTile
       size="sm"
+      fullWidth={fullWidth}
       name={scene.name}
       ariaPressed={selected}
       selected={selected}

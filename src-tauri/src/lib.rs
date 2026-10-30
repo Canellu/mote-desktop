@@ -177,6 +177,8 @@ pub fn run() {
             commands::widget::widget_frontend_ready,
             commands::widget::set_widget_pinned,
             commands::widget::set_widget_always_on_top,
+            commands::widget::set_widget_collapsed,
+            commands::widget::set_widget_scale,
             commands::widget::get_widget_controls,
             commands::widget::set_widget_controls,
             commands::widget::preview_widget_config,
