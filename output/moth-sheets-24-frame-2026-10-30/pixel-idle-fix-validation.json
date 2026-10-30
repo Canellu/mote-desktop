@@ -1,0 +1,13 @@
+{
+  "width": 2304,
+  "height": 1536,
+  "grid": [
+    6,
+    4
+  ],
+  "cell": [
+    384,
+    384
+  ],
+  "frame1AndOtherRowsUnchanged": true
+}

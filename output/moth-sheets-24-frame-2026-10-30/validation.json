@@ -1,0 +1,27 @@
+[
+  {
+    "file": "01-low-poly.png",
+    "uniformScale": 0.6854838709677419,
+    "cellsNearEdge": []
+  },
+  {
+    "file": "02-pixel-art.png",
+    "uniformScale": 0.7024793388429752,
+    "cellsNearEdge": []
+  },
+  {
+    "file": "03-cel-shaded.png",
+    "uniformScale": 0.6772908366533864,
+    "cellsNearEdge": []
+  },
+  {
+    "file": "04-paper-cutout.png",
+    "uniformScale": 0.7053941908713693,
+    "cellsNearEdge": []
+  },
+  {
+    "file": "05-watercolor.png",
+    "uniformScale": 0.6343283582089553,
+    "cellsNearEdge": []
+  }
+]
