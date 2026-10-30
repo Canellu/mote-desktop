@@ -31,6 +31,9 @@ const DEVICE_TYPE: &str = "mote-desktop#desktop";
 /// installations whose main pairing predates clientkey capture.
 const ENTERTAINMENT_DEVICE_TYPE: &str = "mote-desktop#pcsync";
 const REQUEST_TIMEOUT_SECS: u64 = 8;
+/// How long a light's identify breathe runs. Long enough for one visible
+/// cycle; `useBlinkLights` locks a light out for the same time on the frontend.
+const IDENTIFY_DURATION_MS: u32 = 1_500;
 const PUBLIC_CONFIG_TIMEOUT_SECS: u64 = 3;
 /// Pairing tries HTTPS and then HTTP, so a silent bridge must fail each
 /// connection quickly or the user waits out two full request timeouts.
@@ -2143,14 +2146,35 @@ impl HueClient {
             .await
     }
 
-    /// Runs the Hue v2 one-cycle identification breathe. The bridge restores
-    /// the light automatically after the identification sequence finishes.
+    /// Runs the Hue v2 identification breathe. The bridge restores the light
+    /// automatically after the identification sequence finishes.
+    ///
+    /// Without a `duration` the length is up to the light's firmware, and some
+    /// lights kept breathing for many seconds, so it is bounded explicitly. A
+    /// bridge too old to know the field gets the plain request instead.
     pub async fn signal_light(
         &self,
         ip: &str,
         application_key: &str,
         id: &str,
     ) -> Result<(), String> {
+        let bounded = self
+            .put_v2(
+                ip,
+                application_key,
+                "light",
+                id,
+                json!({
+                    "identify": {
+                        "action": "identify",
+                        "duration": IDENTIFY_DURATION_MS,
+                    }
+                }),
+            )
+            .await;
+        if bounded.is_ok() {
+            return bounded;
+        }
         self.put_v2(
             ip,
             application_key,
