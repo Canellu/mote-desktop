@@ -61,8 +61,8 @@ const COLLAPSED_DRAG_THRESHOLD = 4;
  * (an ease-in; Fluent's Accelerate Min eases out again at the end, which
  * read as rushed). Neither overshoots: a bounce shrank the shell below the
  * pill's size and cut its icon and title off. Seconds. */
-const EXPAND_DURATION = 0.3;
-const COLLAPSE_DURATION = 0.36;
+export const EXPAND_DURATION = 0.3;
+export const COLLAPSE_DURATION = 0.36;
 export const EXPAND_TRANSITION = {
   duration: EXPAND_DURATION,
   ease: [0.1, 0.9, 0.2, 1],
@@ -71,13 +71,21 @@ export const COLLAPSE_TRANSITION = {
   duration: COLLAPSE_DURATION,
   ease: [0.6, 0, 0.8, 0.2],
 } as const;
-/** How far the cards rise as they fade in on an expand, in px, as a
- * Settings page's content does. */
-const CARDS_RISE = 10;
 /** How small the moth starts as it lands on a collapse, and how large it
  * swells as it dissolves into the shell on an expand. */
-const MOTH_LANDING_SCALE = 0.6;
-const MOTH_RELEASE_SCALE = 1.3;
+export const MOTH_LANDING_SCALE = 0.6;
+/** How far the cards rise as they fade in on a Fade expand, in px, as a
+ * Settings page's content does. */
+const CARDS_RISE = 10;
+/** The cards' fall into the corner on a collapse, as shares of the collapse
+ * duration: each card's fall, the gap before the next one starts, and the
+ * most all the gaps together may add up to, however many cards there are.
+ * They shrink to `CARD_STACK_SCALE` as they stack. */
+export const CARD_FALL = 1;
+export const CARD_STAGGER = 0.12;
+export const CARD_STAGGER_TOTAL = 0.5;
+export const CARD_STACK_SCALE = 0.3;
+export const MOTH_RELEASE_SCALE = 1.3;
 
 /** Pins an element to the widget's collapse corner, so the shell shrinks into
  * it and grows out of it, and the content inside holds still meanwhile. */
@@ -555,6 +563,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     tileOpacity,
     title,
     collapseMode,
+    foldAnimation,
     mascotStyle,
     mascotAnimated,
     scale,
@@ -599,6 +608,11 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   // its background, so a pinned widget keeps it while the pointer stays, and
   // goes bare like any pinned widget once it leaves.
   const [unfolded, setUnfolded] = useState(false);
+  // Set while a fold that started with only the cards showing runs, so it
+  // never brings the background up.
+  const [bareFold, setBareFold] = useState(false);
+  // Read when a fold starts; `showShell` is worked out further down.
+  const showShellRef = useRef(false);
   const sizeMetrics = WIDGET_SIZE_METRICS[sizeMode];
   const hasLoaded = useHueResourcesStore((state) => state.hasLoaded);
   const [shellRevealed, setShellRevealed] = useState(false);
@@ -808,10 +822,38 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       },
     });
 
-  // The shell shrinks into its collapse corner inside the still
-  // full-size window. The window never shrinks: once the pill has taken over
-  // (see `fitCollapsed`) it is clipped to the pill, so the webview never
-  // shows a stale frame of a resize.
+  // Each card's offset from the stack at the pill's middle, in the collapse
+  // corner, nearest the corner first. `width` and `height` are the pill's
+  // drawn size.
+  const cardStack = (width: number, height: number) => {
+    const right = collapseCorner.endsWith("Right");
+    const bottom = collapseCorner.startsWith("bottom");
+    const toX = right ? window.innerWidth - width / 2 : width / 2;
+    const toY = bottom ? window.innerHeight - height / 2 : height / 2;
+    const grid = contentRef.current?.firstElementChild;
+    return (grid ? Array.from(grid.children) : [])
+      .filter((card): card is HTMLElement => card instanceof HTMLElement)
+      .map((card) => {
+        const rect = card.getBoundingClientRect();
+        const x = toX - (rect.left + rect.width / 2);
+        const y = toY - (rect.top + rect.height / 2);
+        return { card, x, y, distance: Math.hypot(x, y) };
+      })
+      .sort((a, b) => a.distance - b.distance);
+  };
+  // The gap between one card leaving or joining the stack and the next.
+  const cardStagger = (count: number, length: number) =>
+    count > 1
+      ? Math.min(
+          length * CARD_STAGGER,
+          (length * CARD_STAGGER_TOTAL) / (count - 1),
+        )
+      : 0;
+
+  // The cards fall into the collapse corner one after another, stacking
+  // where the pill will be, and the pill lands on the stack. The window never
+  // shrinks: once the pill has taken over (see `fitCollapsed`) it is clipped
+  // to the pill, so the webview never shows a stale frame of a resize.
   const collapse = async () => {
     const shell = shellRef.current;
     const fade = fadeRef.current;
@@ -824,18 +866,84 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     const target = probe.getBoundingClientRect();
     const width = Math.ceil(target.width * pillRatio);
     const height = Math.ceil(target.height * pillRatio);
+    // A widget showing only its cards folds without its background: bringing
+    // it up just to take it away flashed a dark panel. Stacking drops the
+    // background either way, since the cards it moves are inside the shell
+    // and fading the shell would take them with it; the background fades
+    // out by its own colour transition.
+    const bare = !showShellRef.current;
+    const stacking = foldAnimation === "stack";
+    setBareFold(bare || stacking);
     changeTransition("collapsing");
     const start = shell.getBoundingClientRect();
     const ghost = ghostRef.current;
     const ghostMoth = ghostMothRef.current;
     const mascot = collapseMode === "mascot";
+    // Fading, a pill keeps the shell shrinking into it; otherwise the shell
+    // just goes, and the cards (stacking) or the panel as a whole (fading) do
+    // the moving.
+    const morphing = !mascot && !stacking;
     const morph = morphShell(
       shell,
       { width: start.width, height: start.height, radius: shellRadius() },
       { width, height, radius: height / 2 },
       COLLAPSE_TRANSITION,
     );
-    await Promise.all([
+    if (!morphing) morph.stop();
+
+    // The card nearest the corner lands first and the rest stack onto it.
+    const cards = cardStack(width, height);
+    const fall = duration * CARD_FALL;
+    const stagger = cardStagger(cards.length, duration);
+    const lastLanding = (cards.length - 1) * stagger + fall;
+    const header = fade.querySelector("header");
+
+    const stack = () => [
+      header && animate(header, { opacity: 0 }, { duration: duration * 0.3 }),
+      ...cards.flatMap(({ card, x, y }, index) => [
+        animate(
+          card,
+          { x, y, scale: CARD_STACK_SCALE },
+          {
+            duration: fall,
+            delay: index * stagger,
+            ease: COLLAPSE_TRANSITION.ease,
+          },
+        ),
+        // Gone as it reaches the stack, so the pill lands on nothing.
+        animate(
+          card,
+          { opacity: 0 },
+          {
+            duration: fall * 0.35,
+            delay: index * stagger + fall * 0.65,
+          },
+        ),
+      ]),
+      ghost &&
+        animate(
+          ghost,
+          { opacity: 1 },
+          // Arrives as the last cards reach the corner.
+          { duration: duration * 0.4, delay: lastLanding - fall * 0.4 },
+        ),
+      // The moth lands on the stack: it grows into place as it fades in,
+      // settling with a slight overshoot, and the fold ends once it has.
+      mascot &&
+        ghostMoth &&
+        animate(
+          ghostMoth,
+          { scale: [MOTH_LANDING_SCALE, 1] },
+          {
+            duration: duration * 0.9,
+            delay: lastLanding - fall * 0.45,
+            ease: "backOut",
+          },
+        ),
+    ];
+
+    // Fade: the panel fades into the collapsed look as a whole.
+    const fadeOut = () => [
       // The cards go first and quickly for the moth, so it never shows
       // through them as it arrives.
       animate(
@@ -858,18 +966,14 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
         ),
       // The moth has no background, so the shell leaves rather than becoming
       // it, and is gone before it is small enough to read as a disc behind it.
-      // Once it's gone and the moth is in, the rest of its shrink can't be
-      // seen, so the fold ends there instead of idling until it's done.
-      mascot
-        ? animate(
+      morphing
+        ? morph
+        : !bare &&
+          animate(
             shell,
             { opacity: 0 },
-            {
-              duration: duration * 0.45,
-              ease: COLLAPSE_TRANSITION.ease,
-            },
-          )
-        : morph,
+            { duration: duration * 0.45, ease: COLLAPSE_TRANSITION.ease },
+          ),
       // The moth lands: it grows into place as it fades in, settling with a
       // slight overshoot, and the fold ends once it has.
       mascot &&
@@ -883,10 +987,13 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
             ease: "backOut",
           },
         ),
-    ]);
+    ];
+
+    await Promise.all(stacking ? stack() : fadeOut());
     morph.stop();
     setUnfolded(false);
     setCollapsed(true);
+    setBareFold(false);
     changeTransition("none");
   };
 
@@ -940,7 +1047,17 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     shell.style.width = `${from.width}px`;
     shell.style.height = `${from.height}px`;
     shell.style.borderRadius = `${from.height / 2}px`;
-    fade.style.opacity = "0";
+    // The reverse of a collapse: the cards leave the stack where the pill
+    // was and spread out to their places, the last to have landed first.
+    const stacking = foldAnimation === "stack";
+    const header = stacking ? fade.querySelector("header") : null;
+    if (header) header.style.opacity = "0";
+    const cards = stacking ? cardStack(from.width, from.height).reverse() : [];
+    for (const { card } of cards) card.style.opacity = "0";
+    // Fade: the panel's content fades in as a whole instead.
+    if (!stacking) fade.style.opacity = "0";
+    const spread = expandDuration * CARD_FALL;
+    const stagger = cardStagger(cards.length, expandDuration);
     const ghost = ghostRef.current;
     const mascot = collapseMode === "mascot";
     const ghostMoth = ghostMothRef.current;
@@ -985,26 +1102,64 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
         },
         EXPAND_TRANSITION,
       ),
-      // The cards rise a little as they fade in, as a Settings page does.
-      animate(
-        fade,
-        { opacity: 1, y: [CARDS_RISE, 0] },
-        // Behind the shell by a beat; for the moth, which has no pill
-        // background to grow out of, only just, so the shell is never an
-        // empty box.
-        {
-          ease: EXPAND_TRANSITION.ease,
-          ...(mascot
-            ? { duration: expandDuration * 0.45, delay: expandDuration * 0.15 }
-            : { duration: expandDuration * 0.6, delay: expandDuration * 0.4 }),
-        },
-      ),
+      header &&
+        animate(
+          header,
+          { opacity: 1 },
+          { duration: expandDuration * 0.4, delay: expandDuration * 0.3 },
+        ),
+      // Fade: the cards rise a little as they fade in, as a Settings page
+      // does; behind the shell by a beat, and for the moth, which has no
+      // pill background to grow out of, only just.
+      !stacking &&
+        animate(
+          fade,
+          { opacity: 1, y: [CARDS_RISE, 0] },
+          {
+            ease: EXPAND_TRANSITION.ease,
+            ...(mascot
+              ? {
+                  duration: expandDuration * 0.45,
+                  delay: expandDuration * 0.15,
+                }
+              : {
+                  duration: expandDuration * 0.6,
+                  delay: expandDuration * 0.4,
+                }),
+          },
+        ),
+      // Each card grows out of the stack on its way out, and is in view as
+      // soon as it has left it.
+      ...cards.flatMap(({ card, x, y }, index) => [
+        animate(
+          card,
+          { x: [x, 0], y: [y, 0], scale: [CARD_STACK_SCALE, 1] },
+          {
+            duration: spread,
+            delay: expandDuration * 0.1 + index * stagger,
+            ease: EXPAND_TRANSITION.ease,
+          },
+        ),
+        animate(
+          card,
+          { opacity: [0, 1] },
+          {
+            duration: spread * 0.35,
+            delay: expandDuration * 0.1 + index * stagger,
+          },
+        ),
+      ]),
     ]).then(() => {
       shell.style.width = "";
       shell.style.height = "";
       shell.style.borderRadius = radius;
+      if (header) header.style.opacity = "";
       fade.style.opacity = "";
       fade.style.transform = "";
+      for (const { card } of cards) {
+        card.style.opacity = "";
+        card.style.transform = "";
+      }
       changeTransition("none");
     });
     // Runs on the flip to expanded only; the other values are read as they are.
@@ -1135,7 +1290,12 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   const folding = transition !== "none";
   // A pinned widget shows it only while its title bar is hovered, or just
   // after it unfolded; the cards alone never bring it up.
-  const showShell = shellRevealed || unfolded || !hasLoaded || folding;
+  // A fold that drops the background drops it whatever else would keep it
+  // up, the pointer still on a widget that just unfolded included.
+  const showShell =
+    !(folding && bareFold) &&
+    (shellRevealed || unfolded || !hasLoaded || folding);
+  showShellRef.current = showShell;
   const pillTitle = title?.trim() || "Lights";
 
   if (collapsed) {

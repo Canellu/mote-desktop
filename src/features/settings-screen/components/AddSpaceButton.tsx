@@ -13,7 +13,12 @@ export const AddSpaceButton = ({
   disabled?: boolean;
   onClick: () => void;
 }) => (
-  <Button type="button" onClick={onClick} disabled={disabled} className="shrink-0">
+  <Button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className="shrink-0"
+  >
     <Plus size={16} />
     Add room or zone
   </Button>

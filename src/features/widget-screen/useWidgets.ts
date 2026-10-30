@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import type {
   WidgetBackgroundMode,
   WidgetCollapseMode,
+  WidgetFoldAnimation,
   WidgetMascotStyle,
   WidgetExpandHorizontal,
   WidgetExpandVertical,
@@ -63,6 +64,7 @@ const toSummary = (state: WidgetState): WidgetSummary => ({
   scale: state.scale ?? WIDGET_SCALE.default,
   collapsedScale: state.collapsedScale ?? state.scale ?? WIDGET_SCALE.default,
   collapseMode: state.collapseMode ?? "mascot",
+  foldAnimation: state.foldAnimation ?? "stack",
   mascotStyle: state.mascotStyle ?? "celShaded",
   mascotAnimated: state.mascotAnimated ?? true,
   expandVertical: state.expandVertical ?? "up",
@@ -97,6 +99,7 @@ export interface WidgetConfigDraft {
   scale: number;
   collapsedScale: number;
   collapseMode: WidgetCollapseMode;
+  foldAnimation: WidgetFoldAnimation;
   mascotStyle: WidgetMascotStyle;
   mascotAnimated: boolean;
   expandVertical: WidgetExpandVertical;
@@ -152,6 +155,7 @@ export const useWidgets = () => {
         scale?: number;
         collapsedScale?: number;
         collapseMode?: WidgetCollapseMode;
+        foldAnimation?: WidgetFoldAnimation;
         mascotStyle?: WidgetMascotStyle;
         expandVertical?: WidgetExpandVertical;
         expandHorizontal?: WidgetExpandHorizontal;

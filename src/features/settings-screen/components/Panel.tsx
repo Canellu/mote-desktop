@@ -18,7 +18,12 @@ export const Panel = ({
       <h2 className="text-base font-semibold text-foreground">{title}</h2>
       {action}
     </div>
-    <div className={cn("rounded-2xl bg-(--settings-surface) p-5", contentClassName)}>
+    <div
+      className={cn(
+        "rounded-2xl bg-(--settings-surface) p-5",
+        contentClassName,
+      )}
+    >
       {children}
     </div>
   </section>

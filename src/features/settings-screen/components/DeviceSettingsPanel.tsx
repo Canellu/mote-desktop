@@ -370,7 +370,6 @@ export const DeviceSettingsPanel = ({
             }
           />
         ))}
-
       </div>
 
       {settings.error && (

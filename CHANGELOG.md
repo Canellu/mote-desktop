@@ -10,8 +10,9 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 - Widgets can collapse into a small moth, a pill with their name, or a round
   bubble. Click it to expand the widget again, or drag it somewhere else.
   Pick the look, its size, and which way it expands in the widget's
-  settings. The moth glows softly, blinks now and then, and flutters when
-  you hover it.
+  settings, and how it folds: its cards stacking into the collapsed look one
+  by one, or the whole panel fading into it. The moth glows softly, blinks
+  now and then, and flutters when you hover it.
 - **Auto collapse** folds a widget away once the pointer has been off it for
   a few seconds.
 

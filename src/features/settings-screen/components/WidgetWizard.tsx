@@ -24,10 +24,19 @@ import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-ico
 import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { ControlCard } from "@/features/widget-screen/components/ControlCard";
 import {
+  CARD_FALL,
+  CARD_STACK_SCALE,
+  CARD_STAGGER,
+  CARD_STAGGER_TOTAL,
+  COLLAPSE_DURATION,
+  COLLAPSE_TRANSITION,
+  EXPAND_DURATION,
   EXPAND_TRANSITION,
+  MOTH_LANDING_SCALE,
+  MOTH_RELEASE_SCALE,
   CollapsedWidget,
 } from "@/features/widget-screen/WidgetScreen";
-import { motion, useReducedMotion } from "motion/react";
+import { animate, useReducedMotion } from "motion/react";
 import { useControlEditor } from "@/features/widget-screen/components/ManageControls";
 import {
   isTogglesControl,
@@ -36,6 +45,7 @@ import {
   type WidgetControl,
   type WidgetBackgroundMode,
   type WidgetCollapseMode,
+  type WidgetFoldAnimation,
   type WidgetMascotStyle,
   type WidgetExpandHorizontal,
   type WidgetExpandVertical,
@@ -57,6 +67,7 @@ import {
 } from "@/features/widget-screen/widgetShell";
 import { useBlinkLights } from "@/hooks/useBlinkLights";
 import { selectableVariants } from "@/lib/selection-styles";
+import { Notice } from "@/components/Notice";
 import { cn } from "@/lib/utils";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 import type { HueLight, HueRoomZone } from "@/types/hue";
@@ -77,7 +88,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   ChevronDown,
-  Info,
   Lightbulb,
   ChevronLeft,
   Minimize2,
@@ -97,6 +107,7 @@ import { SettingsReveal, SettingsRow, SettingsSection } from "./SettingsList";
 import {
   WIDGET_BACKGROUND_OPTIONS,
   WIDGET_COLLAPSE_OPTIONS,
+  WIDGET_FOLD_OPTIONS,
   WIDGET_THEME_OPTIONS,
 } from "./widgetAppearanceOptions";
 import {
@@ -241,6 +252,7 @@ interface WidgetWizardProps {
     tileOpacity: number;
     scale: number;
     collapseMode: WidgetCollapseMode;
+    foldAnimation: WidgetFoldAnimation;
     mascotStyle: WidgetMascotStyle;
     expandVertical: WidgetExpandVertical;
     expandHorizontal: WidgetExpandHorizontal;
@@ -285,6 +297,8 @@ export const WidgetWizard = ({
   const [tileOpacity, setTileOpacity] = useState(DEFAULT_TILE_OPACITY);
   const [collapseMode, setCollapseMode] =
     useState<WidgetCollapseMode>("mascot");
+  const [foldAnimation, setFoldAnimation] =
+    useState<WidgetFoldAnimation>("stack");
   const [mascotStyle, setMascotStyle] =
     useState<WidgetMascotStyle>("celShaded");
   const [expandVertical, setExpandVertical] =
@@ -579,6 +593,7 @@ export const WidgetWizard = ({
       tileOpacity,
       scale: widgetScale,
       collapseMode,
+      foldAnimation,
       mascotStyle,
       expandVertical,
       expandHorizontal,
@@ -855,10 +870,11 @@ export const WidgetWizard = ({
                 />
               </div>
 
-              <p className="flex items-center justify-center gap-1.5 pt-2 text-xs text-(--info-text)">
-                <Info size={14} />
-                All settings can be changed after the widget is created.
-              </p>
+              <Notice>
+                All settings can be changed after the widget is created, along
+                with a few more, like pinning it, keeping it on top and its
+                collapsed size.
+              </Notice>
             </section>
           </ScrollArea>
         ) : null}
@@ -894,7 +910,11 @@ export const WidgetWizard = ({
                   fold={{
                     title: title.trim() || "Lights",
                     collapseMode,
+                    foldAnimation,
                     mascotStyle,
+                    expandVertical,
+                    expandHorizontal,
+                    autoCollapseSeconds,
                   }}
                 />
               </div>
@@ -1029,6 +1049,18 @@ export const WidgetWizard = ({
                   </SettingsReveal>
                 </div>
                 <SettingsRow
+                  title="Fold animation"
+                  description="How the widget collapses and expands: its cards stacking into the collapsed look one by one, or the whole panel fading into it."
+                >
+                  <SegmentedControl
+                    value={foldAnimation}
+                    onValueChange={setFoldAnimation}
+                    ariaLabel="Fold animation"
+                    options={WIDGET_FOLD_OPTIONS}
+                    layoutId="wizard-fold-animation-pill"
+                  />
+                </SettingsRow>
+                <SettingsRow
                   title="Expand direction"
                   description="The corner the widget prefers to expand toward. If there isn't room that way, it expands the other way."
                 >
@@ -1047,10 +1079,11 @@ export const WidgetWizard = ({
                 />
               </SettingsSection>
 
-              <p className="flex items-center justify-center gap-1.5 pt-2 text-xs text-(--info-text)">
-                <Info size={14} />
-                All settings can be changed after the widget is created.
-              </p>
+              <Notice>
+                All settings can be changed after the widget is created, along
+                with a few more, like pinning it, keeping it on top and its
+                collapsed size.
+              </Notice>
             </section>
           </ScrollArea>
         ) : null}
@@ -1386,31 +1419,32 @@ const WidgetPreview = ({
   fold?: {
     title: string;
     collapseMode: WidgetCollapseMode;
+    foldAnimation: WidgetFoldAnimation;
     mascotStyle: WidgetMascotStyle;
+    expandVertical: WidgetExpandVertical;
+    expandHorizontal: WidgetExpandHorizontal;
+    /** As on the desktop: below zero is off, zero is as soon as the
+     * pointer leaves. */
+    autoCollapseSeconds: number;
   };
 }) => {
   const sizeMetrics = WIDGET_SIZE_METRICS[sizeMode];
+  // Folded: the shell is put away and the collapsed look sits in its corner.
   const [folded, setFolded] = useState(false);
-  // Hidden only once the fold has played out. Hiding at once cut the shell
-  // short, and controls that transition `visibility` lingered behind it.
-  const [shellHidden, setShellHidden] = useState(false);
+  // Set while a fold or unfold plays, so another click waits for it.
+  const foldingRef = useRef(false);
+  // The shell's background, dropped while the cards stack, as on the desktop.
+  const [bare, setBare] = useState(false);
   const reduceMotion = useReducedMotion();
-  const foldMotion = reduceMotion ? { duration: 0 } : EXPAND_TRANSITION;
-  // Changing the collapsed look shows it folded, so the change is visible
-  // straight away.
-  const foldKey = fold ? `${fold.collapseMode}:${fold.mascotStyle}` : "";
-  const firstFoldKeyRef = useRef(foldKey);
-  useEffect(() => {
-    if (foldKey === firstFoldKeyRef.current) return;
-    firstFoldKeyRef.current = foldKey;
-    setFolded(true);
-  }, [foldKey]);
-
-  const expandFromPill = () => {
-    setShellHidden(false);
-    setFolded(false);
-  };
-
+  const collapseDuration = reduceMotion ? 0 : COLLAPSE_DURATION;
+  const expandDuration = reduceMotion ? 0 : EXPAND_DURATION;
+  const gridRef = useRef<HTMLDivElement>(null);
+  const shellWrapRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
+  const pillMothRef = useRef<HTMLDivElement>(null);
+  // The corner the real widget folds into: the one it expands away from.
+  const bottom = fold?.expandVertical !== "down";
+  const right = fold?.expandHorizontal === "left";
   // The widget has a fixed pixel width (320 / 652) and grows with the number of
   // controls, so it can outsize the preview frame. Rather than scroll, we scale
   // the whole shell down to fit. CSS transforms don't affect layout flow, so we
@@ -1422,6 +1456,16 @@ const WidgetPreview = ({
   const [stageHeight, setStageHeight] = useState<number>();
   // Drops a widget smaller than Large to the middle of the frame.
   const [offsetY, setOffsetY] = useState(0);
+  // Where the shell is drawn inside the stage, so the collapsed look can sit
+  // in its corner as it does on the desktop.
+  const [shellBox, setShellBox] = useState({
+    left: 0,
+    top: 0,
+    width: 0,
+    height: 0,
+    stageWidth: 0,
+    stageHeight: 0,
+  });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -1463,7 +1507,18 @@ const WidgetPreview = ({
       // changes the widget, not the frame around it; a smaller one sits
       // centred in it.
       setStageHeight(largeH * fitted);
-      setOffsetY(((largest - chosen) * shellH * fitted) / 2);
+      const top = ((largest - chosen) * shellH * fitted) / 2;
+      setOffsetY(top);
+      // Centred, and scaled about its top centre.
+      const drawn = fitted * chosen;
+      setShellBox({
+        left: (stage.clientWidth - shellW * drawn) / 2,
+        top,
+        width: shellW * drawn,
+        height: shellH * drawn,
+        stageWidth: stage.clientWidth,
+        stageHeight: largeH * fitted,
+      });
     };
     fit();
     const observer = new ResizeObserver(fit);
@@ -1472,9 +1527,219 @@ const WidgetPreview = ({
     return () => observer.disconnect();
   }, [maxHeight, widgetScale]);
 
+  // Each card's offset, in the shell's own pixels, from the stack at the
+  // collapsed look's middle, nearest the corner first. The animated element
+  // is the card's inner box, apart from the wrapper dnd-kit transforms.
+  const cardStack = () => {
+    const pill = pillRef.current?.getBoundingClientRect();
+    const toX = pill ? pill.left + pill.width / 2 : 0;
+    const toY = pill ? pill.top + pill.height / 2 : 0;
+    return Array.from(gridRef.current?.children ?? [])
+      .map((wrapper) => {
+        const rect = wrapper.getBoundingClientRect();
+        const x = (toX - (rect.left + rect.width / 2)) / scale;
+        const y = (toY - (rect.top + rect.height / 2)) / scale;
+        return {
+          card: wrapper.firstElementChild as HTMLElement | null,
+          x,
+          y,
+          distance: Math.hypot(x, y),
+        };
+      })
+      .filter(
+        (entry): entry is typeof entry & { card: HTMLElement } =>
+          entry.card != null,
+      )
+      .sort((a, b) => a.distance - b.distance);
+  };
+  const cardStagger = (count: number, length: number) =>
+    count > 1
+      ? Math.min(
+          length * CARD_STAGGER,
+          (length * CARD_STAGGER_TOTAL) / (count - 1),
+        )
+      : 0;
+
+  // Plays the real widget's collapse: the cards stack into the collapsed look
+  // one by one, or the panel fades into it, and the moth lands.
+  const collapsePreview = async () => {
+    const pill = pillRef.current;
+    const wrap = shellWrapRef.current;
+    if (!fold || folded || foldingRef.current || !pill || !wrap) return;
+    foldingRef.current = true;
+    const stacking = fold.foldAnimation === "stack";
+    const mascot = fold.collapseMode === "mascot";
+    const d = collapseDuration;
+    const cards = stacking ? cardStack() : [];
+    const fall = d * CARD_FALL;
+    const stagger = cardStagger(cards.length, d);
+    const lastLanding = (cards.length - 1) * stagger + fall;
+    if (stacking) setBare(true);
+    const moth = pillMothRef.current;
+    await Promise.all([
+      ...(stacking
+        ? cards.flatMap(({ card, x, y }, index) => [
+            animate(
+              card,
+              { x, y, scale: CARD_STACK_SCALE },
+              {
+                duration: fall,
+                delay: index * stagger,
+                ease: COLLAPSE_TRANSITION.ease,
+              },
+            ),
+            animate(
+              card,
+              { opacity: 0 },
+              { duration: fall * 0.35, delay: index * stagger + fall * 0.65 },
+            ),
+          ])
+        : [
+            animate(
+              wrap,
+              { opacity: 0 },
+              { duration: d * 0.45, ease: COLLAPSE_TRANSITION.ease },
+            ),
+          ]),
+      animate(
+        pill,
+        { opacity: 1 },
+        stacking
+          ? { duration: d * 0.4, delay: Math.max(0, lastLanding - fall * 0.4) }
+          : { duration: d * 0.5, delay: d * 0.25 },
+      ),
+      mascot &&
+        moth &&
+        animate(
+          moth,
+          { scale: [MOTH_LANDING_SCALE, 1] },
+          {
+            duration: d * 0.9,
+            delay: stacking ? Math.max(0, lastLanding - fall * 0.45) : d * 0.15,
+            ease: "backOut",
+          },
+        ),
+    ]);
+    // Hidden here and now, before the cards go back: React hides the shell
+    // only on its next render, and the cards in between flashed back in.
+    // Opacity too: a control that transitions its own `visibility` (the
+    // light's toggle) outlasts a hidden parent, but not a transparent one.
+    wrap.style.visibility = "hidden";
+    wrap.style.opacity = "0";
+    setFolded(true);
+    // Back in place, out of sight, for the next unfold.
+    for (const { card } of cards) {
+      card.style.transform = "";
+      card.style.opacity = "";
+    }
+    foldingRef.current = false;
+  };
+
+  // The reverse: the cards leave the stack and spread out, the last to have
+  // landed first, or the panel fades back in; the moth swells and goes.
+  const expandPreview = async () => {
+    const pill = pillRef.current;
+    const wrap = shellWrapRef.current;
+    if (!fold || !folded || foldingRef.current || !pill || !wrap) return;
+    foldingRef.current = true;
+    const stacking = fold.foldAnimation === "stack";
+    const mascot = fold.collapseMode === "mascot";
+    const d = expandDuration;
+    const cards = stacking ? cardStack().reverse() : [];
+    const spread = d * CARD_FALL;
+    const stagger = cardStagger(cards.length, d);
+    for (const { card } of cards) card.style.opacity = "0";
+    // Fading, the shell fades back in from nothing; stacking, it is whole
+    // and the cards come out of the stack.
+    wrap.style.opacity = stacking ? "" : "0";
+    wrap.style.visibility = "";
+    setFolded(false);
+    // Stacking, the background fades back in around the cards once they are
+    // partway out, rather than standing there empty while they're still in
+    // the corner.
+    const backgroundTimer = window.setTimeout(
+      () => setBare(false),
+      stacking ? d * 0.45 * 1000 : 0,
+    );
+    const moth = pillMothRef.current;
+    await Promise.all([
+      animate(pill, { opacity: 0 }, { duration: d * 0.45 }),
+      mascot &&
+        moth &&
+        animate(
+          moth,
+          { scale: [1, MOTH_RELEASE_SCALE] },
+          { duration: d * 0.45, ease: "easeOut" },
+        ),
+      ...(stacking
+        ? cards.flatMap(({ card, x, y }, index) => [
+            animate(
+              card,
+              { x: [x, 0], y: [y, 0], scale: [CARD_STACK_SCALE, 1] },
+              {
+                duration: spread,
+                delay: d * 0.1 + index * stagger,
+                ease: EXPAND_TRANSITION.ease,
+              },
+            ),
+            animate(
+              card,
+              { opacity: [0, 1] },
+              { duration: spread * 0.35, delay: d * 0.1 + index * stagger },
+            ),
+          ])
+        : [
+            animate(
+              wrap,
+              { opacity: [0, 1] },
+              {
+                duration: d * 0.6,
+                delay: d * 0.1,
+                ease: EXPAND_TRANSITION.ease,
+              },
+            ),
+          ]),
+    ]);
+    for (const { card } of cards) {
+      card.style.transform = "";
+      card.style.opacity = "";
+    }
+    wrap.style.opacity = "";
+    if (moth) moth.style.transform = "";
+    window.clearTimeout(backgroundTimer);
+    setBare(false);
+    foldingRef.current = false;
+  };
+
+  // Auto collapse, as on the desktop: once the pointer has been off the
+  // widget for the set time, it folds. Coming back restarts the wait.
+  const [pointerOver, setPointerOver] = useState(false);
+  const autoCollapseSeconds = fold?.autoCollapseSeconds ?? -1;
+  useEffect(() => {
+    if (folded || pointerOver || autoCollapseSeconds < 0) return;
+    const timer = window.setTimeout(
+      () => void collapseRef.current(),
+      autoCollapseSeconds * 1000,
+    );
+    return () => window.clearTimeout(timer);
+  }, [autoCollapseSeconds, folded, pointerOver]);
+
+  // Changing the collapsed look folds the preview, so the change shows
+  // straight away.
+  const foldKey = fold ? `${fold.collapseMode}:${fold.mascotStyle}` : "";
+  const firstFoldKeyRef = useRef(foldKey);
+  const collapseRef = useRef(collapsePreview);
+  collapseRef.current = collapsePreview;
+  useEffect(() => {
+    if (foldKey === firstFoldKeyRef.current) return;
+    firstFoldKeyRef.current = foldKey;
+    void collapseRef.current();
+  }, [foldKey]);
+
   const grid =
     controls.length > 0 ? (
       <div
+        ref={gridRef}
         className="grid w-full content-start"
         style={{
           gap: sizeMetrics.gridGap,
@@ -1516,7 +1781,7 @@ const WidgetPreview = ({
             <button
               type="button"
               className="flex items-center gap-1.5 rounded-md bg-black/25 px-2 py-1 backdrop-blur-sm transition-colors hover:bg-black/40"
-              onClick={() => setFolded(true)}
+              onClick={() => void collapsePreview()}
             >
               <Minimize2 size={12} />
               Collapse
@@ -1529,59 +1794,67 @@ const WidgetPreview = ({
         className="relative flex w-full items-start justify-center"
         style={{ height: stageHeight }}
       >
-        {fold && folded ? (
-          // Over the shell's spot; the hidden shell keeps the frame's height.
-          <motion.div
-            className={cn("absolute inset-x-0 flex justify-center", themeClass)}
-            // Where the shell's top edge sits, so the pill replaces it in place.
-            style={{ top: offsetY }}
-            initial={{ opacity: 0, scale: 0.85 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={foldMotion}
+        {fold ? (
+          // In the shell's collapse corner, at the shell's scale, as on the
+          // desktop. Always there, faded in and out with the fold.
+          <div
+            ref={pillRef}
+            className={cn(
+              "absolute z-10 opacity-0",
+              !folded && "pointer-events-none",
+              themeClass,
+            )}
+            style={{
+              ...(right
+                ? {
+                    right: shellBox.stageWidth - shellBox.left - shellBox.width,
+                  }
+                : { left: shellBox.left }),
+              ...(bottom
+                ? {
+                    bottom:
+                      shellBox.stageHeight - shellBox.top - shellBox.height,
+                  }
+                : { top: shellBox.top }),
+              transform: `scale(${scale})`,
+              transformOrigin: `${right ? "right" : "left"} ${bottom ? "bottom" : "top"}`,
+            }}
           >
-            <CollapsedWidget
-              mode={fold.collapseMode}
-              mascotStyle={fold.mascotStyle}
-              title={fold.title}
-              // Pinned, so a press never drags the settings window.
-              pinned
-              style={{ ...shellStyle, backdropFilter: "blur(24px)" }}
-              onExpand={expandFromPill}
-            />
-          </motion.div>
+            <div ref={pillMothRef}>
+              <CollapsedWidget
+                mode={fold.collapseMode}
+                mascotStyle={fold.mascotStyle}
+                title={fold.title}
+                // Pinned, so a press never drags the settings window.
+                pinned
+                style={{ ...shellStyle, backdropFilter: "blur(24px)" }}
+                onExpand={() => void expandPreview()}
+              />
+            </div>
+          </div>
         ) : null}
-        {/* Folds the shell as one piece, toward the pill at its top. Kept
-            apart from the shell, whose own transform scales it to fit. */}
-        <motion.div
-          className={cn(
-            "shrink-0",
-            folded && "pointer-events-none",
-            shellHidden && "invisible",
-          )}
-          style={{ transformOrigin: "top center" }}
-          initial={false}
-          // No `filter` here: on an ancestor it would cut the shell's own
-          // backdrop blur off from the background, even at rest.
-          animate={
-            folded ? { opacity: 0, scale: 0.6 } : { opacity: 1, scale: 1 }
-          }
-          transition={{
-            ...foldMotion,
-            opacity: { duration: reduceMotion ? 0 : 0.18 },
-          }}
-          onAnimationComplete={() => {
-            if (folded) setShellHidden(true);
-          }}
+        <div
+          ref={shellWrapRef}
+          className={cn("shrink-0", folded && "pointer-events-none invisible")}
+          // Move as well as enter: a widget that unfolds under a still
+          // pointer gets no enter until it moves.
+          onPointerEnter={() => setPointerOver(true)}
+          onPointerMove={() => setPointerOver(true)}
+          onPointerLeave={() => setPointerOver(false)}
         >
           <div
             ref={shellRef}
             className={cn(
-              "shrink-0 border border-border/40 text-foreground shadow-2xl backdrop-blur-xl",
+              "shrink-0 border text-foreground transition-[background-color,border-color,box-shadow] duration-200",
+              bare
+                ? "border-transparent shadow-none"
+                : "border-border/40 shadow-2xl backdrop-blur-xl",
               themeClass,
             )}
             data-tile-background={backgroundMode}
             style={{
               ...shellStyle,
+              ...(bare ? { backgroundColor: "transparent" } : null),
               width: sizeMetrics.cardBasis + WIDGET_SIDE_PADDING * 2,
               paddingTop: sizeMetrics.edgePadding,
               paddingRight: WIDGET_SIDE_PADDING,
@@ -1608,7 +1881,7 @@ const WidgetPreview = ({
               grid
             )}
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

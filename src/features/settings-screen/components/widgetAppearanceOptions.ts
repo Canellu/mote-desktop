@@ -1,13 +1,16 @@
 import type {
   WidgetBackgroundMode,
   WidgetCollapseMode,
+  WidgetFoldAnimation,
   WidgetThemeMode,
 } from "@/features/widget-screen/types";
 import {
   Blend,
   Circle,
+  Layers,
   Monitor,
   Moon,
+  Minimize2,
   RectangleHorizontal,
   Square,
   Sun,
@@ -43,6 +46,15 @@ export const WIDGET_COLLAPSE_OPTIONS = [
   { value: "bubble", label: "Bubble", icon: Circle },
 ] satisfies Array<{
   value: WidgetCollapseMode;
+  label: string;
+  icon: SegmentIcon;
+}>;
+
+export const WIDGET_FOLD_OPTIONS = [
+  { value: "stack", label: "Stack", icon: Layers },
+  { value: "fade", label: "Fade", icon: Minimize2 },
+] satisfies Array<{
+  value: WidgetFoldAnimation;
   label: string;
   icon: SegmentIcon;
 }>;

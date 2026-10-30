@@ -100,6 +100,9 @@ const WIDGET_LIGHT_TOKENS = {
   "--card-foreground": "oklch(0.145 0 0)",
   "--tile": "oklch(0.99 0 0)",
   "--tile-off": "oklch(0.925 0 0)",
+  // The scene tray inside a card. Set here too, not only in App.css, so a
+  // preview drawn inside the app follows the widget's theme, not the app's.
+  "--widget-tray": "oklch(0.95 0 0)",
   "--tile-border": "oklch(0.875 0 0 / 10%)",
   "--tile-border-lit": "oklch(0.875 0 0 / 10%)",
   "--tile-shade-strength": "0.92",
@@ -127,6 +130,7 @@ const WIDGET_DARK_TOKENS = {
   "--card-foreground": "oklch(0.985 0 0)",
   "--tile": "oklch(0.26 0 0)",
   "--tile-off": "oklch(0.26 0 0)",
+  "--widget-tray": "oklch(0.22 0 0)",
   "--tile-border": "oklch(1 0 0 / 5%)",
   "--tile-border-lit": "oklch(0.31 0 0)",
   "--tile-shade-strength": "1.08",

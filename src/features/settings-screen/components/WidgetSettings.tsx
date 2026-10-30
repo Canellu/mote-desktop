@@ -7,6 +7,7 @@ import { ManageControls } from "@/features/widget-screen/components/ManageContro
 import type {
   WidgetBackgroundMode,
   WidgetCollapseMode,
+  WidgetFoldAnimation,
   WidgetCornerMode,
   WidgetThemeMode,
 } from "@/features/widget-screen/types";
@@ -31,6 +32,7 @@ import { SegmentedControl } from "./SegmentedControl";
 import {
   WIDGET_BACKGROUND_OPTIONS,
   WIDGET_COLLAPSE_OPTIONS,
+  WIDGET_FOLD_OPTIONS,
   WIDGET_THEME_OPTIONS,
 } from "./widgetAppearanceOptions";
 import { WIDGET_CORNER_OPTIONS } from "./widgetCornerOptions";
@@ -220,6 +222,7 @@ export const WidgetSettings = ({
     scale,
     collapsedScale,
     collapseMode,
+    foldAnimation,
     mascotStyle,
     mascotAnimated,
     expandVertical,
@@ -457,6 +460,20 @@ export const WidgetSettings = ({
             </SettingsRow>
           </SettingsReveal>
         </div>
+        <SettingsRow
+          title="Fold animation"
+          description="How the widget collapses and expands: its cards stacking into the collapsed look one by one, or the whole panel fading into it."
+        >
+          <SegmentedControl
+            value={foldAnimation}
+            onValueChange={(value) =>
+              updateConfig({ foldAnimation: value as WidgetFoldAnimation })
+            }
+            ariaLabel="Fold animation"
+            options={WIDGET_FOLD_OPTIONS}
+            layoutId={`widget-fold-animation-pill-${widgetId}`}
+          />
+        </SettingsRow>
         <SettingsRow
           title="Expand direction"
           description="The corner the widget prefers to expand toward. If there isn't room that way, it expands the other way."

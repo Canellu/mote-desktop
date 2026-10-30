@@ -5,6 +5,7 @@ import type {
   WidgetControl,
   WidgetBackgroundMode,
   WidgetCollapseMode,
+  WidgetFoldAnimation,
   WidgetMascotStyle,
   WidgetCollapseCorner,
   WidgetCornerMode,
@@ -40,6 +41,8 @@ export const useWidgetControls = (widgetId: string) => {
   const [title, setTitle] = useState<string | null>(null);
   const [collapseMode, setCollapseMode] =
     useState<WidgetCollapseMode>("mascot");
+  const [foldAnimation, setFoldAnimation] =
+    useState<WidgetFoldAnimation>("stack");
   const [mascotStyle, setMascotStyle] =
     useState<WidgetMascotStyle>("celShaded");
   const [mascotAnimated, setMascotAnimated] = useState(true);
@@ -71,6 +74,7 @@ export const useWidgetControls = (widgetId: string) => {
         setTileOpacity(state.tileOpacity ?? DEFAULT_TILE_OPACITY);
         setTitle(state.title ?? null);
         setCollapseMode(state.collapseMode ?? "mascot");
+        setFoldAnimation(state.foldAnimation ?? "stack");
         setMascotStyle(state.mascotStyle ?? "celShaded");
         setMascotAnimated(state.mascotAnimated ?? true);
         setScale(state.scale ?? WIDGET_SCALE.default);
@@ -110,6 +114,7 @@ export const useWidgetControls = (widgetId: string) => {
         setTileOpacity(event.payload.tileOpacity ?? DEFAULT_TILE_OPACITY);
         setTitle(event.payload.title ?? null);
         setCollapseMode(event.payload.collapseMode ?? "mascot");
+        setFoldAnimation(event.payload.foldAnimation ?? "stack");
         setMascotStyle(event.payload.mascotStyle ?? "celShaded");
         setMascotAnimated(event.payload.mascotAnimated ?? true);
         setScale(event.payload.scale ?? WIDGET_SCALE.default);
@@ -158,6 +163,7 @@ export const useWidgetControls = (widgetId: string) => {
     tileOpacity,
     title,
     collapseMode,
+    foldAnimation,
     mascotStyle,
     mascotAnimated,
     scale,

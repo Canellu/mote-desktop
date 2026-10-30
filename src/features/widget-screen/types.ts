@@ -105,6 +105,9 @@ export type WidgetBackgroundMode = "solid" | "translucent";
 /** What the widget folds into when collapsed: a slim titled pill, a round
  * icon bubble, or the moth mascot on its own. */
 export type WidgetCollapseMode = "pill" | "bubble" | "mascot";
+/** How the widget folds into its collapsed look and unfolds out of it: the
+ * panel fading into it, or the cards stacking into it one by one. */
+export type WidgetFoldAnimation = "fade" | "stack";
 /** Which drawing of the moth the mascot mode shows. */
 export type WidgetMascotStyle =
   | "celShaded"
@@ -143,6 +146,7 @@ export interface WidgetState {
   /** The same, while collapsed. Sized apart from the open widget. */
   collapsedScale: number;
   collapseMode: WidgetCollapseMode;
+  foldAnimation: WidgetFoldAnimation;
   mascotStyle: WidgetMascotStyle;
   /** Plays the mascot's sprite animations; off holds it still. */
   mascotAnimated: boolean;

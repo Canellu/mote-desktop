@@ -34,6 +34,15 @@ The user-facing words are **Collapse** and **Expand**: the title bar's
 removes the widget.
 
 - **Collapsed looks**: Mascot (the moth), Pill (icon and name), Bubble (icon).
+- **Fold animation** (a setting): **Stack**, the default, drops the cards
+  into the collapse corner one after another, stacking where the collapsed
+  look lands, and expanding spreads them back out from it. **Fade** fades the
+  panel into the collapsed look as a whole, and back. Either way a widget
+  that was bare (pinned, not hovered) when it starts collapsing never shows
+  its background while it folds.
+- **Easing** follows Windows 11: expanding decelerates (300 ms,
+  `0.1, 0.9, 0.2, 1`), collapsing eases in, starting slow (360 ms,
+  `0.6, 0, 0.8, 0.2`).
 - **Collapse**: the shell shrinks into its collapse corner inside the
   full-size window. The collapsed look fades in as the shell leaves, then the
   window is clipped to it (`SetWindowRgn`). The window never shrinks: a
