@@ -42,3 +42,8 @@ docs/*.local.md
 
 # Python bytecode from the Store asset scripts
 __pycache__/
+
+# TypeScript incremental caches and emitted Vite config artifacts
+*.tsbuildinfo
+/vite.config.js
+/vite.config.d.ts

@@ -1,0 +1,22 @@
+{
+  "name": "mote-promo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render MotePromo out/mote-promo.mp4",
+    "render:vertical": "remotion render MotePromoVertical out/mote-promo-vertical.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.532",
+    "@remotion/google-fonts": "^4.0.532",
+    "@remotion/media-parser": "^4.0.532",
+    "react": "19",
+    "react-dom": "19",
+    "remotion": "^4.0.532"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}
