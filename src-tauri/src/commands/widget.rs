@@ -1606,12 +1606,12 @@ fn remove_window_border(_window: &WebviewWindow) {}
 const NO_FRAME_SUBCLASS_ID: usize = 0x4D4F_5446;
 
 /// Keeps Windows from painting a frame on a widget. A collapsed widget is
-/// clipped to its pill, and Windows doesn't compose a clipped window's frame:
-/// it paints the old, unthemed one itself, and does so whenever the window is
-/// activated, as by clicking the moth. That showed as a light blue caption
-/// with a red close button for an instant, too briefly, and outside the
-/// compositor, for a screen recording to catch. The widget never has a frame
-/// of its own to draw, so none is painted at all.
+/// clipped to its pill, and Windows stops composing a clipped window's frame,
+/// for good: lifting the clip doesn't bring it back. It paints the old,
+/// unthemed frame itself instead, a light blue caption with a red close
+/// button, whenever the window is activated, hovered or redrawn, and it
+/// showed through wherever the widget is transparent, as mid-fold. The
+/// widget never has a frame of its own to draw, so none is painted at all.
 #[cfg(target_os = "windows")]
 fn suppress_classic_frame(window: &WebviewWindow) {
     use windows::Win32::Foundation::HWND;
@@ -1649,8 +1649,13 @@ unsafe extern "system" fn no_frame_proc(
     use windows::Win32::UI::Shell::DefSubclassProc;
     use windows_sys::Win32::UI::WindowsAndMessaging::{WM_NCACTIVATE, WM_NCPAINT};
 
+    // Undocumented: sent to draw the caption and the frame of a window whose
+    // frame Windows doesn't compose, which a clip leaves it as for good.
+    const WM_NCUAHDRAWCAPTION: u32 = 0x00AE;
+    const WM_NCUAHDRAWFRAME: u32 = 0x00AF;
+
     match message {
-        WM_NCPAINT => LRESULT(0),
+        WM_NCPAINT | WM_NCUAHDRAWCAPTION | WM_NCUAHDRAWFRAME => LRESULT(0),
         // Activation still goes through; an lParam of -1 tells the default
         // handler not to repaint the frame for it.
         WM_NCACTIVATE => unsafe { DefSubclassProc(hwnd, message, wparam, LPARAM(-1)) },

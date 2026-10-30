@@ -54,18 +54,30 @@ const TITLE_BAR_HEIGHT = 36;
 /** How far the pointer travels on a pill or bubble before a press is a drag
  * rather than a click that expands it. */
 const COLLAPSED_DRAG_THRESHOLD = 4;
-/** Seconds the widget takes to fold into its pill or unfold from it. The
- * shell eases out without overshooting: a bounce shrank it below the pill's
- * size and cut its icon and title off. */
-const COLLAPSE_DURATION = 0.34;
+/** Windows 11's motion (Fluent): things arrive fast and settle, and leave
+ * quicker than they came, as the Start menu, Quick Settings and Settings
+ * pages do. Expanding decelerates (Fluent's Decelerate Max); collapsing is
+ * shorter and accelerates into the corner, starting slow and finishing fast
+ * (an ease-in; Fluent's Accelerate Min eases out again at the end, which
+ * read as rushed). Neither overshoots: a bounce shrank the shell below the
+ * pill's size and cut its icon and title off. Seconds. */
+const EXPAND_DURATION = 0.3;
+const COLLAPSE_DURATION = 0.36;
+export const EXPAND_TRANSITION = {
+  duration: EXPAND_DURATION,
+  ease: [0.1, 0.9, 0.2, 1],
+} as const;
+export const COLLAPSE_TRANSITION = {
+  duration: COLLAPSE_DURATION,
+  ease: [0.6, 0, 0.8, 0.2],
+} as const;
+/** How far the cards rise as they fade in on an expand, in px, as a
+ * Settings page's content does. */
+const CARDS_RISE = 10;
 /** How small the moth starts as it lands on a collapse, and how large it
  * swells as it dissolves into the shell on an expand. */
 const MOTH_LANDING_SCALE = 0.6;
 const MOTH_RELEASE_SCALE = 1.3;
-export const COLLAPSE_TRANSITION = {
-  duration: COLLAPSE_DURATION,
-  ease: [0.22, 1, 0.36, 1],
-} as const;
 
 /** Pins an element to the widget's collapse corner, so the shell shrinks into
  * it and grows out of it, and the content inside holds still meanwhile. */
@@ -769,6 +781,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     void invoke("open-widget-settings", { widgetId }).catch(() => undefined);
 
   const duration = reduceMotion ? 0 : COLLAPSE_DURATION;
+  const expandDuration = reduceMotion ? 0 : EXPAND_DURATION;
   // Read when a fold runs; `shellStyle` is declared further down.
   const shellRadius = () => Number(shellStyle.borderRadius ?? 0);
 
@@ -778,9 +791,10 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     shell: HTMLElement,
     from: { width: number; height: number; radius: number },
     to: { width: number; height: number; radius: number },
+    transition: typeof EXPAND_TRANSITION | typeof COLLAPSE_TRANSITION,
   ) =>
     animate(0, 1, {
-      ...(reduceMotion ? { duration: 0 } : COLLAPSE_TRANSITION),
+      ...(reduceMotion ? { duration: 0 } : transition),
       onUpdate: (progress) => {
         const width = from.width + (to.width - from.width) * progress;
         const height = from.height + (to.height - from.height) * progress;
@@ -819,6 +833,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       shell,
       { width: start.width, height: start.height, radius: shellRadius() },
       { width, height, radius: height / 2 },
+      COLLAPSE_TRANSITION,
     );
     await Promise.all([
       // The cards go first and quickly for the moth, so it never shows
@@ -826,7 +841,10 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       animate(
         fade,
         { opacity: 0 },
-        { duration: duration * (mascot ? 0.25 : 0.5) },
+        {
+          duration: duration * (mascot ? 0.35 : 0.5),
+          ease: COLLAPSE_TRANSITION.ease,
+        },
       ),
       ghost &&
         animate(
@@ -835,7 +853,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
           // The moth arrives as the shell leaves, so the corner is never
           // empty between them; the pill waits for the shell to reach it.
           mascot
-            ? { duration: duration * 0.3, delay: duration * 0.2 }
+            ? { duration: duration * 0.5, delay: duration * 0.25 }
             : { duration: duration * 0.5, delay: duration * 0.4 },
         ),
       // The moth has no background, so the shell leaves rather than becoming
@@ -843,7 +861,14 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       // Once it's gone and the moth is in, the rest of its shrink can't be
       // seen, so the fold ends there instead of idling until it's done.
       mascot
-        ? animate(shell, { opacity: 0 }, { duration: duration * 0.35 })
+        ? animate(
+            shell,
+            { opacity: 0 },
+            {
+              duration: duration * 0.45,
+              ease: COLLAPSE_TRANSITION.ease,
+            },
+          )
         : morph,
       // The moth lands: it grows into place as it fades in, settling with a
       // slight overshoot, and the fold ends once it has.
@@ -853,7 +878,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
           ghostMoth,
           { scale: [MOTH_LANDING_SCALE, 1] },
           {
-            duration: duration * 0.55,
+            duration: duration * 0.9,
             delay: duration * 0.15,
             ease: "backOut",
           },
@@ -924,7 +949,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       void animate(
         ghostMoth,
         { scale: [1, MOTH_RELEASE_SCALE] },
-        { duration: duration * 0.45, ease: "easeOut" },
+        { duration: expandDuration * 0.45, ease: "easeOut" },
       );
     }
     if (ghost) {
@@ -934,7 +959,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       void animate(
         ghost,
         { opacity: 0 },
-        { duration: duration * (mascot ? 0.45 : 0.4) },
+        { duration: expandDuration * (mascot ? 0.45 : 0.4) },
       );
     }
     if (mascot) {
@@ -944,7 +969,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       void animate(
         shell,
         { opacity: 1 },
-        { duration: duration * 0.35, delay: duration * 0.05 },
+        { duration: expandDuration * 0.35, delay: expandDuration * 0.05 },
       ).then(() => {
         shell.style.opacity = "";
       });
@@ -958,22 +983,28 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
           height: window.innerHeight,
           radius: shellRadius(),
         },
+        EXPAND_TRANSITION,
       ),
+      // The cards rise a little as they fade in, as a Settings page does.
       animate(
         fade,
-        { opacity: 1 },
+        { opacity: 1, y: [CARDS_RISE, 0] },
         // Behind the shell by a beat; for the moth, which has no pill
         // background to grow out of, only just, so the shell is never an
         // empty box.
-        mascot
-          ? { duration: duration * 0.45, delay: duration * 0.15 }
-          : { duration: duration * 0.6, delay: duration * 0.4 },
+        {
+          ease: EXPAND_TRANSITION.ease,
+          ...(mascot
+            ? { duration: expandDuration * 0.45, delay: expandDuration * 0.15 }
+            : { duration: expandDuration * 0.6, delay: expandDuration * 0.4 }),
+        },
       ),
     ]).then(() => {
       shell.style.width = "";
       shell.style.height = "";
       shell.style.borderRadius = radius;
       fade.style.opacity = "";
+      fade.style.transform = "";
       changeTransition("none");
     });
     // Runs on the flip to expanded only; the other values are read as they are.

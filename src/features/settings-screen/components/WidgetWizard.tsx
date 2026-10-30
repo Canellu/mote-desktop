@@ -24,7 +24,7 @@ import { getRoomZoneIcon } from "@/features/home-screen/components/room-zone-ico
 import { useProUpgrade } from "@/features/pro/proUpgrade";
 import { ControlCard } from "@/features/widget-screen/components/ControlCard";
 import {
-  COLLAPSE_TRANSITION,
+  EXPAND_TRANSITION,
   CollapsedWidget,
 } from "@/features/widget-screen/WidgetScreen";
 import { motion, useReducedMotion } from "motion/react";
@@ -1395,7 +1395,7 @@ const WidgetPreview = ({
   // short, and controls that transition `visibility` lingered behind it.
   const [shellHidden, setShellHidden] = useState(false);
   const reduceMotion = useReducedMotion();
-  const foldMotion = reduceMotion ? { duration: 0 } : COLLAPSE_TRANSITION;
+  const foldMotion = reduceMotion ? { duration: 0 } : EXPAND_TRANSITION;
   // Changing the collapsed look shows it folded, so the change is visible
   // straight away.
   const foldKey = fold ? `${fold.collapseMode}:${fold.mascotStyle}` : "";
