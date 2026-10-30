@@ -197,6 +197,16 @@ pub enum WidgetMascotStyle {
     Watercolor,
 }
 
+/// How a widget folds into its collapsed look and unfolds out of it: the
+/// panel fading into it, or the cards stacking into it one by one.
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WidgetFoldAnimation {
+    Fade,
+    #[default]
+    Stack,
+}
+
 impl Default for WidgetCollapseMode {
     fn default() -> Self {
         Self::Mascot
@@ -414,6 +424,8 @@ struct StoredWidget {
     collapse_mode: WidgetCollapseMode,
     #[serde(default)]
     mascot_style: WidgetMascotStyle,
+    #[serde(default)]
+    fold_animation: WidgetFoldAnimation,
     /// Plays the mascot's sprite animations. Off holds it still.
     #[serde(default = "default_mascot_animated")]
     mascot_animated: bool,
@@ -585,6 +597,7 @@ pub struct WidgetState {
     collapsed_scale: u16,
     collapse_mode: WidgetCollapseMode,
     mascot_style: WidgetMascotStyle,
+    fold_animation: WidgetFoldAnimation,
     mascot_animated: bool,
     expand_vertical: WidgetExpandVertical,
     expand_horizontal: WidgetExpandHorizontal,
@@ -618,6 +631,7 @@ impl WidgetState {
             collapsed_scale: widget.collapsed_scale,
             collapse_mode: widget.collapse_mode.clone(),
             mascot_style: widget.mascot_style.clone(),
+            fold_animation: widget.fold_animation,
             mascot_animated: widget.mascot_animated,
             expand_vertical: widget.expand_vertical,
             expand_horizontal: widget.expand_horizontal,
@@ -647,6 +661,7 @@ impl WidgetState {
             collapsed_scale: DEFAULT_WIDGET_SCALE,
             collapse_mode: WidgetCollapseMode::default(),
             mascot_style: WidgetMascotStyle::default(),
+            fold_animation: WidgetFoldAnimation::default(),
             mascot_animated: default_mascot_animated(),
             expand_vertical: WidgetExpandVertical::default(),
             expand_horizontal: WidgetExpandHorizontal::default(),
@@ -674,6 +689,7 @@ pub fn open_widget_window(
     collapsed_scale: Option<u16>,
     collapse_mode: Option<WidgetCollapseMode>,
     mascot_style: Option<WidgetMascotStyle>,
+    fold_animation: Option<WidgetFoldAnimation>,
     mascot_animated: Option<bool>,
     expand_vertical: Option<WidgetExpandVertical>,
     expand_horizontal: Option<WidgetExpandHorizontal>,
@@ -752,6 +768,7 @@ pub fn open_widget_window(
             // Not gated, as in set-widget-config.
             collapse_mode: collapse_mode.unwrap_or_default(),
             mascot_style: mascot_style.unwrap_or_default(),
+            fold_animation: fold_animation.unwrap_or_default(),
             mascot_animated: mascot_animated.unwrap_or_else(default_mascot_animated),
             expand_vertical: expand_vertical.unwrap_or_default(),
             expand_horizontal: expand_horizontal.unwrap_or_default(),
@@ -1254,6 +1271,7 @@ pub fn preview_widget_config(
     collapsed_scale: Option<u16>,
     collapse_mode: Option<WidgetCollapseMode>,
     mascot_style: Option<WidgetMascotStyle>,
+    fold_animation: Option<WidgetFoldAnimation>,
     mascot_animated: Option<bool>,
     expand_vertical: Option<WidgetExpandVertical>,
     expand_horizontal: Option<WidgetExpandHorizontal>,
@@ -1290,6 +1308,9 @@ pub fn preview_widget_config(
     }
     if let Some(mascot_style) = mascot_style {
         preview.mascot_style = mascot_style;
+    }
+    if let Some(fold_animation) = fold_animation {
+        preview.fold_animation = fold_animation;
     }
     if let Some(mascot_animated) = mascot_animated {
         preview.mascot_animated = mascot_animated;
@@ -1337,6 +1358,7 @@ pub fn set_widget_config(
     // Not gated: collapsing is how a widget gets out of the way, Free or Pro.
     collapse_mode: Option<WidgetCollapseMode>,
     mascot_style: Option<WidgetMascotStyle>,
+    fold_animation: Option<WidgetFoldAnimation>,
     mascot_animated: Option<bool>,
     expand_vertical: Option<WidgetExpandVertical>,
     expand_horizontal: Option<WidgetExpandHorizontal>,
@@ -1398,6 +1420,9 @@ pub fn set_widget_config(
     }
     if let Some(mascot_style) = mascot_style {
         widget.mascot_style = mascot_style;
+    }
+    if let Some(fold_animation) = fold_animation {
+        widget.fold_animation = fold_animation;
     }
     if let Some(mascot_animated) = mascot_animated {
         widget.mascot_animated = mascot_animated;
@@ -1610,8 +1635,11 @@ const NO_FRAME_SUBCLASS_ID: usize = 0x4D4F_5446;
 /// for good: lifting the clip doesn't bring it back. It paints the old,
 /// unthemed frame itself instead, a light blue caption with a red close
 /// button, whenever the window is activated, hovered or redrawn, and it
-/// showed through wherever the widget is transparent, as mid-fold. The
-/// widget never has a frame of its own to draw, so none is painted at all.
+/// showed through wherever the widget is transparent, as mid-fold. Worse,
+/// tao sizes the frame away for only one form of `WM_NCCALCSIZE`, so the
+/// other could give the widget a real title bar that pushed the cards down.
+/// The widget never has a frame, so it gets no room for one and none is
+/// painted at all.
 #[cfg(target_os = "windows")]
 fn suppress_classic_frame(window: &WebviewWindow) {
     use windows::Win32::Foundation::HWND;
@@ -1645,9 +1673,9 @@ unsafe extern "system" fn no_frame_proc(
     _subclass_id: usize,
     _reference_data: usize,
 ) -> windows::Win32::Foundation::LRESULT {
-    use windows::Win32::Foundation::{LPARAM, LRESULT};
+    use windows::Win32::Foundation::LRESULT;
     use windows::Win32::UI::Shell::DefSubclassProc;
-    use windows_sys::Win32::UI::WindowsAndMessaging::{WM_NCACTIVATE, WM_NCPAINT};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCPAINT};
 
     // Undocumented: sent to draw the caption and the frame of a window whose
     // frame Windows doesn't compose, which a clip leaves it as for good.
@@ -1655,10 +1683,16 @@ unsafe extern "system" fn no_frame_proc(
     const WM_NCUAHDRAWFRAME: u32 = 0x00AF;
 
     match message {
+        // The whole window is client area, in both forms of the question.
+        // tao answers only the one with a wParam, and hands the other to
+        // the default handler, which gave the widget a full standard frame:
+        // a title bar that pushed the cards down, drawn unthemed.
+        WM_NCCALCSIZE => LRESULT(0),
         WM_NCPAINT | WM_NCUAHDRAWCAPTION | WM_NCUAHDRAWFRAME => LRESULT(0),
-        // Activation still goes through; an lParam of -1 tells the default
-        // handler not to repaint the frame for it.
-        WM_NCACTIVATE => unsafe { DefSubclassProc(hwnd, message, wparam, LPARAM(-1)) },
+        // Accepted here and never passed on: the default handler draws the
+        // caption for it, over the widget when it loses focus, even when
+        // told not to repaint. Focus itself travels on WM_ACTIVATE.
+        WM_NCACTIVATE => LRESULT(1),
         _ => unsafe { DefSubclassProc(hwnd, message, wparam, lparam) },
     }
 }
@@ -2678,6 +2712,7 @@ fn legacy_widget_settings_from_value(value: &Value) -> StoredWidgetSettings {
             always_on_top: false,
             collapse_mode: WidgetCollapseMode::default(),
             mascot_style: WidgetMascotStyle::default(),
+            fold_animation: WidgetFoldAnimation::default(),
             mascot_animated: default_mascot_animated(),
             expand_vertical: WidgetExpandVertical::default(),
             expand_horizontal: WidgetExpandHorizontal::default(),
