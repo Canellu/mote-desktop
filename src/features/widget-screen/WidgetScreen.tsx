@@ -58,6 +58,10 @@ const COLLAPSED_DRAG_THRESHOLD = 4;
  * shell eases out without overshooting: a bounce shrank it below the pill's
  * size and cut its icon and title off. */
 const COLLAPSE_DURATION = 0.34;
+/** How small the moth starts as it lands on a collapse, and how large it
+ * swells as it dissolves into the shell on an expand. */
+const MOTH_LANDING_SCALE = 0.6;
+const MOTH_RELEASE_SCALE = 1.3;
 export const COLLAPSE_TRANSITION = {
   duration: COLLAPSE_DURATION,
   ease: [0.22, 1, 0.36, 1],
@@ -567,7 +571,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
   const fadeRef = useRef<HTMLDivElement>(null);
   const probeRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
-  const collapsedRef = useRef<HTMLElement>(null);
+  const ghostMothRef = useRef<HTMLDivElement>(null);
   // The window always runs at the open zoom, so nothing changes size mid-fold.
   // The pill is drawn scaled by this to reach the collapsed size, and its
   // window is sized for that.
@@ -809,6 +813,7 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     changeTransition("collapsing");
     const start = shell.getBoundingClientRect();
     const ghost = ghostRef.current;
+    const ghostMoth = ghostMothRef.current;
     const mascot = collapseMode === "mascot";
     const morph = morphShell(
       shell,
@@ -840,6 +845,19 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       mascot
         ? animate(shell, { opacity: 0 }, { duration: duration * 0.35 })
         : morph,
+      // The moth lands: it grows into place as it fades in, settling with a
+      // slight overshoot, and the fold ends once it has.
+      mascot &&
+        ghostMoth &&
+        animate(
+          ghostMoth,
+          { scale: [MOTH_LANDING_SCALE, 1] },
+          {
+            duration: duration * 0.55,
+            delay: duration * 0.15,
+            ease: "backOut",
+          },
+        ),
     ]);
     morph.stop();
     setUnfolded(false);
@@ -856,15 +874,8 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     setUnfolded(true);
     // The next collapse has to fit the window again, even at the same size.
     fittedRef.current = false;
-    // The window grows and moves in separate steps, and the pill may switch
-    // corners, so it would flash somewhere else for a frame. It is hidden,
-    // and painted hidden, first; the ghost stands in for it once the shell
-    // starts unfolding.
-    const pill = collapsedRef.current;
-    if (pill) {
-      pill.style.visibility = "hidden";
-      await new Promise((resolve) => requestAnimationFrame(resolve));
-    }
+    // The pill stays drawn: the window only loses its clip, unless it has to
+    // move, and then the backend keeps the pill's old spot clipped away.
     try {
       // The backend picks the corner to unfold from: the preferred direction,
       // flipped on an axis with no room.
@@ -874,7 +885,6 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       });
       if (state?.collapseCorner) setCollapseCorner(state.collapseCorner);
     } catch {
-      if (pill) pill.style.visibility = "";
       changeTransition("none");
       return;
     }
@@ -893,6 +903,8 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     const fade = fadeRef.current;
     if (collapsed || !from) return;
     expandFromRef.current = null;
+    // Left on only by an expand that had to move the window.
+    void invoke("clear-widget-clip", { widgetId }).catch(() => undefined);
     if (!shell || !fade) {
       changeTransition("none");
       return;
@@ -906,6 +918,15 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
     fade.style.opacity = "0";
     const ghost = ghostRef.current;
     const mascot = collapseMode === "mascot";
+    const ghostMoth = ghostMothRef.current;
+    if (mascot && ghostMoth) {
+      // The moth swells into the shell growing out of it as it fades.
+      void animate(
+        ghostMoth,
+        { scale: [1, MOTH_RELEASE_SCALE] },
+        { duration: duration * 0.45, ease: "easeOut" },
+      );
+    }
     if (ghost) {
       ghost.style.opacity = "1";
       // The moth stays until the shell has faded in around it, so the two
@@ -1093,7 +1114,6 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
       // from the expanded shell so the animated element isn't reused.
       <main
         key="collapsed"
-        ref={collapsedRef}
         className={cn(
           "flex h-screen w-screen overflow-hidden bg-transparent",
           collapseCorner.startsWith("bottom") ? "items-end" : "items-start",
@@ -1253,18 +1273,22 @@ export const WidgetScreen = ({ widgetId }: { widgetId: string }) => {
           transformOrigin: cornerOrigin(collapseCorner),
         }}
       >
-        <CollapsedWidget
-          mode={collapseMode}
-          mascotStyle={mascotStyle}
-          mascotAnimated={mascotAnimated}
-          title={pillTitle}
-          pinned={pinned}
-          style={{
-            backgroundColor: "transparent",
-            borderColor: "transparent",
-          }}
-          ghost
-        />
+        {/* Scaled on its own, about the moth's middle, apart from the
+          collapsed size the wrapper scales it to. */}
+        <div ref={ghostMothRef}>
+          <CollapsedWidget
+            mode={collapseMode}
+            mascotStyle={mascotStyle}
+            mascotAnimated={mascotAnimated}
+            title={pillTitle}
+            pinned={pinned}
+            style={{
+              backgroundColor: "transparent",
+              borderColor: "transparent",
+            }}
+            ghost
+          />
+        </div>
       </div>
     </>
   );

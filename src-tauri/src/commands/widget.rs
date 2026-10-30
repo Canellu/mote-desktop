@@ -1066,6 +1066,7 @@ fn show_widget_window(
     // as soon as `build` returns) rather than waiting on the webview.
     let _ = window.set_shadow(false);
     remove_window_border(&window);
+    suppress_classic_frame(&window);
 
     if focus {
         let _ = window.set_focus();
@@ -1600,6 +1601,66 @@ fn remove_window_border(window: &WebviewWindow) {
 #[cfg(not(target_os = "windows"))]
 fn remove_window_border(_window: &WebviewWindow) {}
 
+/// Tells this subclass apart from tao's own on the same window.
+#[cfg(target_os = "windows")]
+const NO_FRAME_SUBCLASS_ID: usize = 0x4D4F_5446;
+
+/// Keeps Windows from painting a frame on a widget. A collapsed widget is
+/// clipped to its pill, and Windows doesn't compose a clipped window's frame:
+/// it paints the old, unthemed one itself, and does so whenever the window is
+/// activated, as by clicking the moth. That showed as a light blue caption
+/// with a red close button for an instant, too briefly, and outside the
+/// compositor, for a screen recording to catch. The widget never has a frame
+/// of its own to draw, so none is painted at all.
+#[cfg(target_os = "windows")]
+fn suppress_classic_frame(window: &WebviewWindow) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::Shell::SetWindowSubclass;
+
+    let Ok(hwnd) = window.hwnd() else {
+        return;
+    };
+    let hwnd = hwnd.0 as isize;
+    // A window can only be subclassed from the thread that owns it.
+    let _ = window.run_on_main_thread(move || {
+        // Safety: the callback is a plain function with no reference data,
+        // and Windows removes the subclass when the window is destroyed.
+        unsafe {
+            let _ = SetWindowSubclass(
+                HWND(hwnd as _),
+                Some(no_frame_proc),
+                NO_FRAME_SUBCLASS_ID,
+                0,
+            );
+        }
+    });
+}
+
+#[cfg(target_os = "windows")]
+unsafe extern "system" fn no_frame_proc(
+    hwnd: windows::Win32::Foundation::HWND,
+    message: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+    _subclass_id: usize,
+    _reference_data: usize,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::Win32::Foundation::{LPARAM, LRESULT};
+    use windows::Win32::UI::Shell::DefSubclassProc;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{WM_NCACTIVATE, WM_NCPAINT};
+
+    match message {
+        WM_NCPAINT => LRESULT(0),
+        // Activation still goes through; an lParam of -1 tells the default
+        // handler not to repaint the frame for it.
+        WM_NCACTIVATE => unsafe { DefSubclassProc(hwnd, message, wparam, LPARAM(-1)) },
+        _ => unsafe { DefSubclassProc(hwnd, message, wparam, lparam) },
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn suppress_classic_frame(_window: &WebviewWindow) {}
+
 fn install_widget_close_handler(window: &WebviewWindow, app: tauri::AppHandle, widget_id: String) {
     let window_for_handler = window.clone();
     let pending_save = Arc::new(Mutex::new(PendingBoundsSave::default()));
@@ -1989,13 +2050,15 @@ fn apply_collapsed_bounds(
         let _ = window.set_min_size(None::<LogicalSize<f64>>);
         set_window_bounds(window, frame.x, frame.y, frame.width, frame.height);
     }
+    // Its edges are clipped away, so they mustn't offer resize cursors
+    // either. Set before the clip: Windows draws a clipped window's frame the
+    // old, unthemed way, so a style change under a clip flashed one.
+    let _ = window.set_resizable(false);
     let (pill_width, pill_height) = collapsed_physical_size(window, pill);
     set_window_region(
         window,
         Some((pill.x - frame.x, pill.y - frame.y, pill_width, pill_height)),
     );
-    // Its edges are clipped away, so they mustn't offer resize cursors either.
-    let _ = window.set_resizable(false);
 }
 
 /// Clips the window to a rectangle in its own physical pixels, or lifts the
@@ -2036,6 +2099,20 @@ fn collapsed_physical_size(window: &WebviewWindow, collapsed: &StoredCollapsedBo
 /// unfolds leftwards, and collapsing folds back into the same corner, so the
 /// pill returns to where it was. The frontend animates toward and away from
 /// that corner around the window resize.
+/// Lifts a widget's clip as its unfold starts. Only an expand that had to move
+/// the window leaves one; see [`set_widget_collapsed`].
+#[tauri::command(rename = "clear-widget-clip")]
+pub fn clear_widget_clip(app: tauri::AppHandle, widget_id: Option<String>) -> Result<(), String> {
+    let widget_id = resolve_widget_id(&app, widget_id)?;
+    if let Some(window) = app.get_webview_window(&widget_label(&widget_id)) {
+        set_window_region(&window, None);
+        // Resizable again only now the clip is off: a frame drawn under a
+        // clip is the old, unthemed kind.
+        let _ = window.set_resizable(true);
+    }
+    Ok(())
+}
+
 #[tauri::command(rename = "set-widget-collapsed")]
 pub fn set_widget_collapsed(
     app: tauri::AppHandle,
@@ -2059,6 +2136,19 @@ pub fn set_widget_collapsed(
         .iter_mut()
         .find(|widget| widget.id == widget_id)
         .ok_or_else(|| "Widget settings are not available.".to_string())?;
+
+    // A drag stores the pill's spot only once it has settled, so a click
+    // straight after one would expand from, or re-fit to, where it was.
+    // Where the window is now is where the pill is.
+    if let Some(pill) = widget.collapsed {
+        if let Some(current) = read_window_rect(&window) {
+            let frame = collapsed_frame(&window, widget, &pill);
+            if let Some(stored) = widget.collapsed.as_mut() {
+                stored.x = current.x + (pill.x - frame.x);
+                stored.y = current.y + (pill.y - frame.y);
+            }
+        }
+    }
 
     if collapsed {
         let zoom = collapsed_zoom(widget);
@@ -2185,9 +2275,44 @@ pub fn set_widget_collapsed(
         // Lift the pill's fixed size in the same order as collapsing, mirrored.
         // The frontend's next layout sync sets the real limits for the controls.
         let _ = window.set_max_size(None::<LogicalSize<f64>>);
-        let _ = window.set_resizable(true);
+        // Expanding toward the same corner leaves the window where it is, so
+        // the clip just comes off and the pill stays drawn throughout. When
+        // it has to expand the other way the window moves, and the pill,
+        // still drawn at the old corner, would show in the wrong spot until
+        // the frontend catches up; so the window is clipped to nothing while
+        // it moves, then to the pill's own spot, which the old corner falls
+        // outside of. The frontend lifts that clip as it starts to unfold.
+        let target = widget.bounds.filter(valid_bounds);
+        let moving = target.is_some_and(|target| {
+            read_window_rect(&window).is_none_or(|current| {
+                (current.x, current.y, current.width, current.height)
+                    != (target.x, target.y, target.width, target.height)
+            })
+        });
+        if moving {
+            set_window_region(&window, Some((0, 0, 0, 0)));
+        }
         apply_widget_bounds(&window, widget);
-        set_window_region(&window, None);
+        match target.filter(|_| moving) {
+            Some(target) => {
+                let (pill_width, pill_height) = collapsed_physical_size(&window, &previous);
+                set_window_region(
+                    &window,
+                    Some((
+                        previous.x - target.x,
+                        previous.y - target.y,
+                        pill_width,
+                        pill_height,
+                    )),
+                );
+            }
+            None => set_window_region(&window, None),
+        }
+        // Only once no clip is left (see `apply_collapsed_bounds`); an expand
+        // that moved the window keeps a clip until the frontend lifts it.
+        if !moving {
+            let _ = window.set_resizable(true);
+        }
         let _ = window.set_min_size(Some(LogicalSize::new(
             MIN_WIDGET_WIDTH as f64 * zoom,
             MIN_WIDGET_HEIGHT as f64 * zoom,
