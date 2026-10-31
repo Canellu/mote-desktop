@@ -9,26 +9,39 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Highlights
 
-- Widgets can collapse into a small moth, a pill with their name, or a round
-  bubble. Click it to expand the widget again, or drag it somewhere else.
-  Cartoon is the free default mascot. Mote Pro adds Low poly, Pixel art,
-  Paper, and Watercolor. The mascot glows softly, blinks now and then, and flutters when
-  you hover it. Choose which way it faces, or turn its animation off.
-- Choose how a widget folds and opens: its cards stacking one by one, or
-  the whole panel fading. Pick which way it expands, including evenly around
-  the collapsed widget. Open and collapsed sizes can be set separately with
-  Mote Pro.
-- **Auto collapse** folds a widget away once the pointer has been off it for
-  a few seconds.
+- **Collapse a widget.** Fold any widget into a small animated moth, a pill
+  with its name, or a round bubble, then click it to open the widget again or
+  drag it somewhere else. The moth glows softly, blinks now and then, and
+  flutters when you hover it. Choose which way it faces, or hold it still.
+- **Moth styles.** Cartoon is free. Mote Pro adds Low poly, Pixel art, Paper,
+  and Watercolor.
+- **Choose how it folds and opens.** Stack the cards into the collapsed look
+  one by one, or fade the whole panel. Pick which way the widget expands,
+  including evenly around the collapsed widget. Opening and closing move like
+  the Windows 11 Start menu.
+- **Auto collapse** folds a widget away a few seconds after the pointer
+  leaves it.
+- **A new way to create widgets.** The Configure step is now a live preview
+  of your widget: click a card to choose its scenes or what a toggle does, or
+  drag it to change the order. A new Appearance step sets the theme, size,
+  corners, tile background, collapsed look, moth style, fold animation, and
+  expand direction, and the preview folds and opens just as the widget will
+  on your desktop.
 
 ### Improvements
 
-- A pinned widget stays out of the way: its lights float on the desktop
-  without a background, and hovering them doesn't change that. Hover the top
-  edge to bring up the background and the pin, settings, collapse and close
-  buttons. Right after a pinned widget expands from its collapsed look, it
-  keeps its background until you move the pointer off it.
-- Removing a control asks for confirmation inside the widget.
+- Widget settings show one widget at a time, with a switcher when you have
+  several, and are grouped into Window, Appearance, and Remove. All the new
+  collapse options are there too.
+- With Mote Pro, the open and collapsed sizes are set separately, each with
+  its own slider.
+- A control's settings, and adding a new control, open in a side panel.
+  Removing a control asks for confirmation in that panel.
+- A pinned widget stays out of the way: hovering its lights no longer brings
+  back its background. Hover the top edge for the background and the pin,
+  settings, collapse, and close buttons.
+- The Free and Mote Pro comparison in the app lists every automation and the
+  new collapse options.
 
 ### Fixes
 
