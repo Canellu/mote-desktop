@@ -137,10 +137,10 @@ Remote Hue cloud control is not included.
 
 ## What's new in 0.12.0
 
-Collapse a widget. Fold any widget into a small animated moth, a pill with its
+Collapse a widget. Fold any widget into a small animated mascot, a pill with its
 name, or a round bubble, then click it to open it again or drag it somewhere
-else. Cartoon is the free moth; Mote Pro adds Low poly, Pixel art, Paper, and
-Watercolor. Choose which way the moth faces, or hold it still.
+else. Cartoon is the free mascot; Mote Pro adds Low poly, Pixel art, Paper, and
+Watercolor. Choose which way the mascot faces, or hold it still.
 
 Choose how a widget folds and opens: stack its cards one by one or fade the
 whole panel, pick which way it expands, including evenly around the collapsed

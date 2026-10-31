@@ -9,7 +9,7 @@ Upload the files in `final/` in this order, with these captions:
 3. `03-scene-gallery.png` — Preview Hue scene palettes live on your lights, then save the one you want.
 4. `04-pc-sync.png` — Sync your lights with video, games, and music playing on your PC for free.
 5. `05-light-placement.png` — Place each light of an entertainment area around your screen in a 3D view, so sync knows where it sits.
-6. `06-desktop-widgets.png` — Keep a compact lighting controller on your desktop for instant access to lights and scenes. Fold it into a moth, pill, or bubble when you need the space.
+6. `06-desktop-widgets.png` — Keep a compact lighting controller on your desktop for instant access to lights and scenes. Fold it into a mascot, pill, or bubble when you need the space.
 7. `08-sync-box.png` — Switch sources, sync styles, and intensity for a Hue Play HDMI Sync Box.
 8. `07-custom-widgets.png` — With Mote Pro, build widgets with the controls, scenes, corners, and size that fit your desktop.
 

@@ -9,11 +9,11 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Highlights
 
-- **Collapse a widget.** Fold any widget into a small animated moth, a pill
+- **Collapse a widget.** Fold any widget into a small animated mascot, a pill
   with its name, or a round bubble, then click it to open the widget again or
-  drag it somewhere else. The moth glows softly, blinks now and then, and
+  drag it somewhere else. The mascot glows softly, blinks now and then, and
   flutters when you hover it. Choose which way it faces, or hold it still.
-- **Moth styles.** Cartoon is free. Mote Pro adds Low poly, Pixel art, Paper,
+- **Mascot styles.** Cartoon is free. Mote Pro adds Low poly, Pixel art, Paper,
   and Watercolor.
 - **Choose how it folds and opens.** Stack the cards into the collapsed look
   one by one, or fade the whole panel. Pick which way the widget expands,
@@ -24,7 +24,7 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 - **A new way to create widgets.** The Configure step is now a live preview
   of your widget: click a card to choose its scenes or what a toggle does, or
   drag it to change the order. A new Appearance step sets the theme, size,
-  corners, tile background, collapsed look, moth style, fold animation, and
+  corners, tile background, collapsed look, mascot style, fold animation, and
   expand direction, and the preview folds and opens just as the widget will
   on your desktop.
 
