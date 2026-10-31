@@ -35,6 +35,12 @@ which is the product described without a screenshot of it.
 - **Modifications**: background cut out to transparency, floor shadows
   removed, cropped and resized to 256px, re-encoded as WebP, by
   `output/moth-12-frame-2026-10-30/pack_mascot.py`.
+- **Watercolor static image update (2026-10-31)**: regenerated with the built-in
+  image generation tool using the original icon and the approved animation
+  sheet's first open-wing resting pose as references, repairing clipped wing
+  contours. Original output and prompt are in
+  `output/moth-watercolor-cleanup-2026-10-31/`. Resized inside a transparent
+  256px square and encoded as lossless WebP; animation sheet unchanged.
 
 ## `mascot/moth-*-sheet.webp`
 
