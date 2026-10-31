@@ -1,6 +1,7 @@
 # Microsoft Store listing copy
 
-Status: **0.12.0 copy prepared; not yet carried across to Partner Center**.
+Status: **0.12.0 copy carried across with Submission 24 (in certification
+2026-10-31)**.
 The exact field text for that submission, written against the live listing,
 is in [releases/0.12.0-partner-center.md](releases/0.12.0-partner-center.md).
 Partner Center feature bullets are limited to 200 characters, so the bullets
