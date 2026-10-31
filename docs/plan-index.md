@@ -1,6 +1,6 @@
 # Plan index
 
-Last reviewed: **2026-10-11**.
+Last reviewed: **2026-10-31**.
 
 The product name is **Mote Desktop**, the publisher display name is **Anton
 Vo**, the permanent application identifier is `com.motedesktop.mote`, and
@@ -12,7 +12,7 @@ fallback shortlist is recorded in the Microsoft Store release plan.
 
 | Plan                                                                                                  | Status                                        | Owns                                                                                                 |
 | ----------------------------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [Microsoft Store release](./microsoft-store-release-plan.md)                                          | 0.10.1 live; 0.11.0 in certification          | Windows launch identity, packaging, signing, validation, listing, certification, and operations      |
+| [Microsoft Store release](./microsoft-store-release-plan.md)                                          | 0.11.2 live; 0.12.0 built for submission      | Windows launch identity, packaging, signing, validation, listing, certification, and operations      |
 | [Sync Box](./sync-box-plan.md)                                                                        | Complete                                      | Existing single-Sync-Box implementation record                                                       |
 | [PC Sync](./pc-sync-plan.md)                                                                          | Complete for Windows launch                   | Screen/audio capture and entertainment streaming                                                     |
 | [Multi-bridge dashboard and PC Sync](./multi-bridge-experience-plan.md)                               | Future                                        | Combined bridge views, cross-bridge control, and PC Sync behavior across bridge switches             |

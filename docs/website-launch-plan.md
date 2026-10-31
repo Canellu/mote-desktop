@@ -6,7 +6,7 @@ bought, and the site, legal pages, and support route deploy from
 `privacy@motedesktop.com` is still to be created. The phases below are the
 original plan.
 
-Last reviewed: **2026-10-11**.
+Last reviewed: **2026-10-31**.
 
 ## Current state
 
@@ -19,6 +19,10 @@ Last reviewed: **2026-10-11**.
   connecting by IP address in the setup guide, FAQ and support, and the Hue
   Bridge answer from the [bridgeless spike](./bridgeless-hue-control-spike.md).
   The legal pages carry the 3 October 2026 changes that 0.10.1 announces.
+- 0.12.0 site changes (mascot, folding, feature comparison, desktop widgets
+  page) and a 31 October 2026 legal effective date, for the plan now listed
+  among the diagnostics facts, are committed on `mote-website` `main` and not
+  yet pushed. Push them once 0.12.0 is live in the Store.
 - The sitemap was submitted in Google Search Console on 2026-10-04 and read
   the same day (8 pages). On 2026-10-11 Google had 7 pages indexed. The 9 not
   indexed are URLs meant to redirect (slashless, `http`, `www`) and

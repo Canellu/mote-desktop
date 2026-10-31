@@ -7,7 +7,10 @@ pinning, and frame fixes together. Package hashes, verification, remaining
 smoke tests, Store copy, and website rollout are recorded in
 [the 0.12.0 release record](releases/0.12.0.md). It has not been uploaded,
 submitted, or published. The website changes are prepared locally for the
-Store launch.
+Store launch. Rebuilt on 2026-10-31 with the repaired watercolor moth and the
+plan table matching the website; Submission 23 (0.11.2.0) was live with no
+package flights, and the Partner Center fields are in
+[0.12.0-partner-center.md](releases/0.12.0-partner-center.md).
 
 Release preparation on 2026-10-25: the unsigned 0.11.2.0 MSIX builds from
 `0da2a1a` and is 10,746,797 bytes (SHA-256

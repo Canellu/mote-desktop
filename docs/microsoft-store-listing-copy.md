@@ -1,6 +1,10 @@
 # Microsoft Store listing copy
 
 Status: **0.12.0 copy prepared; not yet carried across to Partner Center**.
+The exact field text for that submission, written against the live listing,
+is in [releases/0.12.0-partner-center.md](releases/0.12.0-partner-center.md).
+Partner Center feature bullets are limited to 200 characters, so the bullets
+below are source copy, not paste-ready.
 
 Last reviewed: **2026-10-31**.
 
@@ -142,9 +146,11 @@ opens, and an auto-collapse delay. These options work with the free widget.
 Mote Pro also lets you set open and collapsed sizes separately.
 
 Pinned widgets keep their controls visible without a background; hover the
-top edge for the toolbar. Folding and opening are smoother, without a flash
-of the Windows frame. Removing a control now asks for confirmation in place,
-and the moth fits small widgets correctly.
+top edge for the toolbar. Removing a control now asks for confirmation in
+place.
+
+Fixed: identifying a light could leave it breathing and flashing without end.
+It now stops after 1.5 seconds.
 
 ## What's new in 0.8.0
 

@@ -32,9 +32,8 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ### Fixes
 
-- Widgets no longer flash a native Windows frame while folding or opening.
-- The moth fits small collapsed widgets without being clipped.
-- Identifying a light finishes its breathing effect after 1.5 seconds.
+- Identifying a light could leave it breathing and flashing without end. It
+  now stops after 1.5 seconds.
 
 ## [0.11.2] - 2026-10-25
 
