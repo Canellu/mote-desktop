@@ -57,7 +57,9 @@ items.
 1. Freeze the intended changes and update `CHANGELOG.md`.
 2. Set the same version in all three manifests.
 3. Run `bun run version:check`, lint, typecheck, tests, and the production build.
-4. Build, sign, and validate the Store installer using the Store release plan.
+4. Build the Store package with `scripts/build-msix.ps1` and validate it using
+   the Store release plan. Unsigned upload packages land in `store-packages/`,
+   one per version; Partner Center signs them.
 5. Publish the release notes and immutable versioned installer URL.
 6. Create an annotated Git tag matching the version, for example:
    `git tag -a v1.2.3 -m "Release 1.2.3"`.

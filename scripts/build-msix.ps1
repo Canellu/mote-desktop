@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$IdentityName = "AntonVo.MoteDesktop",
     [string]$Publisher = "CN=44112F90-AF39-497A-AE42-3BEEBE2299A7",
@@ -18,7 +18,11 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $tauriRoot = Join-Path $repoRoot "src-tauri"
 $tauriConfigPath = Join-Path $tauriRoot "tauri.conf.json"
 $templatePath = Join-Path $tauriRoot "msix/AppxManifest.xml.template"
-$targetRoot = Join-Path $tauriRoot "target/msix-spike"
+# Staging and scratch output. Unsigned packages for Partner Center go to
+# `store-packages/` at the repository root, one file per version, so the
+# upload folder holds nothing else and survives `cargo clean`.
+$targetRoot = Join-Path $tauriRoot "target/msix"
+$storePackagesRoot = Join-Path $repoRoot "store-packages"
 $stageRoot = Join-Path $targetRoot "stage"
 $executablePath = Join-Path $tauriRoot "target/release/mote-desktop.exe"
 $commerceDiagnosticPath = Join-Path $tauriRoot "target/release/examples/store_commerce_spike.exe"
@@ -86,7 +90,7 @@ if ($IncludeCommerceDiagnostic -and -not (Test-Path -LiteralPath $commerceDiagno
 $resolvedTarget = [System.IO.Path]::GetFullPath($targetRoot)
 $resolvedStage = [System.IO.Path]::GetFullPath($stageRoot)
 if (-not $resolvedStage.StartsWith($resolvedTarget + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "Refusing to clear staging path outside the MSIX spike target."
+    throw "Refusing to clear staging path outside the MSIX target."
 }
 
 if (Test-Path -LiteralPath $stageRoot) {
@@ -152,8 +156,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "MakePri new failed with exit code $LASTEXITCODE."
 }
 
-New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
-$packagePath = Join-Path $targetRoot "MoteDesktop_${Version}_${Architecture}.msix"
+# A signed package carries a temporary test certificate and must never be
+# uploaded, so only unsigned packages land in the upload folder.
+$packageRoot = if ($Sign) { $targetRoot } else { $storePackagesRoot }
+New-Item -ItemType Directory -Path $packageRoot -Force | Out-Null
+$packagePath = Join-Path $packageRoot "MoteDesktop_${Version}_${Architecture}.msix"
 & $sdkTools.MakeAppx pack /d $stageRoot /p $packagePath /o
 if ($LASTEXITCODE -ne 0) {
     throw "MakeAppx failed with exit code $LASTEXITCODE."
@@ -170,9 +177,9 @@ if ($Sign) {
             -Subject $Publisher `
             -CertStoreLocation "Cert:\CurrentUser\My" `
             -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}") `
-            -FriendlyName "Mote Desktop MSIX spike (temporary)"
+            -FriendlyName "Mote Desktop MSIX test (temporary)"
 
-        $certificatePath = Join-Path $targetRoot "MoteDesktop-msix-spike.cer"
+        $certificatePath = Join-Path $targetRoot "MoteDesktop-msix-test.cer"
         Export-Certificate -Cert $certificate -FilePath $certificatePath -Force | Out-Null
         & $sdkTools.SignTool sign /fd SHA256 /sha1 $certificate.Thumbprint /s My $packagePath
         if ($LASTEXITCODE -ne 0) {

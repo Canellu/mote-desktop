@@ -47,3 +47,6 @@ __pycache__/
 *.tsbuildinfo
 /vite.config.js
 /vite.config.d.ts
+
+# Unsigned MSIX packages built for Partner Center upload (scripts/build-msix.ps1).
+/store-packages/
