@@ -39,11 +39,15 @@ and system theme. Until then Free had no limit on how many widgets could exist a
 the composition of each was paid. More widgets, more controls, and every
 appearance and window option are Pro.
 
-Since 0.12.0, the free widget also supports collapsing into a moth, pill, or
-bubble; all five mascot styles; optional animation and facing direction;
+Since 0.12.0, the free widget also supports collapsing into the Cartoon mascot,
+a pill, or a bubble; optional animation and facing direction;
 stacking or fading; expansion direction; and auto collapse. Custom open and
 collapsed sizes remain Pro, as do pinning and always-on-top behavior. These
-collapse options are an exception to the appearance rule above.
+collapse options are an exception to the appearance rule above. Low poly,
+Pixel art, Paper, and Watercolor mascot styles require `advanced_widgets`
+(Mote Pro), including on creation and configuration through IPC. When Pro
+ends, the effective mascot becomes Cartoon without overwriting the saved
+style; restoring Pro brings the saved style back.
 
 **No grandfathering.** The owner confirmed on 2026-09-11, and again on
 2026-09-14, that nobody has downloaded the app yet, so there is no installed

@@ -1039,7 +1039,7 @@ export const WidgetWizard = ({
                   <SettingsReveal open={collapseMode === "mascot"}>
                     <SettingsRow
                       title="Mascot style"
-                      description="How the moth is drawn while the widget is collapsed."
+                      description="Cartoon is free. Low poly, Pixel art, Paper and Watercolor are included with Mote Pro."
                     >
                       <MascotStylePicker
                         value={mascotStyle}

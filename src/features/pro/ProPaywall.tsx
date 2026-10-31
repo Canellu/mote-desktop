@@ -55,7 +55,8 @@ const INCLUDED = [
   {
     icon: Sparkles,
     title: "Richer widgets",
-    detail: "More than one control, and set its size and place.",
+    detail:
+      "More controls, custom sizing and placement, and four extra mascot styles.",
   },
   {
     icon: LayoutGrid,

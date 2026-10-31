@@ -11,8 +11,8 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 - Widgets can collapse into a small moth, a pill with their name, or a round
   bubble. Click it to expand the widget again, or drag it somewhere else.
-  Choose from five moth styles: Cartoon, Low poly, Pixel art, Paper, and
-  Watercolor. The moth glows softly, blinks now and then, and flutters when
+  Cartoon is the free default mascot. Mote Pro adds Low poly, Pixel art,
+  Paper, and Watercolor. The mascot glows softly, blinks now and then, and flutters when
   you hover it. Choose which way it faces, or turn its animation off.
 - Choose how a widget folds and opens: its cards stacking one by one, or
   the whole panel fading. Pick which way it expands, including evenly around

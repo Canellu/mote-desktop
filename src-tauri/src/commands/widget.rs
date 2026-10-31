@@ -505,8 +505,12 @@ impl StoredWidget {
 
     /// The widget as it may run right now. Nothing here is written back.
     fn in_effect(&self) -> Self {
+        self.with_free_limits(free_limits())
+    }
+
+    fn with_free_limits(&self, limited: bool) -> Self {
         let mut widget = self.clone();
-        if free_limits() {
+        if limited {
             widget.pinned = false;
             widget.always_on_top = false;
             widget.theme_mode = WidgetThemeMode::System;
@@ -515,6 +519,7 @@ impl StoredWidget {
             widget.background_mode = WidgetBackgroundMode::Solid;
             widget.scale = DEFAULT_WIDGET_SCALE;
             widget.collapsed_scale = DEFAULT_WIDGET_SCALE;
+            widget.mascot_style = WidgetMascotStyle::default();
             widget.controls = free_composition(&self.controls);
         }
         widget
@@ -776,8 +781,13 @@ pub fn open_widget_window(
         let corner_mode = corner_mode.unwrap_or_default();
         let background_mode = background_mode.unwrap_or_default();
         let controls = sanitized_controls.unwrap_or_default();
-        let scale = scale.map(clamp_widget_scale).unwrap_or(DEFAULT_WIDGET_SCALE);
-        let collapsed_scale = collapsed_scale.map(clamp_collapsed_widget_scale).unwrap_or(scale);
+        let scale = scale
+            .map(clamp_widget_scale)
+            .unwrap_or(DEFAULT_WIDGET_SCALE);
+        let collapsed_scale = collapsed_scale
+            .map(clamp_collapsed_widget_scale)
+            .unwrap_or(scale);
+        let mascot_style = mascot_style.unwrap_or_default();
         // Free holds one widget, built within the Free composition and
         // appearance. A second widget, or one built past either, is Pro.
         if !settings.widgets.is_empty()
@@ -786,6 +796,7 @@ pub fn open_widget_window(
             || exceeds_free_background(&background_mode)
             || exceeds_free_scale(scale)
             || exceeds_free_scale(collapsed_scale)
+            || exceeds_free_mascot_style(&mascot_style)
         {
             crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
         }
@@ -808,7 +819,7 @@ pub fn open_widget_window(
             always_on_top: false,
             // Not gated, as in set-widget-config.
             collapse_mode: collapse_mode.unwrap_or_default(),
-            mascot_style: mascot_style.unwrap_or_default(),
+            mascot_style,
             fold_animation: fold_animation.unwrap_or_default(),
             mascot_animated: mascot_animated.unwrap_or_else(default_mascot_animated),
             mascot_facing: mascot_facing.unwrap_or_default(),
@@ -1264,6 +1275,10 @@ fn exceeds_free_background(background_mode: &WidgetBackgroundMode) -> bool {
     !matches!(background_mode, WidgetBackgroundMode::Solid)
 }
 
+fn exceeds_free_mascot_style(style: &WidgetMascotStyle) -> bool {
+    !matches!(style, WidgetMascotStyle::CelShaded)
+}
+
 #[tauri::command(rename = "set-widget-controls")]
 pub fn set_widget_controls(
     app: tauri::AppHandle,
@@ -1431,9 +1446,12 @@ pub fn set_widget_config(
                 size_mode.as_ref().unwrap_or(&WidgetSizeMode::Default),
                 corner_mode.as_ref().unwrap_or(&WidgetCornerMode::Rounded),
             ))
-        || background_mode.as_ref().is_some_and(exceeds_free_background)
+        || background_mode
+            .as_ref()
+            .is_some_and(exceeds_free_background)
         || scale.is_some_and(exceeds_free_scale)
         || collapsed_scale.is_some_and(exceeds_free_scale)
+        || mascot_style.as_ref().is_some_and(exceeds_free_mascot_style)
     {
         crate::commands::entitlements::require(&app, Capability::AdvancedWidgets)?;
     }
@@ -2101,7 +2119,12 @@ fn collapsed_frame(
         .bounds
         .filter(valid_bounds)
         .map(|bounds| (bounds.width, bounds.height))
-        .or_else(|| window.inner_size().ok().map(|size| (size.width, size.height)))
+        .or_else(|| {
+            window
+                .inner_size()
+                .ok()
+                .map(|size| (size.width, size.height))
+        })
         .unwrap_or((pill_width as u32, pill_height as u32));
     let width = width.max(pill_width as u32);
     let height = height.max(pill_height as u32);
@@ -2167,7 +2190,10 @@ fn set_window_region(window: &WebviewWindow, rect: Option<(i32, i32, i32, i32)>)
 #[cfg(not(target_os = "windows"))]
 fn set_window_region(_window: &WebviewWindow, _rect: Option<(i32, i32, i32, i32)>) {}
 
-fn collapsed_physical_size(window: &WebviewWindow, collapsed: &StoredCollapsedBounds) -> (i32, i32) {
+fn collapsed_physical_size(
+    window: &WebviewWindow,
+    collapsed: &StoredCollapsedBounds,
+) -> (i32, i32) {
     let scale_factor = window.scale_factor().unwrap_or(1.0);
     (
         (collapsed.width as f64 * scale_factor).round() as i32,
@@ -2218,7 +2244,11 @@ pub fn clip_widget_to_panel(
 ) -> Result<(), String> {
     let widget_id = resolve_widget_id(&app, widget_id)?;
     let settings = read_widget_settings(&app)?;
-    let Some(widget) = settings.widgets.iter().find(|widget| widget.id == widget_id) else {
+    let Some(widget) = settings
+        .widgets
+        .iter()
+        .find(|widget| widget.id == widget_id)
+    else {
         return Ok(());
     };
     if widget.collapsed.is_some() {
@@ -2298,14 +2328,18 @@ pub fn set_widget_collapsed(
         // style changed), so it stays put.
         let frame = match widget.collapsed {
             Some(previous) => {
-                let (previous_width, previous_height) =
-                    collapsed_physical_size(&window, &previous);
+                let (previous_width, previous_height) = collapsed_physical_size(&window, &previous);
                 Some((previous.x, previous.y, previous_width, previous_height))
             }
             None => {
                 widget.bounds = read_window_bounds(&window).or(widget.bounds);
                 widget.bounds.map(|bounds| {
-                    (bounds.x, bounds.y, bounds.width as i32, bounds.height as i32)
+                    (
+                        bounds.x,
+                        bounds.y,
+                        bounds.width as i32,
+                        bounds.height as i32,
+                    )
                 })
             }
         };
@@ -2973,7 +3007,11 @@ fn current_widget_bounds(
         }
     }
     let settings = read_widget_settings(app)?;
-    let Some(widget) = settings.widgets.iter().find(|widget| widget.id == widget_id) else {
+    let Some(widget) = settings
+        .widgets
+        .iter()
+        .find(|widget| widget.id == widget_id)
+    else {
         return Ok(None);
     };
     // A closed collapsed widget reopens as its pill. Its size is stored in
@@ -3188,6 +3226,40 @@ pub fn reset_widget_position(
 mod free_limit_tests {
     use super::*;
 
+    #[test]
+    fn cartoon_is_free_and_alternate_mascot_styles_require_pro() {
+        assert!(!exceeds_free_mascot_style(&WidgetMascotStyle::default()));
+        for style in [
+            WidgetMascotStyle::LowPoly,
+            WidgetMascotStyle::PixelArt,
+            WidgetMascotStyle::PaperCutout,
+            WidgetMascotStyle::Watercolor,
+        ] {
+            assert!(exceeds_free_mascot_style(&style));
+            let mut saved = legacy_widget_settings_from_value(&serde_json::json!({
+                "enabled": true
+            }))
+            .widgets
+            .remove(0);
+            saved.mascot_style = style;
+            saved.collapse_mode = WidgetCollapseMode::Mascot;
+            saved.mascot_animated = false;
+            saved.auto_collapse_after = Some(4);
+            let before = serde_json::to_value(&saved).unwrap();
+
+            let limited = saved.with_free_limits(true);
+            assert!(matches!(limited.mascot_style, WidgetMascotStyle::CelShaded));
+            assert!(matches!(limited.collapse_mode, WidgetCollapseMode::Mascot));
+            assert!(!limited.mascot_animated);
+            assert_eq!(limited.auto_collapse_after, Some(4));
+            assert_eq!(serde_json::to_value(&saved).unwrap(), before);
+            assert_eq!(
+                serde_json::to_value(saved.with_free_limits(false)).unwrap(),
+                before
+            );
+        }
+    }
+
     fn toggles(id: &str, targets: &[&str]) -> StoredWidgetControl {
         let targets: Vec<Value> = targets
             .iter()
@@ -3274,8 +3346,14 @@ mod free_limit_tests {
         assert_eq!(clamp_widget_scale(0), MIN_WIDGET_SCALE);
         assert_eq!(clamp_widget_scale(255), MAX_WIDGET_SCALE);
         assert_eq!(clamp_collapsed_widget_scale(250), 250);
-        assert_eq!(clamp_collapsed_widget_scale(300), MAX_COLLAPSED_WIDGET_SCALE);
-        assert_eq!(clamp_collapsed_widget_scale(u16::MAX), MAX_COLLAPSED_WIDGET_SCALE);
+        assert_eq!(
+            clamp_collapsed_widget_scale(300),
+            MAX_COLLAPSED_WIDGET_SCALE
+        );
+        assert_eq!(
+            clamp_collapsed_widget_scale(u16::MAX),
+            MAX_COLLAPSED_WIDGET_SCALE
+        );
         assert!(!exceeds_free_scale(100));
         assert!(exceeds_free_scale(90));
     }

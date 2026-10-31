@@ -2,7 +2,7 @@
 
 Status: **0.12.0 copy prepared; not yet carried across to Partner Center**.
 
-Last reviewed: **2026-10-30**.
+Last reviewed: **2026-10-31**.
 
 This is the source-controlled English listing copy for the Windows release. It
 has a useful Free tier, a 14-day Mote Pro trial, and a one-time Mote Pro
@@ -53,7 +53,8 @@ details are needed to start the trial.
 
 The Free tier includes one desktop widget holding one room, zone, or light.
 Fold it into an animated moth, a named pill, or a round bubble, then click to
-open it again. Choose from five moth styles, its facing direction, stacking
+open it again. Cartoon is the free default mascot; Mote Pro adds Low poly,
+Pixel art, Paper, and Watercolor. Choose its facing direction, stacking
 or fading, where the widget opens, and an optional auto-collapse delay.
 Mote Pro adds global keyboard shortcuts that control your lights from
 anywhere in Windows, an on-air light during calls, lights that dim or turn off
@@ -88,7 +89,7 @@ releases.
 - Discover, pair, and control one Hue Play HDMI Sync Box.
 - Discover, pair, restore, rename, and remove one saved Hue Bridge.
 - Create one desktop widget holding one room, zone, or light. Fold it into a
-  moth, pill, or bubble, with five mascot styles, optional animation, facing
+  Cartoon mascot, pill, or bubble, with optional animation, facing
   direction, stacking or fading, expansion direction, and auto collapse.
 - Choose light, dark, or system appearance and configure tray and startup
   behavior.
@@ -97,6 +98,7 @@ releases.
 
 ## Mote Pro — free for 14 days, then a one-time purchase
 
+- Choose Low poly, Pixel art, Paper, or Watercolor as your widget's mascot.
 - Set global keyboard shortcuts that control lights, rooms, zones, and scenes
   from anywhere in Windows, including from the tray.
 - Turn lights into an on-air sign while an app uses your microphone or camera,
@@ -134,8 +136,8 @@ Remote Hue cloud control is not included.
 A moth for your desktop. Fold a widget into an animated moth, a pill with its
 name, or a round bubble. Click to open it, or drag it somewhere else.
 
-Choose Cartoon, Low poly, Pixel art, Paper, or Watercolor; set which way the
-moth faces, or hold it still. Choose stacking or fading, where the widget
+Cartoon is the free default mascot. Mote Pro adds Low poly, Pixel art, Paper,
+and Watercolor. Set which way the mascot faces, or hold it still. Choose stacking or fading, where the widget
 opens, and an auto-collapse delay. These options work with the free widget.
 Mote Pro also lets you set open and collapsed sizes separately.
 

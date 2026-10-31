@@ -27,6 +27,7 @@ const COMPARISON: { name: string; free: PlanValue; pro: PlanValue }[] = [
   { name: "Hue Play HDMI Sync Box", free: "One box", pro: "Multiple" },
   { name: "Hue Bridges", free: "One", pro: "Multiple" },
   { name: "Desktop widgets", free: "One", pro: "Unlimited" },
+  { name: "Mascot styles", free: "Cartoon", pro: "All five" },
   { name: "Multiple controls in one widget", free: false, pro: true },
   {
     name: "Widget theme, size, corners, and placement",
