@@ -28,6 +28,11 @@ const COMPARISON: { name: string; free: PlanValue; pro: PlanValue }[] = [
   { name: "Hue Bridges", free: "One", pro: "Multiple" },
   { name: "Desktop widgets", free: "One", pro: "Unlimited" },
   { name: "Mascot styles", free: "Cartoon", pro: "All five" },
+  {
+    name: "Mascot, pill, or bubble; fold and auto-collapse options",
+    free: true,
+    pro: true,
+  },
   { name: "Multiple controls in one widget", free: false, pro: true },
   {
     name: "Widget theme, size, corners, and placement",
@@ -36,7 +41,11 @@ const COMPARISON: { name: string; free: PlanValue; pro: PlanValue }[] = [
   },
   { name: "Dashboard layout", free: "Standard", pro: "Custom" },
   { name: "Global keyboard shortcuts", free: false, pro: true },
-  { name: "Automations: on air and away", free: false, pro: true },
+  {
+    name: "Automations: calls, locking, focus, presence, and calendar",
+    free: false,
+    pro: true,
+  },
 ];
 
 const COMPARE_URL = "https://motedesktop.com/features";
