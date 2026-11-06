@@ -5,6 +5,15 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.12.1] - 2026-11-06
+
+### Fixes
+
+- On displays scaled to 125% or 150% in Windows, widgets could jump while
+  you dragged an edge to resize them, slowly grow wider on their own, and
+  show their controls cut off. Resizing now follows the pointer and the
+  widget keeps the size you give it.
+
 ## [0.12.0] - 2026-10-30
 
 ### Highlights

@@ -136,6 +136,12 @@ Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
 
+## What's new in 0.12.1
+
+Fixed: on displays scaled to 125% or 150% in Windows, widgets could jump while
+you resized them, slowly grow wider, and show their controls cut off. Resizing
+now follows the pointer and the widget keeps the size you give it.
+
 ## What's new in 0.12.0
 
 Collapse a widget. Fold any widget into a small animated mascot, a pill with its
