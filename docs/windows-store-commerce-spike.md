@@ -1,5 +1,13 @@
 # Windows Store packaging and commerce spike
 
+Release on 2026-11-07: **0.12.1**, a widget fix for fractionally scaled
+displays. The unsigned `0.12.1.0` MSIX builds from `c8105b5` and is
+13,290,219 bytes (SHA-256
+`A0830320F147EAC20990EB69A1143E6FD1788AD5F16205DF37E9DA03BC86EC98`).
+Submission 24 (0.12.0.0) was live. Submission 25 (`1152921505702337035`) went
+to certification the same day with 0.12.1.0 beside 0.10.1.0, no package
+flights; see [the 0.12.1 release record](releases/0.12.1.md).
+
 Release preparation on 2026-10-30: **0.12.0 — A moth for your desktop** is
 built as an optimized NSIS installer and unsigned Store-identity `0.12.0.0`
 MSIX. It introduces the five moth styles and the widget folding, configuration,

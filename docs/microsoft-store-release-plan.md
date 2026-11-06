@@ -1,10 +1,10 @@
 # Plan: Microsoft Store Release
 
-Status: **0.11.2.0 is live in the Store** (Submission 23, confirmed
-2026-10-31); 0.12.0.0 is in certification as Submission 24. Package-level
+Status: **0.12.0.0 is live in the Store** (Submission 24, confirmed
+2026-11-07); 0.12.1.0 is in certification as Submission 25. Package-level
 history lives in the
 [Store packaging and commerce spike](./windows-store-commerce-spike.md).
-Last reviewed: **2026-10-31**. The phase checklists below predate the first
+Last reviewed: **2026-11-07**. The phase checklists below predate the first
 publication and have not been re-ticked item by item.
 
 ## Goal
