@@ -986,20 +986,22 @@ pub fn sync_widget_layout(
         .find(|widget| widget.id == widget_id)
         .ok_or_else(|| "Widget settings are not available.".to_string())?;
 
-    let clamped_size = clamped_widget_size(&window, min_width, min_height);
     let target_size = if auto_fit && !widget.user_sized {
-        Some(min_size)
+        let scale_factor = window.scale_factor().unwrap_or(1.0);
+        let (width, height) = physical_widget_size(min_width, min_height, scale_factor);
+        Some(PhysicalSize::new(width, height))
     } else {
-        clamped_size
+        clamped_widget_size(&window, min_width, min_height)
     };
 
     if let Some(target_size) = target_size {
         let _ = window.set_size(target_size);
+        // Stored bounds are physical, like the size just set.
         widget.bounds = read_window_bounds(&window).or(Some(StoredWidgetBounds {
             x: widget.bounds.map(|bounds| bounds.x).unwrap_or_default(),
             y: widget.bounds.map(|bounds| bounds.y).unwrap_or_default(),
-            width: target_size.width.round() as u32,
-            height: target_size.height.round() as u32,
+            width: target_size.width,
+            height: target_size.height,
         }));
     } else if let Some(bounds) = read_window_bounds(&window) {
         widget.bounds = Some(bounds);
@@ -2261,11 +2263,18 @@ pub fn clip_widget_to_panel(
     set_window_region(
         &window,
         rect.map(|rect| {
+            // Round the edges outward, not the origin and the size apart: at
+            // a fractional scale flooring the origin and ceiling the size could
+            // still land the far edge short and shave a pixel off the panel.
+            let left = (rect.x * ratio).floor();
+            let top = (rect.y * ratio).floor();
+            let right = ((rect.x + rect.width) * ratio).ceil();
+            let bottom = ((rect.y + rect.height) * ratio).ceil();
             (
-                (rect.x * ratio).floor() as i32,
-                (rect.y * ratio).floor() as i32,
-                (rect.width * ratio).ceil() as i32,
-                (rect.height * ratio).ceil() as i32,
+                left as i32,
+                top as i32,
+                (right - left) as i32,
+                (bottom - top) as i32,
             )
         }),
     );
@@ -2482,19 +2491,43 @@ pub fn set_widget_collapsed(
 /// Keeps the user's width (never below the minimum) and fits the height to the
 /// content, so a widget that loses controls shrinks instead of leaving empty
 /// glass below them.
+///
+/// Worked out in physical pixels, the window's own unit. Comparing in logical
+/// ones broke on fractionally scaled displays (125%, 150%): a window 541 px
+/// wide is 360.67 logical, which `ceil` turned into 361 and read as "too
+/// narrow", so nearly every layout sync resized the window. While the user
+/// dragged an edge that fought the drag, and the widget crept wider and showed
+/// its content cut off at a stale size.
 fn clamped_widget_size(
     window: &WebviewWindow,
     min_width: f64,
     content_height: f64,
-) -> Option<LogicalSize<f64>> {
+) -> Option<PhysicalSize<u32>> {
     let scale_factor = window.scale_factor().ok()?;
-    let current = window.inner_size().ok()?.to_logical::<f64>(scale_factor);
-    let width = current.width.max(min_width).ceil();
-    let height = content_height.ceil();
+    let current = window.inner_size().ok()?;
+    let (min_width, height) = physical_widget_size(min_width, content_height, scale_factor);
+    let width = current.width.max(min_width);
+    needs_widget_resize(
+        (current.width, current.height),
+        (width, height),
+        scale_factor,
+    )
+    .then_some(PhysicalSize::new(width, height))
+}
 
-    // A pixel of rounding either way is not worth a resize.
-    (width > current.width || (height - current.height).abs() > 1.0)
-        .then_some(LogicalSize::new(width, height))
+/// Logical size to physical, rounded the way tao rounds the min and max size,
+/// so a target never lands a pixel outside the limits it was set beside.
+fn physical_widget_size(width: f64, height: f64, scale_factor: f64) -> (u32, u32) {
+    (
+        (width * scale_factor).round() as u32,
+        (height * scale_factor).round() as u32,
+    )
+}
+
+/// Whether the window must change: narrower than its minimum, or a height off
+/// by more than one logical pixel (less is rounding, not worth a resize).
+fn needs_widget_resize(current: (u32, u32), target: (u32, u32), scale_factor: f64) -> bool {
+    target.0 > current.0 || (target.1 as f64 - current.1 as f64).abs() > scale_factor
 }
 
 fn resolve_widget_id(app: &tauri::AppHandle, widget_id: Option<String>) -> Result<String, String> {
@@ -3388,6 +3421,42 @@ mod free_limit_tests {
         // Room neither way: the side with more room wins.
         assert!(prefer_side(250, 200, 300));
         assert!(!prefer_side(150, 200, 300));
+    }
+
+    #[test]
+    fn a_settled_widget_is_left_alone_at_any_display_scale() {
+        // A widget already at least its minimum width and at its content
+        // height must not be resized, or a drag of its edge gets fought.
+        for scale in [1.0, 1.25, 1.5, 1.75, 2.0] {
+            let (min_width, height) = physical_widget_size(360.0, 205.0, scale);
+            for width in min_width..min_width + 800 {
+                assert!(
+                    !needs_widget_resize((width, height), (width, height), scale),
+                    "resized at {width}px, {scale}x"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_widget_is_resized_when_too_narrow_or_off_by_more_than_rounding() {
+        let scale = 1.5;
+        let (min_width, height) = physical_widget_size(360.0, 205.0, scale);
+        assert_eq!((min_width, height), (540, 308));
+        // Narrower than the minimum.
+        assert!(needs_widget_resize((539, height), (540, height), scale));
+        // A pixel of rounding is not a resize.
+        assert!(!needs_widget_resize(
+            (540, height - 1),
+            (540, height),
+            scale
+        ));
+        // A control added or removed is.
+        assert!(needs_widget_resize(
+            (540, height - 30),
+            (540, height),
+            scale
+        ));
     }
 
     #[test]
