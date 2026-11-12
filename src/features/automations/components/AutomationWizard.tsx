@@ -136,6 +136,8 @@ export function AutomationWizard({
     !!draft && !!initial.current && !sameValue(draft, initial.current);
   const blocker = useBlocker({
     shouldBlockFn: ({ action }) => {
+      // Saving and leaving exit by stepping back, whatever the step.
+      if (allowExit.current) return false;
       if (action === "BACK" && step > 0) {
         internalBack.current = true;
         setPreview(false);

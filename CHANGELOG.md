@@ -5,6 +5,13 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Fixes
+
+- The Back button on a Sync entertainment area could bounce between the
+  area and the list of areas without ever leaving. Back now returns you to
+  the page you came from, and the same is true when you leave or finish
+  adding an automation or a Focus routine.
+
 ## [0.12.1] - 2026-11-06
 
 ### Fixes

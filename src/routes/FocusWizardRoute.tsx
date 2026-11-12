@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEntitlements } from "@/context/EntitlementContext";
 import { useHue } from "@/context/HueContext";
 import { useLightGroups } from "@/features/automations/useLightGroups";
@@ -8,6 +8,7 @@ import { loadFocus, saveRitual } from "@/features/focus/store";
 
 export function FocusWizardRoute() {
   const navigate = useNavigate();
+  const router = useRouter();
   const { hasPro } = useEntitlements();
   const { bridgeId } = useHue();
   const { lightGroups } = useLightGroups();
@@ -20,8 +21,13 @@ export function FocusWizardRoute() {
       lightGroups={lightGroups}
       hasPro={hasPro}
       onSave={saveRitual}
-      // Replace the wizard so Back doesn't reopen it after saving.
-      onExit={() => void navigate({ to: "/focus", replace: true })}
+      // Step back to the page that opened the wizard, so Back neither
+      // reopens it nor lands on a second copy of Focus.
+      onExit={() =>
+        router.history.canGoBack()
+          ? router.history.back()
+          : void navigate({ to: "/focus", replace: true })
+      }
     />
   );
 }

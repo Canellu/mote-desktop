@@ -545,8 +545,19 @@ const ShellHeader: React.FC = () => {
             : onAutomations && automationsHeader.pageOpen
               ? automationsHeader.closePage
               : // Top-level pages open from Home or Settings, so return to
-                // whichever one opened them.
-                (onAutomations || onFocus || onSync) &&
+                // whichever one opened them. Their child pages step back
+                // too: pushing the parent from one would leave that child
+                // as the parent's previous entry, and Back would bounce
+                // between the two forever.
+                (onAutomations ||
+                    onFocus ||
+                    onSync ||
+                    onAutomationWizard ||
+                    onFocusWizard ||
+                    activeSyncAreaId ||
+                    (placementAreaId && placementFrom === "sync") ||
+                    (onEntertainmentWizard &&
+                      entertainmentWizardFrom === "sync")) &&
                   router.history.canGoBack()
                 ? () => router.history.back()
                 : () =>
@@ -561,16 +572,18 @@ const ShellHeader: React.FC = () => {
                               ? {
                                   to: "/sync/$areaId",
                                   params: { areaId: placementAreaId },
+                                  replace: true,
                                 }
                               : {
                                   to: "/settings",
                                   search: { tab: "entertainment" },
                                 },
                           )
-                        : activeSyncArea
+                        : activeSyncAreaId
                           ? navigate({
                               to: "/sync",
                               search: { source: undefined },
+                              replace: true,
                             })
                           : onWidgetWizard
                             ? navigate({
@@ -578,9 +591,9 @@ const ShellHeader: React.FC = () => {
                                 search: { tab: "widget" },
                               })
                             : onAutomationWizard
-                              ? navigate({ to: "/automations" })
+                              ? navigate({ to: "/automations", replace: true })
                               : onFocusWizard
-                                ? navigate({ to: "/focus" })
+                                ? navigate({ to: "/focus", replace: true })
                                 : onSpacesWizard
                                   ? navigate({
                                       to: "/settings",
@@ -597,6 +610,7 @@ const ShellHeader: React.FC = () => {
                                             ? {
                                                 to: "/sync",
                                                 search: { source: undefined },
+                                                replace: true,
                                               }
                                             : {
                                                 to: "/settings",

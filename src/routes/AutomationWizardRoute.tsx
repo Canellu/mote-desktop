@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useEntitlements } from "@/context/EntitlementContext";
 import { useHue } from "@/context/HueContext";
 import type { AutomationKind } from "@/features/automations/editor-model";
@@ -25,6 +25,7 @@ import { AutomationWizard } from "@/features/automations/components/AutomationWi
 
 export function AutomationWizardRoute() {
   const navigate = useNavigate();
+  const router = useRouter();
   const { hasPro } = useEntitlements();
   const { bridgeId } = useHue();
   const { lightGroups, sceneOptions } = useLightGroups();
@@ -51,7 +52,12 @@ export function AutomationWizardRoute() {
   if (isAwayConfigured(settings.away)) configured.add("away");
   if (presence && isPresenceConfigured(presence)) configured.add("presence");
   if (calendar?.rules.length) configured.add("calendar");
-  const overview = () => navigate({ to: "/automations" });
+  // Step back to the list that opened the wizard. Pushing it instead would
+  // leave the wizard as the list's previous entry, so Back would reopen it.
+  const overview = () =>
+    router.history.canGoBack()
+      ? router.history.back()
+      : navigate({ to: "/automations", replace: true });
   return (
     <AutomationWizard
       settings={settings}
