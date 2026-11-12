@@ -20,7 +20,8 @@ import { selectableVariants } from "@/lib/selection-styles";
 import { cn } from "@/lib/utils";
 import { formatClock } from "@/stores/FormatPreferencesStore";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
-import { useRouter } from "@tanstack/react-router";
+import { useStepBack } from "@/hooks/useStepBack";
+import { useNavigate } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { Loader2, Palette, Plus, TriangleAlert, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -247,7 +248,7 @@ const DayDial = ({
  * left, and the chosen time slot, room and daylight check on the right.
  */
 export const MotionEditor = ({ deviceId }: { deviceId: string }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const allServices = useHueResourcesStore((state) => state.accessoryServices);
   const services = useMemo(
     () => allServices.filter((service) => service.deviceId === deviceId),
@@ -299,7 +300,14 @@ export const MotionEditor = ({ deviceId }: { deviceId: string }) => {
     // Services arrive after the first render on a cold start; load once.
   }, [deviceId, serviceKey === ""]);
 
-  const back = () => router.history.back();
+  const back = useStepBack(
+    () =>
+      void navigate({
+        to: "/settings",
+        search: { tab: "devices" },
+        replace: true,
+      }),
+  );
   const deviceName = services[0]?.deviceName ?? "Motion sensor";
   const roomScenes = sceneOptions.filter(
     (scene) => scene.groupId === draft?.setup.groupId,

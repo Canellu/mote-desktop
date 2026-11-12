@@ -3,6 +3,7 @@ import { createEntertainmentConfigurationBody } from "@/features/settings-screen
 import { saveTvAspectRatio } from "@/features/entertainment-placement/tv-display";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
 import type { HueEntertainmentService } from "@/types/hue";
+import { useStepBack } from "@/hooks/useStepBack";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
@@ -10,6 +11,14 @@ import { toast } from "sonner";
 
 export const EntertainmentAreaWizardRoute: React.FC = () => {
   const navigate = useNavigate();
+  const backToHub = useStepBack(
+    () =>
+      void navigate({
+        to: "/sync",
+        search: { source: undefined },
+        replace: true,
+      }),
+  );
   const { from } = useSearch({ from: "/settings/entertainment-wizard" });
   const lights = useHueResourcesStore((state) => state.lights);
   const roomZones = useHueResourcesStore((state) => state.roomZones);
@@ -75,16 +84,16 @@ export const EntertainmentAreaWizardRoute: React.FC = () => {
               saveTvAspectRatio(areaId, tvAspectRatio);
             }
             toast.success("Entertainment area created");
-            // Replace the finished wizard so Back doesn't reopen it.
-            void navigate(
-              from === "sync"
-                ? { to: "/sync", search: { source: undefined }, replace: true }
-                : {
-                    to: "/settings",
-                    search: { tab: "entertainment" },
-                    replace: true,
-                  },
-            );
+            // Leave the finished wizard so Back doesn't reopen it. From
+            // Sync the hub is the entry beneath, so step back to it rather
+            // than adding a second copy.
+            if (from === "sync") backToHub();
+            else
+              void navigate({
+                to: "/settings",
+                search: { tab: "entertainment" },
+                replace: true,
+              });
           })
           .catch((error) => {
             toast.error(

@@ -56,20 +56,25 @@ export function useOpenAutomation() {
   const automation = search.automation ?? null;
   const calendarRuleId = search.calendarRuleId ?? null;
   const setAutomation = useCallback(
-    (rule: AutomationPage | null, ruleId?: string) => {
+    // `overCurrent` opens the automation in place of the current entry (the
+    // add-automation wizard), so Back from it doesn't reopen that entry.
+    (rule: AutomationPage | null, ruleId?: string, overCurrent = false) => {
       if (rule === null && pushedEntry) {
         pushedEntry = false;
         router.history.back();
         return;
       }
-      pushedEntry = rule !== null;
+      // Replacing leaves whatever opened the current entry beneath, which
+      // closing can pop only if there is one.
+      pushedEntry =
+        rule !== null && (!overCurrent || router.history.canGoBack());
       void navigate({
         to: "/automations",
         search: {
           automation: rule ?? undefined,
           calendarRuleId: rule === "calendar" ? ruleId : undefined,
         },
-        replace: rule === null,
+        replace: rule === null || overCurrent,
       });
     },
     [navigate, router],

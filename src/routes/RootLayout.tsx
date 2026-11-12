@@ -541,7 +541,14 @@ const ShellHeader: React.FC = () => {
         onHome
           ? undefined
           : switchDeviceId
-            ? () => window.history.back()
+            ? () =>
+                router.history.canGoBack()
+                  ? router.history.back()
+                  : void navigate({
+                      to: "/settings",
+                      search: { tab: "devices" },
+                      replace: true,
+                    })
             : onAutomations && automationsHeader.pageOpen
               ? automationsHeader.closePage
               : // Top-level pages open from Home or Settings, so return to

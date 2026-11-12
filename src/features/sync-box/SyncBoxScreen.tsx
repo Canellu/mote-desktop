@@ -43,7 +43,8 @@ import type {
   SyncBoxMode,
   SyncBoxSession,
 } from "@/types/sync-box";
-import { useNavigate, useRouter } from "@tanstack/react-router";
+import { useStepBack } from "@/hooks/useStepBack";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   Clapperboard,
@@ -113,7 +114,16 @@ export const SyncBoxScreen = ({
   setupOnly?: boolean;
 }) => {
   const navigate = useNavigate();
-  const router = useRouter();
+  // Pairing opens from a box's controls, the area picker, or Settings, so it
+  // returns to wherever it was opened from.
+  const leaveSetup = useStepBack(
+    () =>
+      void navigate({
+        to: "/sync",
+        search: { source: undefined },
+        replace: true,
+      }),
+  );
   const session = useSyncBoxStore((store) => store.session);
   const sessionLoading = useSyncBoxStore((store) => store.sessionLoading);
   const loadSession = useSyncBoxStore((store) => store.loadSession);
@@ -134,20 +144,6 @@ export const SyncBoxScreen = ({
   }
 
   const configured = session?.configured === true && session.syncBox != null;
-  // Pairing opens from a box's controls, the area picker, or Settings, so it
-  // returns to wherever it was opened from.
-  const leaveSetup = () => {
-    if (router.history.canGoBack()) {
-      router.history.back();
-      return;
-    }
-    void navigate({
-      to: "/sync",
-      search: { source: undefined },
-      replace: true,
-    });
-  };
-
   if (setupOnly || !configured) {
     return (
       <>
@@ -233,6 +229,14 @@ export const SyncBoxConnectedView = ({
   onPair: () => void;
 }) => {
   const navigate = useNavigate();
+  const leaveToHub = useStepBack(
+    () =>
+      void navigate({
+        to: "/sync",
+        search: { source: undefined },
+        replace: true,
+      }),
+  );
   const entertainmentAreas = useEntertainmentStore((store) => store.areas);
   const syncBox = session.syncBox;
   const {
@@ -361,13 +365,7 @@ export const SyncBoxConnectedView = ({
         <CardContent className="flex min-h-56 flex-col items-center justify-center text-center">
           <TriangleAlert className="mb-4 size-8 text-muted-foreground" />
           <p className="font-medium">Entertainment area not found</p>
-          <Button
-            variant="outline"
-            className="mt-5"
-            onClick={() =>
-              void navigate({ to: "/sync", search: { source: undefined } })
-            }
-          >
+          <Button variant="outline" className="mt-5" onClick={leaveToHub}>
             Back to entertainment areas
           </Button>
         </CardContent>

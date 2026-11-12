@@ -19,7 +19,8 @@ import { humanize, isRecord } from "@/features/settings-screen/utils/format";
 import { selectableVariants } from "@/lib/selection-styles";
 import { cn } from "@/lib/utils";
 import { useHueResourcesStore } from "@/stores/HueResourcesStore";
-import { useRouter } from "@tanstack/react-router";
+import { useStepBack } from "@/hooks/useStepBack";
+import { useNavigate } from "@tanstack/react-router";
 import { invoke } from "@tauri-apps/api/core";
 import {
   Clock,
@@ -81,7 +82,7 @@ const PRESS_MODES = [
  * the left, and the chosen button's press and hold on the right.
  */
 export const SwitchEditor = ({ deviceId }: { deviceId: string }) => {
-  const router = useRouter();
+  const navigate = useNavigate();
   const allServices = useHueResourcesStore((state) => state.accessoryServices);
   const services = useMemo(
     () => allServices.filter((service) => service.deviceId === deviceId),
@@ -131,7 +132,14 @@ export const SwitchEditor = ({ deviceId }: { deviceId: string }) => {
     // Services arrive after the first render on a cold start; load once.
   }, [deviceId, serviceKey === ""]);
 
-  const back = () => router.history.back();
+  const back = useStepBack(
+    () =>
+      void navigate({
+        to: "/settings",
+        search: { tab: "devices" },
+        replace: true,
+      }),
+  );
   const deviceName = services[0]?.deviceName ?? "Switch";
   const serviceFor = (button: DimmerButton) =>
     services.find(

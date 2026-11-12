@@ -56,6 +56,7 @@ import type {
   UpdateHostSyncRequest,
 } from "@/types/host-sync";
 import { invoke } from "@tauri-apps/api/core";
+import { useStepBack } from "@/hooks/useStepBack";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AudioLines,
@@ -134,6 +135,14 @@ const waitForIdle = async () => {
 
 export const PcSyncScreen = ({ areaId }: { areaId: string }) => {
   const navigate = useNavigate();
+  const leaveToHub = useStepBack(
+    () =>
+      void navigate({
+        to: "/sync",
+        search: { source: undefined },
+        replace: true,
+      }),
+  );
   const showDiagnostics = useDiagnosticsReport((state) => state.show);
   const {
     overview,
@@ -223,13 +232,7 @@ export const PcSyncScreen = ({ areaId }: { areaId: string }) => {
               {overview.areasError}
             </p>
           )}
-          <Button
-            variant="outline"
-            className="mt-5"
-            onClick={() =>
-              void navigate({ to: "/sync", search: { source: undefined } })
-            }
-          >
+          <Button variant="outline" className="mt-5" onClick={leaveToHub}>
             Back to sync
           </Button>
         </CardContent>

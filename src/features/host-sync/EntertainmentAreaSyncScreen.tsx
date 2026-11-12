@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SyncBoxScreen } from "@/features/sync-box/SyncBoxScreen";
 import { useEntertainmentStore } from "@/stores/EntertainmentStore";
+import { useStepBack } from "@/hooks/useStepBack";
 import { useNavigate } from "@tanstack/react-router";
 import { Loader2, Monitor, Move3d, TriangleAlert, Tv } from "lucide-react";
 import { useState } from "react";
@@ -22,6 +23,14 @@ const storedSource = (): SyncSource =>
  */
 export const EntertainmentAreaSyncScreen = ({ areaId }: { areaId: string }) => {
   const navigate = useNavigate();
+  const leaveToHub = useStepBack(
+    () =>
+      void navigate({
+        to: "/sync",
+        search: { source: undefined },
+        replace: true,
+      }),
+  );
   const areas = useEntertainmentStore((store) => store.areas);
   const hasLoaded = useEntertainmentStore((store) => store.hasLoaded);
   const [source, setSource] = useState<SyncSource>(storedSource);
@@ -48,13 +57,7 @@ export const EntertainmentAreaSyncScreen = ({ areaId }: { areaId: string }) => {
         <CardContent className="flex min-h-56 flex-col items-center justify-center text-center">
           <TriangleAlert className="mb-4 size-8 text-muted-foreground" />
           <p className="font-medium">Entertainment area not found</p>
-          <Button
-            variant="outline"
-            className="mt-5"
-            onClick={() =>
-              void navigate({ to: "/sync", search: { source: undefined } })
-            }
-          >
+          <Button variant="outline" className="mt-5" onClick={leaveToHub}>
             Back to entertainment areas
           </Button>
         </CardContent>

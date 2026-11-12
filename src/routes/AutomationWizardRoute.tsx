@@ -21,11 +21,13 @@ import {
   useCalendarStore,
 } from "@/features/automations/calendar";
 import { useLightGroups } from "@/features/automations/useLightGroups";
+import { useOpenAutomation } from "@/features/automations/useOpenAutomation";
 import { AutomationWizard } from "@/features/automations/components/AutomationWizard";
 
 export function AutomationWizardRoute() {
   const navigate = useNavigate();
   const router = useRouter();
+  const { setAutomation } = useOpenAutomation();
   const { hasPro } = useEntitlements();
   const { bridgeId } = useHue();
   const { lightGroups, sceneOptions } = useLightGroups();
@@ -72,9 +74,7 @@ export function AutomationWizardRoute() {
       calendarSettings={calendar}
       calendarStatus={calendarStatus}
       onExit={() => void overview()}
-      onEditExisting={(kind) =>
-        void navigate({ to: "/automations", search: { automation: kind } })
-      }
+      onEditExisting={(kind) => setAutomation(kind, undefined, true)}
     />
   );
 }
