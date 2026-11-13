@@ -80,14 +80,19 @@ pub async fn create_hue_resource(
     let client = HueClient::new()?;
     let stored_bridge = client.get_stored_bridge(&app)?;
     let application_key = client.get_stored_application_key(&app)?;
-    client
+    let result = client
         .create_resource(
             &stored_bridge.bridge_ip,
             &application_key,
             &resource_type,
             body,
         )
-        .await
+        .await;
+    if resource_type == "scene" {
+        let outcome = if result.is_ok() { "created" } else { "failed" };
+        crate::services::diagnostics::record("scene_create", outcome).save();
+    }
+    result
 }
 
 #[tauri::command(rename = "update-hue-resource")]

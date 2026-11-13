@@ -4592,16 +4592,22 @@ fn is_key_rejection(status: reqwest::StatusCode) -> bool {
     status == reqwest::StatusCode::FORBIDDEN || status == reqwest::StatusCode::UNAUTHORIZED
 }
 
+/// Carries the bridge's own reason, so a refused change can be diagnosed from
+/// a release build. The text stays on the user's machine; it is flattened to
+/// one short line because it comes from the network.
 fn public_bridge_rejection(description: &str) -> String {
-    #[cfg(debug_assertions)]
-    {
-        return format!("Hue Bridge rejected the request: {description}");
-    }
-
-    #[cfg(not(debug_assertions))]
-    {
-        let _ = description;
+    let reason: String = description
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .filter(|character| !character.is_control())
+        .take(200)
+        .collect();
+    if reason.is_empty() {
         "The Hue Bridge rejected the request.".to_string()
+    } else {
+        format!("The Hue Bridge rejected the request: {reason}")
     }
 }
 

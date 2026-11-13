@@ -72,6 +72,7 @@ import {
 } from "./components/SectionDragHandle";
 import {
   executeSpaceEditOperations,
+  sceneCopySummary,
   type LightFunction,
   type SpaceEditOperation,
 } from "./spaceEditActions";
@@ -509,7 +510,7 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
   const runOperation = async (operation: SpaceEditOperation) => {
     setSaving(true);
     try {
-      await executeSpaceEditOperations([operation], {
+      const result = await executeSpaceEditOperations([operation], {
         activeSpace: roomZone,
         roomZones,
         lights: allLights,
@@ -519,7 +520,9 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
       setSelection(null);
       setActionDialog(null);
       setActionValue("");
-      toast.success("Change saved");
+      if (operation.type !== "copy-scenes") toast.success("Change saved");
+      else if (result.scenesCopied > 0) toast.success(sceneCopySummary(result));
+      else toast.info(sceneCopySummary(result));
     } catch (operationError) {
       toast.error(String(operationError) || "Unable to apply this change.");
     } finally {
@@ -915,7 +918,8 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
       <Dialog
         open={actionDialog != null}
         onOpenChange={(open) => {
-          if (!open) {
+          // Stay open while applying, so the result isn't lost behind it.
+          if (!open && !saving) {
             setActionDialog(null);
             setActionValue("");
           }
@@ -986,6 +990,17 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
           ) : (
             !destructiveDialog && (
               <Select
+                items={
+                  actionDialog === "light-function"
+                    ? {
+                        functional: "Task",
+                        decorative: "Decoration",
+                        mixed: "Mixed",
+                      }
+                    : Object.fromEntries(
+                        roomZones.map((space) => [space.id, space.name]),
+                      )
+                }
                 value={actionValue}
                 onValueChange={(value) => setActionValue(value ?? "")}
               >
@@ -1026,7 +1041,10 @@ export const SpaceScreen: React.FC<SpaceScreenProps> = ({
             )
           )}
           <DialogFooter className="flex-row justify-end">
-            <DialogClose render={<Button variant="outline" />}>
+            <DialogClose
+              disabled={saving}
+              render={<Button variant="outline" />}
+            >
               Close
             </DialogClose>
             <Button

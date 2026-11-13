@@ -2,6 +2,14 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { HueLight, HueRoomZone, HueScene } from "@/types/hue";
 
+import {
+  buildCopiedActions,
+  capabilitiesFromLight,
+  capabilitiesFromResource,
+  creatablePalette,
+  type LightCapabilities,
+} from "./sceneCopy";
+
 export type LightFunction = "functional" | "decorative" | "mixed";
 
 export type SpaceEditOperation =
@@ -47,9 +55,17 @@ const updateRoom = (roomId: string, deviceIds: string[]) =>
 const updateZone = (zoneId: string, lightIds: string[]) =>
   invoke("update-zone-members", { zoneId, lightIds: [...new Set(lightIds)] });
 
+/** Raw v2 lights, for what each can accept; empty when the read fails. */
+const loadLightResources = (): Promise<RawResource[]> =>
+  invoke<RawResource[]>("get-hue-resource", { resourceType: "light" }).catch(
+    () => [],
+  );
+
 const copyScene = async (
   scene: HueScene,
   target: HueRoomZone,
+  snapshot: SpaceEditSnapshot,
+  lightResources: RawResource[],
 ): Promise<void> => {
   const resources = await invoke<RawResource[]>("get-hue-resource", {
     resourceType: scene.resourceType,
@@ -66,11 +82,19 @@ const copyScene = async (
   if (target.lightIds.length === 0)
     throw new Error(`${target.name} has no lights for the copied scene.`);
 
-  const actions = target.lightIds.map((lightId, index) => {
-    const sourceAction = sourceActions[index % sourceActions.length];
+  const targets = target.lightIds.map((lightId): LightCapabilities => {
+    const resource = lightResources.find((light) => light.id === lightId);
+    if (resource) return capabilitiesFromResource(resource);
+    const light = snapshot.lights.find((item) => item.id === lightId);
+    if (light) return capabilitiesFromLight(light);
     return {
-      target: { rid: lightId, rtype: "light" },
-      action: sourceAction.action,
+      id: lightId,
+      dimming: false,
+      color: false,
+      ct: null,
+      gradient: false,
+      effects: [],
+      effectsV2: [],
     };
   });
 
@@ -78,12 +102,40 @@ const copyScene = async (
     type: "scene",
     metadata: { name: scene.name },
     group: { rid: target.id, rtype: target.resourceType },
-    actions,
+    actions: buildCopiedActions(sourceActions, targets),
   };
-  for (const field of ["palette", "speed", "auto_dynamic"]) {
-    if (source[field] !== undefined) body[field] = source[field];
+
+  // The extras that make it a Hue-app scene: its picture and dynamic palette.
+  const extras: RawResource = {};
+  const image = (source.metadata as RawResource | undefined)?.image as
+    | RawResource
+    | undefined;
+  if (image?.rtype === "public_image" && typeof image.rid === "string")
+    extras.metadata = {
+      name: scene.name,
+      image: { rid: image.rid, rtype: "public_image" },
+    };
+  const palette = creatablePalette(source.palette);
+  if (palette) {
+    extras.palette = palette;
+    if (typeof source.speed === "number") extras.speed = source.speed;
+    if (typeof source.auto_dynamic === "boolean")
+      extras.auto_dynamic = source.auto_dynamic;
   }
-  await invoke("create-hue-resource", { resourceType: "scene", body });
+
+  if (Object.keys(extras).length === 0) {
+    await invoke("create-hue-resource", { resourceType: "scene", body });
+    return;
+  }
+  try {
+    await invoke("create-hue-resource", {
+      resourceType: "scene",
+      body: { ...body, ...extras },
+    });
+  } catch {
+    // The bridge refused an extra; the plain scene is still worth having.
+    await invoke("create-hue-resource", { resourceType: "scene", body });
+  }
 };
 
 const placeLights = async (
@@ -123,10 +175,44 @@ const placeLights = async (
   }
 };
 
+export interface SpaceEditResult {
+  scenesCopied: number;
+  /** Scenes left alone because the target already has one by that name. */
+  scenesSkipped: number;
+}
+
+const sceneKey = (name: string) => name.trim().toLocaleLowerCase();
+
+/** Names of the scenes a room or zone holds, read fresh from the bridge. */
+const sceneNamesIn = async (
+  target: HueRoomZone,
+  snapshot: SpaceEditSnapshot,
+): Promise<Set<string>> => {
+  try {
+    const scenes = await invoke<RawResource[]>("get-hue-resource", {
+      resourceType: "scene",
+    });
+    return new Set(
+      scenes
+        .filter((scene) => (scene.group as RawResource)?.rid === target.id)
+        .map((scene) =>
+          sceneKey(String((scene.metadata as RawResource)?.name ?? "")),
+        ),
+    );
+  } catch {
+    return new Set(
+      snapshot.scenes
+        .filter((scene) => scene.group === target.id)
+        .map((scene) => sceneKey(scene.name)),
+    );
+  }
+};
+
 export const executeSpaceEditOperations = async (
   operations: SpaceEditOperation[],
   snapshot: SpaceEditSnapshot,
-): Promise<void> => {
+): Promise<SpaceEditResult> => {
+  const result: SpaceEditResult = { scenesCopied: 0, scenesSkipped: 0 };
   for (const operation of operations) {
     switch (operation.type) {
       case "copy-scenes": {
@@ -134,9 +220,18 @@ export const executeSpaceEditOperations = async (
           (space) => space.id === operation.targetSpaceId,
         );
         if (!target) throw new Error("The target room or zone no longer exists.");
+        const existing = await sceneNamesIn(target, snapshot);
+        const lightResources = await loadLightResources();
         for (const sceneId of operation.sceneIds) {
           const scene = snapshot.scenes.find((item) => item.id === sceneId);
-          if (scene) await copyScene(scene, target);
+          if (!scene) continue;
+          if (existing.has(sceneKey(scene.name))) {
+            result.scenesSkipped += 1;
+            continue;
+          }
+          await copyScene(scene, target, snapshot, lightResources);
+          existing.add(sceneKey(scene.name));
+          result.scenesCopied += 1;
         }
         break;
       }
@@ -207,4 +302,16 @@ export const executeSpaceEditOperations = async (
         break;
     }
   }
+  return result;
+};
+
+/** Toast text for a finished scene copy. */
+export const sceneCopySummary = ({
+  scenesCopied,
+  scenesSkipped,
+}: SpaceEditResult): string => {
+  const scenes = (count: number) => `${count} scene${count === 1 ? "" : "s"}`;
+  if (scenesCopied === 0) return "Already there, nothing copied";
+  if (scenesSkipped === 0) return `${scenes(scenesCopied)} copied`;
+  return `${scenes(scenesCopied)} copied, ${scenesSkipped} already there`;
 };

@@ -31,7 +31,10 @@ import { SceneGalleryDialog } from "@/features/space-screen/components/SceneGall
 import { ScenePane } from "@/features/space-screen/components/ScenePane";
 import { SortableItem } from "@/features/space-screen/components/SortableItem";
 import type { HueGalleryScenePreset } from "@/features/space-screen/data/hueSceneGallery";
-import { executeSpaceEditOperations } from "@/features/space-screen/spaceEditActions";
+import {
+  executeSpaceEditOperations,
+  sceneCopySummary,
+} from "@/features/space-screen/spaceEditActions";
 import { requestInspectorTransition } from "@/features/space-screen/utils/inspector-transition";
 import {
   itemOrderKey,
@@ -289,7 +292,7 @@ export const ScenesTab = ({
     setApplying(true);
     try {
       // Copy and delete don't depend on the active space; any one will do.
-      await executeSpaceEditOperations([operation], {
+      const result = await executeSpaceEditOperations([operation], {
         activeSpace: anySpace,
         roomZones,
         lights,
@@ -299,9 +302,9 @@ export const ScenesTab = ({
       stopPicking();
       setDialog(null);
       setCopyTarget("");
-      toast.success(
-        operation.type === "copy-scenes" ? "Scenes copied" : "Scenes deleted",
-      );
+      if (operation.type !== "copy-scenes") toast.success("Scenes deleted");
+      else if (result.scenesCopied > 0) toast.success(sceneCopySummary(result));
+      else toast.info(sceneCopySummary(result));
     } catch (error) {
       toast.error(String(error) || "Unable to apply this change.");
     } finally {
