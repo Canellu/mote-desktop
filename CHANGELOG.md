@@ -5,8 +5,20 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.12.2] - 2026-11-13
+
 ### Fixes
 
+- Copying a scene to another room or zone did nothing: Apply flashed and
+  the dialog stayed open. Scenes now copy, adjusted to fit the lights they
+  land on, so a colorful or gradient scene also works in a room with white
+  bulbs.
+- Copying skips scenes the room or zone already has, and tells you how many
+  were copied.
+- The destination list when copying or moving shows room and zone names
+  instead of a code.
+- When the Hue Bridge refuses a change, the message now includes the
+  bridge's reason.
 - The Back button on a Sync entertainment area could bounce between the
   area and the list of areas without ever leaving. Back now returns you to
   the page you came from, and the same is true when you leave or finish

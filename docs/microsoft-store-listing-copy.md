@@ -137,6 +137,14 @@ Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
 
+## What's new in 0.12.2
+
+Fixed: copying a scene to another room or zone did nothing when you pressed
+Apply. Scenes now copy and are adjusted to fit the lights they land on, scenes
+the room already has are skipped, and the destination list shows room names.
+Also fixed: Back could bounce between a Sync entertainment area and the list of
+areas.
+
 ## What's new in 0.12.1
 
 Fixed: on displays scaled to 125% or 150% in Windows, widgets could jump while
