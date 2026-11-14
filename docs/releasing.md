@@ -70,5 +70,23 @@ items.
    submission, so its testers keep the flight's older package and never see
    the release.
 
+## Personal Pro install
+
+The owner's own copy of Mote is not the Store package. It is a debug-profile
+NSIS installer in `%LOCALAPPDATA%\Mote Desktop`, which opens on Pro because
+`MOTE_DEBUG_PRO` is set in `.env.local`. Release and Store builds ignore that
+variable.
+
+After preparing a release, ask the owner whether to update this copy. To do it:
+
+```bash
+bun run install:personal
+```
+
+The script builds the installer for the current version, closes the running
+copy, installs over it silently, and starts it again. Settings, the bridge
+pairing and keyring entries are left alone. Pass `-- -SkipBuild` to install an
+installer that is already built.
+
 Never move or replace a published release tag. Correct a published release with
 a new patch version.
