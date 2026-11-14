@@ -966,9 +966,9 @@ pub fn sync_widget_layout(
     if let Some(widget) = stored.filter(|widget| widget.collapsed.is_some()) {
         return Ok(WidgetState::from_stored(widget));
     }
-    // The frontend measures in CSS pixels; the zoom turns them into the
-    // window's logical pixels.
-    let zoom = stored.map(widget_zoom).unwrap_or(1.0);
+    // The frontend measures in CSS pixels; the zoom and Windows' text size
+    // turn them into the window's logical pixels.
+    let zoom = stored.map(open_content_zoom).unwrap_or_else(text_scale);
 
     let min_width = (min_width.max(MIN_WIDGET_WIDTH) as f64 * zoom).ceil();
     let min_height = (min_height.max(MIN_WIDGET_HEIGHT) as f64 * zoom).ceil();
@@ -1101,8 +1101,8 @@ fn show_widget_window(
             .title("Hue Widget")
             .inner_size(DEFAULT_WIDGET_WIDTH, DEFAULT_WIDGET_HEIGHT)
             .min_inner_size(
-                MIN_WIDGET_WIDTH as f64 * open_zoom(widget),
-                MIN_WIDGET_HEIGHT as f64 * open_zoom(widget),
+                MIN_WIDGET_WIDTH as f64 * open_content_zoom(widget),
+                MIN_WIDGET_HEIGHT as f64 * open_content_zoom(widget),
             )
             .decorations(false)
             .resizable(true)
@@ -1965,6 +1965,38 @@ fn widget_zoom(widget: &StoredWidget) -> f64 {
     open_zoom(widget)
 }
 
+/// Windows' Accessibility → Text size, as a factor: 1.0 at 100%, up to 2.25.
+///
+/// WebView2 draws a page at the display scale times this, but the window only
+/// knows the display scale. Sizing a widget without it left the window too
+/// small for its content by exactly this factor, so the controls were cut off
+/// on any PC with text size raised.
+#[cfg(target_os = "windows")]
+fn text_scale() -> f64 {
+    windows_registry::CURRENT_USER
+        .open(r"Software\Microsoft\Accessibility")
+        .and_then(|key| key.get_u32("TextScaleFactor"))
+        .map(text_scale_from_percent)
+        .unwrap_or(1.0)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn text_scale() -> f64 {
+    1.0
+}
+
+/// Windows offers 100 to 225; anything else is not a setting it wrote.
+fn text_scale_from_percent(percent: u32) -> f64 {
+    percent.clamp(100, 225) as f64 / 100.0
+}
+
+/// What turns the open widget's CSS pixels into the window's logical pixels:
+/// its zoom and the text size. Only for sizing; the webview zoom itself stays
+/// `widget_zoom`, since WebView2 applies the text size on its own.
+fn open_content_zoom(widget: &StoredWidget) -> f64 {
+    open_zoom(widget) * text_scale()
+}
+
 fn apply_widget_zoom(window: &WebviewWindow, widget: &StoredWidget) {
     let _ = window.set_zoom(widget_zoom(widget));
 }
@@ -2004,8 +2036,9 @@ fn rescale_widget_window(window: &WebviewWindow, widget: &mut StoredWidget, prev
     if let Some(collapsed) = widget.collapsed.as_mut() {
         if changed(next.collapsed, previous.collapsed) {
             if collapsed.css_width > 0 && collapsed.css_height > 0 {
-                collapsed.width = (collapsed.css_width as f64 * next.collapsed).round() as u32;
-                collapsed.height = (collapsed.css_height as f64 * next.collapsed).round() as u32;
+                let zoom = next.collapsed * text_scale();
+                collapsed.width = (collapsed.css_width as f64 * zoom).round() as u32;
+                collapsed.height = (collapsed.css_height as f64 * zoom).round() as u32;
             } else {
                 let ratio = next.collapsed / previous.collapsed;
                 collapsed.width = (collapsed.width as f64 * ratio).round() as u32;
@@ -2259,7 +2292,7 @@ pub fn clip_widget_to_panel(
     let Some(window) = app.get_webview_window(&widget_label(&widget_id)) else {
         return Ok(());
     };
-    let ratio = open_zoom(widget) * window.scale_factor().unwrap_or(1.0);
+    let ratio = open_content_zoom(widget) * window.scale_factor().unwrap_or(1.0);
     set_window_region(
         &window,
         rect.map(|rect| {
@@ -2319,7 +2352,7 @@ pub fn set_widget_collapsed(
     }
 
     if collapsed {
-        let zoom = collapsed_zoom(widget);
+        let zoom = collapsed_zoom(widget) * text_scale();
         // Measured in CSS pixels; stored and applied in logical ones.
         let css_width = width
             .unwrap_or(MIN_COLLAPSED_SIZE)
@@ -2372,7 +2405,7 @@ pub fn set_widget_collapsed(
         widget.collapsed = Some(next);
         apply_collapsed_bounds(&window, widget, &next);
     } else if let Some(previous) = widget.collapsed.take() {
-        let zoom = open_zoom(widget);
+        let zoom = open_content_zoom(widget);
         if let Some(bounds) = widget.bounds.as_mut() {
             let (pill_width, pill_height) = collapsed_physical_size(&window, &previous);
             let center_x = previous.x + pill_width / 2;
@@ -3457,6 +3490,14 @@ mod free_limit_tests {
             (540, height),
             scale
         ));
+    }
+
+    #[test]
+    fn text_size_is_read_as_a_factor_within_what_windows_offers() {
+        assert_eq!(text_scale_from_percent(100), 1.0);
+        assert_eq!(text_scale_from_percent(150), 1.5);
+        assert_eq!(text_scale_from_percent(0), 1.0);
+        assert_eq!(text_scale_from_percent(900), 2.25);
     }
 
     #[test]
