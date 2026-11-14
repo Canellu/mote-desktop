@@ -137,6 +137,14 @@ Network isolation, VPNs, firewalls, multicast filtering, guest Wi-Fi, Windows
 drivers, and hardware capabilities can affect discovery and PC Sync behavior.
 Remote Hue cloud control is not included.
 
+## What's new in 0.12.3
+
+Fixed: with Text size raised in Windows' Accessibility settings, widgets were
+too small for their controls and showed them cut off, and a collapsed mascot
+was only partly visible. Widgets now size themselves for the text size you use.
+If a widget is collapsed when you update, expand and collapse it once. Also:
+the settings sidebar and a few lists now use Mote's own slim scrollbar.
+
 ## What's new in 0.12.2
 
 Fixed: copying a scene to another room or zone did nothing when you pressed

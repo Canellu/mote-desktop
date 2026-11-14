@@ -5,6 +5,8 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+## [0.12.3] - 2026-11-14
+
 ### Fixes
 
 - With Text size raised in Windows' Accessibility settings, a widget's
