@@ -5,6 +5,17 @@ publication rules are defined in [docs/releasing.md](docs/releasing.md).
 
 ## Unreleased
 
+### Fixes
+
+- With Text size raised in Windows' Accessibility settings, a widget's
+  window was too small for its controls, so they were cut off, and a
+  collapsed mascot showed only in part. Widgets now size themselves for
+  the text size you use. A widget that is collapsed when you update fits
+  again after you expand and collapse it once.
+- The settings sidebar, the device scan results and a few other lists
+  showed a plain Windows scrollbar. They now use the same slim scrollbar
+  as the rest of Mote.
+
 ## [0.12.2] - 2026-11-13
 
 ### Fixes

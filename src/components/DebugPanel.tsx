@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Minus, Square } from "lucide-react";
 import {
   useRef,
@@ -81,7 +82,9 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
       </div>
 
       {!collapsed && (
-        <div className="max-h-[70vh] overflow-y-auto p-3">{children}</div>
+        <ScrollArea viewportClassName="max-h-[70vh]" contentClassName="p-3">
+          {children}
+        </ScrollArea>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { Check, Loader2, Plus, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { DiscoveryWifi } from "@/components/DiscoveryWifi";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -184,7 +185,10 @@ export const DeviceScanDialog: React.FC<DeviceScanDialogProps> = ({
             then scan again.
           </p>
         ) : (
-          <div className="flex max-h-[50vh] flex-col gap-3 overflow-y-auto">
+          <ScrollArea
+            viewportClassName="max-h-[50vh]"
+            contentClassName="flex flex-col gap-3"
+          >
             {found.map((device) => (
               <FoundDeviceRow
                 key={device.id}
@@ -200,7 +204,7 @@ export const DeviceScanDialog: React.FC<DeviceScanDialogProps> = ({
                 onCancelNewRoom={() => setNewRoomFor(null)}
               />
             ))}
-          </div>
+          </ScrollArea>
         )}
 
         <DialogFooter>

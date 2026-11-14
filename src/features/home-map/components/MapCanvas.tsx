@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Maximize, Minus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { convertLength } from "../measurements";
 import type { MapFloor, MapPoint } from "../types";
 import { groupFixtureMarkers } from "../fixtures";
@@ -110,12 +111,16 @@ function FloorCanvas({
         }
       }}
     >
-      <div
-        ref={viewportRef}
-        className="absolute inset-0 overflow-auto overscroll-contain outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        role="region"
-        aria-label={`${floor.name} map. Select a room, or zoom and scroll to explore.`}
-        tabIndex={0}
+      <ScrollArea
+        className="absolute inset-0"
+        orientation="both"
+        viewportRef={viewportRef}
+        viewportClassName="focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        viewportProps={{
+          role: "region",
+          "aria-label": `${floor.name} map. Select a room, or zoom and scroll to explore.`,
+          tabIndex: 0,
+        }}
       >
         <svg
           width={width}
@@ -265,7 +270,7 @@ function FloorCanvas({
               })}
           </g>
         </svg>
-      </div>
+      </ScrollArea>
       <div
         className="absolute right-3 bottom-3 flex items-center gap-0.5 rounded-full border border-border bg-background p-1 shadow-sm"
         role="group"

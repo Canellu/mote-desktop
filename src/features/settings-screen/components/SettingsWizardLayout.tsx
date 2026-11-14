@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Check, ChevronLeft } from "lucide-react";
 
 export interface WizardFinalAction {
@@ -236,13 +237,8 @@ export const SettingsWizardViewport = ({
   contained: boolean;
   centerPage?: boolean;
   children: React.ReactNode;
-}) => (
-  <main
-    className={cn(
-      "flex min-h-0 flex-1 flex-col",
-      contained ? "overflow-hidden" : "overflow-y-auto",
-    )}
-  >
+}) => {
+  const step = (
     <div
       key={stepKey}
       className={cn(
@@ -257,5 +253,19 @@ export const SettingsWizardViewport = ({
     >
       {children}
     </div>
-  </main>
-);
+  );
+  return (
+    <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      {contained ? (
+        step
+      ) : (
+        <ScrollArea
+          className="min-h-0 flex-1"
+          contentClassName="flex min-h-full flex-col"
+        >
+          {step}
+        </ScrollArea>
+      )}
+    </main>
+  );
+};
